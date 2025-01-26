@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jsnjack/termplt"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +24,22 @@ var rootCmd = &cobra.Command{
 			fmt.Println(Version)
 			return nil
 		}
+
+		loc, _ := GetLocationFromIP()
+		forecast, _ := GetForecast(loc.Latitude, loc.Longitude)
+		fmt.Printf("Weather in %s: %d°C\n", loc.Description, forecast.Temperature)
+		fmt.Println(forecast.RainString())
+		chart := termplt.NewLineChart()
+		percY := []float64{}
+		timeX := []float64{}
+		for _, point := range forecast.Data {
+			percY = append(percY, point.Precipitation)
+			timeX = append(timeX, float64(point.Time.Unix()))
+		}
+		chart.AddLine(timeX, percY, termplt.ColorBlue)
+		chart.SetXLabelAsTime("", "15:04")
+		chart.SetYLabel("mm")
+		fmt.Printf("%s", chart.String())
 		return nil
 	},
 }
