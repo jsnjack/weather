@@ -106,10 +106,14 @@ func GetForecast(lat, long float64) (*Forecast, error) {
 		Temperature: buinealarmResponse.Temp,
 	}
 	for i, precip := range buinealarmResponse.Precip {
-		forecast.Data = append(forecast.Data, &ForecasePoint{
-			Time:          time.Unix(buinealarmResponse.Start+int64(i*300), 0),
-			Precipitation: precip,
-		})
+		t := time.Unix(buinealarmResponse.Start+int64(i*300), 0)
+		// Filter out data from the past
+		if t.After(time.Now()) {
+			forecast.Data = append(forecast.Data, &ForecasePoint{
+				Time:          t,
+				Precipitation: precip,
+			})
+		}
 	}
 	return forecast, nil
 }
