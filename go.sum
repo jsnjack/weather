@@ -1,10 +1,8 @@
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/jsnjack/termplt v0.0.2 h1:MeDmZEqjWkZkXYMN2Q2H16RUZgHLbWQCYwry2Jzc1EM=
-github.com/jsnjack/termplt v0.0.2/go.mod h1:rqgstTpn5NZVod73AQDnd7NEhDkaI5zqX7gPA/FpNPA=
-github.com/jsnjack/termplt v0.0.3 h1:uRjNO/nOTlwyZU4EOxcirW75OXmMQtWKCaU8e5BiiJs=
-github.com/jsnjack/termplt v0.0.3/go.mod h1:rqgstTpn5NZVod73AQDnd7NEhDkaI5zqX7gPA/FpNPA=
+github.com/jsnjack/termplt v0.0.5 h1:bVw+c+vaPTDm9ZhNGYiieNeO5NpMfFxq6lyva0NjuEk=
+github.com/jsnjack/termplt v0.0.5/go.mod h1:rqgstTpn5NZVod73AQDnd7NEhDkaI5zqX7gPA/FpNPA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/cobra v1.8.1 h1:e5/vxKd/rZsfSJMUX1agtjeTDf+qv1/JdBF8gg5k9ZM=
 github.com/spf13/cobra v1.8.1/go.mod h1:wHxEcudfqmLYa8iTfL+OuZPbBZkmvliBWKIezN3kD9Y=
