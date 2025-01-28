@@ -48,12 +48,12 @@ func (f *Forecast) RainString() string {
 	// Determine the rain level based on the maximum precipitation
 	rainInfo := "No rain expected."
 	if maxPrecipitation > 0 {
-		if maxPrecipitation >= 2.5 {
-			rainInfo = "Heavy rain expected."
-		} else if maxPrecipitation >= 1.0 {
-			rainInfo = "Moderate rain expected."
-		} else if maxPrecipitation >= 0.25 {
+		if maxPrecipitation <= 0.25 {
 			rainInfo = "Light rain expected."
+		} else if maxPrecipitation <= 1.0 {
+			rainInfo = "Moderate rain expected."
+		} else {
+			rainInfo = "Heavy rain expected."
 		}
 		// When the next rain starts?
 		for _, point := range f.Data {
@@ -67,6 +67,7 @@ func (f *Forecast) RainString() string {
 }
 
 func GetForecast(lat, long float64) (*Forecast, error) {
+	DebugLogger.Printf("Getting forecast for lat %.4f, long %.4f\n", lat, long)
 	url := fmt.Sprintf("https://cdn-secure.buienalarm.nl/api/3.4/forecast.php?lat=%f.4&lon=%f.4&region=nl&unit=mm/u", lat, long)
 
 	client := &http.Client{
@@ -86,12 +87,19 @@ func GetForecast(lat, long float64) (*Forecast, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("forecast not available for this location")
+		}
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
 	var buinealarmResponse BuinealarmResponse
 	if err := json.NewDecoder(resp.Body).Decode(&buinealarmResponse); err != nil {
 		return nil, err
+	}
+
+	if !buinealarmResponse.Success {
+		return nil, fmt.Errorf("failed to get forecast")
 	}
 
 	forecast := &Forecast{
