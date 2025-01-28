@@ -71,8 +71,10 @@ User can also specify the location manually.`,
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Weather in %s: %d°C\n", loc.Description, forecast.Temperature)
-		fmt.Println(forecast.RainString())
+		fmt.Printf("Weather in %s\n", loc.Description)
+		if forecast.Desc != "" {
+			fmt.Println(forecast.Desc)
+		}
 		chart := termplt.NewLineChart()
 		percY := []float64{}
 		timeX := []float64{}

@@ -4,26 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"time"
 )
 
-// Example: populat BuinealarmResponse struct from this data:
-// {"success":true,"start":1737903300,"start_human":"15:55","temp":5,"delta":300,"precip":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"levels":{"light":0.25,"moderate":1,"heavy":2.5},"grid":{"x":348,"y":399},"source":"nl","bounds":{"N":55.973602,"E":10.856429,"S":48.895302,"W":0}}
+// BuinealarmResponse example https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/52.37/4.96
 type BuinealarmResponse struct {
-	Success    bool      `json:"success"`
-	Start      int64     `json:"start"`
-	StartHuman string    `json:"start_human"`
-	Temp       int       `json:"temp"`
-	Delta      int       `json:"delta"`
-	Precip     []float64 `json:"precip"`
-	Levels     Levels    `json:"levels"`
-	Source     string    `json:"source"`
+	Data           []PrecipitationData `json:"data"`
+	NowcastMessage NowcastMessage      `json:"nowcastmessage"`
 }
 
-type Levels struct {
-	Light    float64 `json:"light"`
-	Moderate float64 `json:"moderate"`
-	Heavy    float64 `json:"heavy"`
+type PrecipitationData struct {
+	PrecipitationRate float64 `json:"precipitationrate"`
+	PrecipitationType string  `json:"precipitationtype"`
+	Timestamp         int64   `json:"timestamp"`
+	Time              string  `json:"time"`
+}
+
+type NowcastMessage struct {
+	En string `json:"en"`
+	De string `json:"de"`
+	Nl string `json:"nl"`
 }
 
 type ForecasePoint struct {
@@ -34,6 +36,7 @@ type ForecasePoint struct {
 type Forecast struct {
 	Temperature int
 	Data        []*ForecasePoint
+	Desc        string
 }
 
 func (f *Forecast) RainString() string {
@@ -70,8 +73,9 @@ func (f *Forecast) RainString() string {
 }
 
 func GetForecast(lat, long float64) (*Forecast, error) {
-	DebugLogger.Printf("Getting forecast for lat %.4f, long %.4f\n", lat, long)
-	url := fmt.Sprintf("https://cdn-secure.buienalarm.nl/api/3.4/forecast.php?lat=%f.4&lon=%f.4&region=nl&unit=mm/u", lat, long)
+	DebugLogger.Printf("Getting forecast for lat %.2f, long %.2f\n", lat, long)
+	url := fmt.Sprintf("https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/%.2f/%.2f", lat, long)
+	DebugLogger.Printf("Requesting %s\n", url)
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -81,7 +85,6 @@ func GetForecast(lat, long float64) (*Forecast, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -101,22 +104,30 @@ func GetForecast(lat, long float64) (*Forecast, error) {
 		return nil, err
 	}
 
-	if !buinealarmResponse.Success {
-		return nil, fmt.Errorf("failed to get forecast")
-	}
-
-	forecast := &Forecast{
-		Temperature: buinealarmResponse.Temp,
-	}
-	for i, precip := range buinealarmResponse.Precip {
-		t := time.Unix(buinealarmResponse.Start+int64(i*300), 0)
-		// Filter out data from the past
+	forecast := &Forecast{}
+	for _, data := range buinealarmResponse.Data {
+		t := time.Unix(data.Timestamp, 0)
+		// Filter out the data points from the past
 		if t.After(time.Now()) {
 			forecast.Data = append(forecast.Data, &ForecasePoint{
 				Time:          t,
-				Precipitation: precip,
+				Precipitation: data.PrecipitationRate,
 			})
 		}
 	}
+	forecast.Desc = buinealarmResponse.NowcastMessage.En
+	timestampRe := regexp.MustCompile(`\{(\d+)\}`)
+
+	// Replace function
+	replaceFunc := func(s string) string {
+		timestampStr := s[1 : len(s)-1] // Extract timestamp string
+		timestamp, err := strconv.Atoi(timestampStr)
+		if err != nil {
+			return s // Return original string if conversion fails
+		}
+		t := time.Unix(int64(timestamp), 0)
+		return fmt.Sprintf("%s", t.Format("15:04"))
+	}
+	forecast.Desc = timestampRe.ReplaceAllStringFunc(forecast.Desc, replaceFunc)
 	return forecast, nil
 }
