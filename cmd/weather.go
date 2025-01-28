@@ -47,6 +47,7 @@ func (f *Forecast) RainString() string {
 
 	// Determine the rain level based on the maximum precipitation
 	rainInfo := "No rain expected."
+	rainingNow := f.Data[0].Precipitation > 0
 	if maxPrecipitation > 0 {
 		if maxPrecipitation <= 0.25 {
 			rainInfo = "Light rain expected."
@@ -55,11 +56,13 @@ func (f *Forecast) RainString() string {
 		} else {
 			rainInfo = "Heavy rain expected."
 		}
-		// When the next rain starts?
-		for _, point := range f.Data {
-			if point.Precipitation > 0 {
-				rainInfo += fmt.Sprintf(" Next rain starts at %s.", point.Time.Format("15:04"))
-				break
+		if !rainingNow {
+			// When the next rain starts?
+			for _, point := range f.Data {
+				if point.Precipitation > 0 {
+					rainInfo += fmt.Sprintf(" Next rain starts at %s.", point.Time.Format("15:04"))
+					break
+				}
 			}
 		}
 	}
