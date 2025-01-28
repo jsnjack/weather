@@ -67,22 +67,41 @@ User can also specify the location manually.`,
 			}
 		}
 
-		forecast, err := GetForecast(loc.Latitude, loc.Longitude)
+		buinealarmForecast, err := GetBuinealarmForecast(loc.Latitude, loc.Longitude)
+		if err != nil {
+			return err
+		}
+		buineradarForecast, err := GetBuineradarForecast(loc.Latitude, loc.Longitude)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Weather in %s\n", loc.Description)
-		if forecast.Desc != "" {
-			fmt.Println(forecast.Desc)
+		if buinealarmForecast.Desc != "" {
+			fmt.Println(buinealarmForecast.Desc)
 		}
+
 		chart := termplt.NewLineChart()
-		percY := []float64{}
-		timeX := []float64{}
-		for _, point := range forecast.Data {
-			percY = append(percY, point.Precipitation)
-			timeX = append(timeX, float64(point.Time.Unix()))
+
+		buinealarmY := []float64{}
+		buinealarmX := []float64{}
+		for _, point := range buinealarmForecast.Data {
+			buinealarmY = append(buinealarmY, point.Precipitation)
+			buinealarmX = append(buinealarmX, float64(point.Time.Unix()))
 		}
-		chart.AddLine(timeX, percY, termplt.ColorBlue)
+		chart.AddLine(buinealarmX, buinealarmY, termplt.ColorCyan)
+
+		buineradarY := []float64{}
+		buineradarX := []float64{}
+		for _, point := range buineradarForecast.Data {
+			// Buineradar provides lomnger forecast, lets cut it off
+			if point.Time.After(buinealarmForecast.Data[len(buinealarmForecast.Data)-1].Time) {
+				break
+			}
+			buineradarY = append(buineradarY, point.Precipitation)
+			buineradarX = append(buineradarX, float64(point.Time.Unix()))
+		}
+		chart.AddLine(buineradarX, buineradarY, termplt.ColorPurple)
+
 		chart.SetXLabelAsTime("", "15:04")
 		chart.SetYLabel("mm")
 		fmt.Printf("%s", chart.String())

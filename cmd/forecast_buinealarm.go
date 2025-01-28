@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// BuinealarmResponse example https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/52.37/4.96
-type BuinealarmResponse struct {
+// BuienalarmResponse example https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/52.36/4.92
+type BuienalarmResponse struct {
 	Data           []PrecipitationData `json:"data"`
 	NowcastMessage NowcastMessage      `json:"nowcastmessage"`
 }
@@ -28,51 +28,7 @@ type NowcastMessage struct {
 	Nl string `json:"nl"`
 }
 
-type ForecasePoint struct {
-	Time          time.Time
-	Precipitation float64
-}
-
-type Forecast struct {
-	Temperature int
-	Data        []*ForecasePoint
-	Desc        string
-}
-
-func (f *Forecast) RainString() string {
-	// Determine the maximum precipitation level
-	maxPrecipitation := 0.0
-	for _, point := range f.Data {
-		if point.Precipitation > maxPrecipitation {
-			maxPrecipitation = point.Precipitation
-		}
-	}
-
-	// Determine the rain level based on the maximum precipitation
-	rainInfo := "No rain expected."
-	rainingNow := f.Data[0].Precipitation > 0
-	if maxPrecipitation > 0 {
-		if maxPrecipitation <= 0.25 {
-			rainInfo = "Light rain expected."
-		} else if maxPrecipitation <= 1.0 {
-			rainInfo = "Moderate rain expected."
-		} else {
-			rainInfo = "Heavy rain expected."
-		}
-		if !rainingNow {
-			// When the next rain starts?
-			for _, point := range f.Data {
-				if point.Precipitation > 0 {
-					rainInfo += fmt.Sprintf(" Next rain starts at %s.", point.Time.Format("15:04"))
-					break
-				}
-			}
-		}
-	}
-	return rainInfo
-}
-
-func GetForecast(lat, long float64) (*Forecast, error) {
+func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
 	DebugLogger.Printf("Getting forecast for lat %.2f, long %.2f\n", lat, long)
 	url := fmt.Sprintf("https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/%.2f/%.2f", lat, long)
 	DebugLogger.Printf("Requesting %s\n", url)
@@ -99,7 +55,7 @@ func GetForecast(lat, long float64) (*Forecast, error) {
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
-	var buinealarmResponse BuinealarmResponse
+	var buinealarmResponse BuienalarmResponse
 	if err := json.NewDecoder(resp.Body).Decode(&buinealarmResponse); err != nil {
 		return nil, err
 	}
