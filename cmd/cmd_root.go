@@ -50,10 +50,15 @@ User can also specify the location manually.`,
 		var err error
 
 		if FlagLat != 0 || FlagLon != 0 {
+			desc, err := GetDescriptionFromCoordinates(FlagLat, FlagLon)
+			if err != nil {
+				DebugLogger.Printf("Error getting description from coordinates: %s\n", err)
+				desc = fmt.Sprintf("Lat %.2f, Lon %.2f", FlagLat, FlagLon)
+			}
 			loc = Location{
 				Latitude:    FlagLat,
 				Longitude:   FlagLon,
-				Description: fmt.Sprintf("Lat %.2f, Lon %.2f", FlagLat, FlagLon),
+				Description: desc,
 			}
 		} else if FlagStrLocation != "" {
 			loc, err = GetLocationFromString(FlagStrLocation)
