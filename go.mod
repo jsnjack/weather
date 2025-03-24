@@ -3,7 +3,7 @@ module weather
 go 1.23.5
 
 require (
-	github.com/jsnjack/termplt v0.0.5
+	github.com/jsnjack/termplt v0.0.6
 	github.com/spf13/cobra v1.8.1
 )
 
