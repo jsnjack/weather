@@ -86,12 +86,13 @@ User can also specify the location manually.`,
 			fmt.Println(buinealarmForecast.Desc)
 		}
 
+		// We plot both Buinealarm and Buineradar forecasts on the same chart
 		chart := termplt.NewLineChart()
 
 		buinealarmY := []float64{}
 		buinealarmX := []float64{}
 		for _, point := range buinealarmForecast.Data {
-			buinealarmY = append(buinealarmY, point.Precipitation)
+			buinealarmY = append(buinealarmY, point.Value)
 			buinealarmX = append(buinealarmX, float64(point.Time.Unix()))
 		}
 		chart.AddLine(buinealarmX, buinealarmY, termplt.ColorCyan)
@@ -99,17 +100,17 @@ User can also specify the location manually.`,
 		buineradarY := []float64{}
 		buineradarX := []float64{}
 		for _, point := range buineradarForecast.Data {
-			// Buineradar provides lomnger forecast, lets cut it off
+			// Buineradar provides longer forecast, lets cut it off
 			if point.Time.After(buinealarmForecast.Data[len(buinealarmForecast.Data)-1].Time) {
 				break
 			}
-			buineradarY = append(buineradarY, point.Precipitation)
+			buineradarY = append(buineradarY, point.Value)
 			buineradarX = append(buineradarX, float64(point.Time.Unix()))
 		}
 		chart.AddLine(buineradarX, buineradarY, termplt.ColorPurple)
 
 		chart.SetXLabelAsTime("", "15:04")
-		chart.SetYLabel("mm")
+		chart.SetYLabel(buinealarmForecast.Type.Unit())
 		fmt.Printf("%s", chart.String())
 		return nil
 	},

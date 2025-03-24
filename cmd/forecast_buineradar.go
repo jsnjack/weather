@@ -53,16 +53,19 @@ func GetBuineradarForecast(lat, long float64) (*Forecast, error) {
 		return nil, err
 	}
 
-	forecast := &Forecast{}
+	forecast := &Forecast{
+		Desc: "Buienradar",
+		Type: PrecipitationForecast,
+	}
 	for _, data := range buineradarResponse.Forecasts {
 		t, err := time.Parse("2006-01-02T15:04:05", data.UtcDateTime)
 		if err != nil {
 			return nil, err
 		}
 		if t.After(time.Now()) {
-			forecast.Data = append(forecast.Data, &ForecasePoint{
-				Time:          t,
-				Precipitation: data.DataValue,
+			forecast.Data = append(forecast.Data, ForecastDataPoint{
+				Time:  t,
+				Value: data.DataValue,
 			})
 		}
 	}

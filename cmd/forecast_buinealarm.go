@@ -60,14 +60,17 @@ func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
 		return nil, err
 	}
 
-	forecast := &Forecast{}
+	forecast := &Forecast{
+		Desc: "Buienalarm",
+		Type: PrecipitationForecast,
+	}
 	for _, data := range buinealarmResponse.Data {
 		t := time.Unix(data.Timestamp, 0)
 		// Filter out the data points from the past
 		if t.After(time.Now()) {
-			forecast.Data = append(forecast.Data, &ForecasePoint{
-				Time:          t,
-				Precipitation: data.PrecipitationRate,
+			forecast.Data = append(forecast.Data, ForecastDataPoint{
+				Time:  t,
+				Value: data.PrecipitationRate,
 			})
 		}
 	}
