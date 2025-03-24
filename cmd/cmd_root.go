@@ -80,7 +80,8 @@ User can also specify the location manually.`,
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Weather in %s\n", loc.Description)
+		fmt.Printf(termplt.ColorBold+"Weather in %s\n"+termplt.ColorReset, loc.Description)
+		fmt.Println("Next 2 hours (" + termplt.ColorCyan + "Buienalarm" + termplt.ColorReset + ", " + termplt.ColorPurple + "Buineradar" + termplt.ColorReset + ")")
 		if buinealarmForecast.Desc != "" {
 			fmt.Println(buinealarmForecast.Desc)
 		}
