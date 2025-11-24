@@ -89,25 +89,31 @@ User can also specify the location manually.`,
 		// We plot both Buinealarm and Buineradar forecasts on the same chart
 		chart := termplt.NewLineChart()
 
-		buinealarmY := []float64{}
-		buinealarmX := []float64{}
-		for _, point := range buinealarmForecast.Data {
-			buinealarmY = append(buinealarmY, point.Value)
-			buinealarmX = append(buinealarmX, float64(point.Time.Unix()))
-		}
-		chart.AddLine(buinealarmX, buinealarmY, termplt.ColorCyan)
-
-		buineradarY := []float64{}
-		buineradarX := []float64{}
-		for _, point := range buineradarForecast.Data {
-			// Buineradar provides longer forecast, lets cut it off
-			if point.Time.After(buinealarmForecast.Data[len(buinealarmForecast.Data)-1].Time) {
-				break
+		if len(buinealarmForecast.Data) > 0 {
+			buinealarmY := []float64{}
+			buinealarmX := []float64{}
+			for _, point := range buinealarmForecast.Data {
+				buinealarmY = append(buinealarmY, point.Value)
+				buinealarmX = append(buinealarmX, float64(point.Time.Unix()))
 			}
-			buineradarY = append(buineradarY, point.Value)
-			buineradarX = append(buineradarX, float64(point.Time.Unix()))
+			chart.AddLine(buinealarmX, buinealarmY, termplt.ColorCyan)
 		}
-		chart.AddLine(buineradarX, buineradarY, termplt.ColorPurple)
+
+		if len(buineradarForecast.Data) > 0 {
+			buineradarY := []float64{}
+			buineradarX := []float64{}
+			for _, point := range buineradarForecast.Data {
+				// Buineradar provides longer forecast, lets cut it off
+				if len(buinealarmForecast.Data) > 0 {
+					if point.Time.After(buinealarmForecast.Data[len(buinealarmForecast.Data)-1].Time) {
+						break
+					}
+				}
+				buineradarY = append(buineradarY, point.Value)
+				buineradarX = append(buineradarX, float64(point.Time.Unix()))
+			}
+			chart.AddLine(buineradarX, buineradarY, termplt.ColorPurple)
+		}
 
 		chart.SetXLabelAsTime("", "15:04")
 		chart.SetYLabel(buinealarmForecast.Type.Unit())
