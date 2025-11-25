@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// BuienalarmResponse example https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/52.36/4.92
+// BuienalarmResponse example https://imn-rust-lb.infoplaza.io/v4/nowcast/timeseries/52.36/4.92
 type BuienalarmResponse struct {
 	Data           []PrecipitationData `json:"data"`
 	NowcastMessage NowcastMessage      `json:"nowcastmessage"`
@@ -30,7 +30,7 @@ type NowcastMessage struct {
 
 func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
 	DebugLogger.Printf("Getting forecast for lat %.2f, long %.2f\n", lat, long)
-	url := fmt.Sprintf("https://cdn.buienalarm.nl/api/4.0/nowcast/timeseries/%.2f/%.2f", lat, long)
+	url := fmt.Sprintf("https://imn-rust-lb.infoplaza.io/v4/nowcast/timeseries/%.2f/%.2f", lat, long)
 	DebugLogger.Printf("Requesting %s\n", url)
 
 	client := &http.Client{
