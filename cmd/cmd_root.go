@@ -30,46 +30,25 @@ var rootCmd = &cobra.Command{
 	Long: `Shows the weather using the Buinealarm API.
 By default, it tries to guess your location based on your IP address.
 User can also specify the location manually.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
-
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		Logger = log.New(os.Stdout, "", log.Lmicroseconds|log.Lshortfile)
-
 		if FlagDebug {
 			DebugLogger = log.New(os.Stdout, "", log.Lmicroseconds|log.Lshortfile)
 		} else {
 			DebugLogger = log.New(io.Discard, "", 0)
 		}
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 
 		if FlagVersion {
 			fmt.Println(Version)
 			return nil
 		}
 
-		var loc Location
-		var err error
-
-		if FlagLat != 0 || FlagLon != 0 {
-			desc, err := GetDescriptionFromCoordinates(FlagLat, FlagLon)
-			if err != nil {
-				DebugLogger.Printf("Error getting description from coordinates: %s\n", err)
-				desc = fmt.Sprintf("Lat %.2f, Lon %.2f", FlagLat, FlagLon)
-			}
-			loc = Location{
-				Latitude:    FlagLat,
-				Longitude:   FlagLon,
-				Description: desc,
-			}
-		} else if FlagStrLocation != "" {
-			loc, err = GetLocationFromString(FlagStrLocation)
-			if err != nil {
-				return err
-			}
-		} else {
-			loc, err = GetLocationFromIP()
-			if err != nil {
-				return err
-			}
+		loc, err := ResolveLocation()
+		if err != nil {
+			return err
 		}
 
 		buinealarmForecast, err := GetBuinealarmForecast(loc.Latitude, loc.Longitude)
