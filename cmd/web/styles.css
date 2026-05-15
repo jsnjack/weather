@@ -54,6 +54,19 @@ form.controls label { display: flex; flex-direction: column; gap: .15rem; color:
 form.controls input, form.controls select { padding: .25rem .35rem; background: var(--bg); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: .25rem; min-width: 4rem; }
 form.controls button { padding: .25rem .75rem; align-self: flex-end; background: var(--accent); color: white; border: 0; border-radius: .25rem; cursor: pointer; }
 
+/* legend */
+.legend { margin-top: 1.5rem; padding: .75rem 1rem; border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); border-radius: .5rem; }
+.legend h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.legend h4 { margin: .75rem 0 .35rem; font-size: .85rem; color: var(--muted); font-weight: 600; }
+.legend-group { margin-bottom: .5rem; }
+.legend-item { display: inline-flex; align-items: center; gap: .4rem; margin: .15rem .9rem .15rem 0; font-size: .85rem; }
+.legend .swatch {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.7rem; height: 1.1rem; padding: 0 .25rem;
+  border-radius: .2rem; font-size: .8rem; color: #111;
+  font-variant-numeric: tabular-nums;
+}
+
 /* progress / loading */
 .loading { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
 .loading progress { flex: 1; height: .5rem; max-width: 360px; }

@@ -754,11 +754,13 @@ type scoutPageData struct {
 }
 
 type scoutPageCfg struct {
-	Days      int
-	KmPerDay  float64
-	MinTemp   float64
-	TopN      int
-	RoundTrip bool
+	Days         int
+	KmPerDay     float64
+	MinTemp      float64
+	MinTempPlus5 float64 // = MinTemp + 5, pre-computed for the heatmap legend
+	MinTempMinus5 float64 // = MinTemp - 5
+	TopN         int
+	RoundTrip    bool
 }
 
 func handleScout(w http.ResponseWriter, r *http.Request) {
@@ -781,6 +783,7 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 		Q:        locQuery(loc),
 		Cfg: scoutPageCfg{
 			Days: sq.Days, KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
+			MinTempPlus5: sq.MinTemp + 5, MinTempMinus5: sq.MinTemp - 5,
 			TopN: sq.TopN, RoundTrip: sq.RoundTrip,
 		},
 		IsHeatmap:  sq.Heatmap,
