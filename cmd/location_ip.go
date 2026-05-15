@@ -91,10 +91,19 @@ func GetLocationFromIP() (Location, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&maxMindResponse); err != nil {
 		return location, err
 	}
-	desc := fmt.Sprintf("%s, %s (±%dm)", maxMindResponse.City.Names.En, maxMindResponse.Country.Names.En, maxMindResponse.Location.AccuracyRadius)
-	location.Description = desc
 	location.Longitude = maxMindResponse.Location.Longitude
 	location.Latitude = maxMindResponse.Location.Latitude
+
+	// Run the same reverse-geocode the lat/lon path uses, so the CLI and
+	// HTTP handlers end up with identical Location.Description strings for
+	// the same coordinates. MaxMind's "City, Country (±Nm)" is the fallback
+	// when the reverse-geocode fails or returns nothing.
+	if desc, gerr := GetDescriptionFromCoordinates(location.Latitude, location.Longitude); gerr == nil && desc != "" {
+		location.Description = desc
+	} else {
+		location.Description = fmt.Sprintf("%s, %s",
+			maxMindResponse.City.Names.En, maxMindResponse.Country.Names.En)
+	}
 
 	return location, nil
 }

@@ -1,5 +1,5 @@
-const SHELL_CACHE = "forecast-shell-v1";
-const DATA_CACHE  = "forecast-data-v1";
+const SHELL_CACHE = "forecast-shell-v2";
+const DATA_CACHE  = "forecast-data-v2";
 const SHELL = ["/static/styles.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

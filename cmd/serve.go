@@ -257,7 +257,12 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if alarm != nil {
 		data.Description = alarm.Desc
 	}
-	data.ChartSVG = RenderLineChartSVG(series, SVGOpts{YUnit: " mm/h", XTimeFormat: "15:04"})
+	// YUnit comes from the forecast type so HTML matches the CLI label.
+	// MinYHi=1 keeps the axis at 0..1 mm/h when there is no rain, which
+	// reads as "nothing happening" rather than collapsing to a sub-0.1
+	// span with repeating identical tick labels.
+	yUnit := PrecipitationForecast.Unit()
+	data.ChartSVG = RenderLineChartSVG(series, SVGOpts{YUnit: yUnit, XTimeFormat: "15:04", MinYHi: 1})
 	data.Rows = mergeRows(alarm, radar)
 	data.Now = time.Now().Format("15:04:05")
 

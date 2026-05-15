@@ -24,8 +24,11 @@ var ForecastTypeToString = map[ForecastType]string{
 }
 
 var ForecastTypeToUnit = map[ForecastType]string{
-	Temperature2mForecast:            "°C",
-	PrecipitationForecast:            "mm",
+	Temperature2mForecast: "°C",
+	// Both Buienalarm (precipitationrate) and Buienradar (dataValue from
+	// RainHistoryForecast) report precipitation in mm/h, so we display the
+	// rate unit rather than a bare "mm".
+	PrecipitationForecast:            "mm/h",
 	PrecipitationProbabilityForecast: "%",
 	WindSpeed10mForecast:             "km/h",
 	WindDirection10mForecast:         "°",

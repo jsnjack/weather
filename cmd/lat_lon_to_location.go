@@ -30,9 +30,10 @@ func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
 		return "", fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 	var response struct {
-		Locality string `json:"locality"`
-		Country  string `json:"countryCode"`
-		City     string `json:"city"`
+		Locality    string `json:"locality"`
+		Country     string `json:"countryCode"`
+		CountryName string `json:"countryName"`
+		City        string `json:"city"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -40,5 +41,11 @@ func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
 	}
 
 	description := response.Locality
+	if description == "" {
+		description = response.City
+	}
+	if description != "" && response.CountryName != "" {
+		description = description + ", " + response.CountryName
+	}
 	return description, nil
 }
