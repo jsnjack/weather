@@ -38,12 +38,17 @@ type OpenMeteoData struct {
 	Elevation float64
 }
 
-// IsSea returns true if the grid cell is ocean. Open-Meteo reports literal
-// 0.0 for ocean grid cells in its weather model; below-sea-level polders and
-// low coastal land return non-zero values. We match on exact 0 to avoid
-// false-flagging Dutch polders as sea.
+// seaElevationThreshold is the cell elevation (in metres) at or below which
+// we treat a grid cell as water. Half of the Netherlands sits between roughly
+// -7 m and 0 m NAP — Schiphol is at about -4 m — so the cutoff has to dip a
+// bit under sea level to keep polders on the land side without missing real
+// water bodies like the IJsselmeer.
+const seaElevationThreshold = -3.0
+
+// IsSea returns true if the grid cell is water. See seaElevationThreshold for
+// why we accept slightly-negative elevations as land.
 func (d *OpenMeteoData) IsSea() bool {
-	return d.Elevation == 0.0
+	return d.Elevation <= seaElevationThreshold
 }
 
 // GetOpenMeteoRange fetches hourly forecast data for a single lat/lon across
