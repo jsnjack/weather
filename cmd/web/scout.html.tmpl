@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>Scout — {{.Location.Description}}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main>
+  <nav class="nav">
+    <a href="/{{if .Q}}?{{.Q}}{{end}}">Rain 2h</a>
+    <a href="/today{{if .Q}}?{{.Q}}{{end}}">Today</a>
+    <a href="/scout{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Scout</a>
+  </nav>
+  <header>
+    <h1>{{.Location.Description}}</h1>
+    <p class="sub">{{.Cfg.Days}} days × {{printf "%.0f" .Cfg.KmPerDay}} km/day · {{.StartLabel}} → {{.EndLabel}}{{if .Cfg.RoundTrip}} · round-trip{{end}}{{if .IsHeatmap}} · heatmap{{end}}</p>
+  </header>
+
+  <form class="controls" method="get">
+    <input type="hidden" name="lat" value="{{.Location.Latitude}}">
+    <input type="hidden" name="lon" value="{{.Location.Longitude}}">
+    <label>Days <input type="number" name="days" min="1" max="14" value="{{.Cfg.Days}}"></label>
+    <label>km/day <input type="number" name="km-per-day" min="20" max="300" value="{{printf "%.0f" .Cfg.KmPerDay}}"></label>
+    <label>min °C <input type="number" name="min-temp" value="{{printf "%.0f" .Cfg.MinTemp}}"></label>
+    <label>start <input type="date" name="start-date" value="{{.StartInput}}"></label>
+    <label>top <input type="number" name="top" min="1" max="10" value="{{.Cfg.TopN}}"></label>
+    <label><input type="checkbox" name="round-trip" value="1"{{if .Cfg.RoundTrip}} checked{{end}}> round-trip</label>
+    <label><input type="checkbox" name="heatmap" value="1"{{if .IsHeatmap}} checked{{end}}> heatmap</label>
+    <button type="submit">Refresh</button>
+  </form>
+
+  {{if .IsHeatmap}}
+    {{if .HeatmapDaysSVG}}
+    <section class="heatmaps">
+      {{range .HeatmapDaysSVG}}
+      <div class="heatmap-day">{{.}}</div>
+      {{end}}
+    </section>
+    {{else}}
+    <p class="empty">No heatmap data.</p>
+    {{end}}
+  {{else}}
+    {{if .Trips}}
+      {{if .RecommendationText}}<p class="recommendation"><strong>Recommendation:</strong> {{.RecommendationText}}</p>{{end}}
+      {{range $i, $t := .Trips}}
+      <article class="trip">
+        <h3>Trip {{add $i 1}} — score {{printf "%.0f" $t.Score}}</h3>
+        <p class="path">{{$t.Path}} {{if $.Cfg.RoundTrip}}(ends {{printf "%.0f" $t.EndDistKm}} km from start){{else}}(ends ~{{$t.EndLabel}}, {{printf "%.0f" $t.EndDistKm}} km away){{end}}</p>
+        <table>
+          <thead><tr><th></th><th>Dir</th><th>~Endpoint</th><th>Max°</th><th>Wind</th></tr></thead>
+          <tbody>
+            {{range $d, $row := $t.Days}}
+            <tr>
+              <th>Day {{add $d 1}}</th>
+              <td>{{$row.Dir}}</td>
+              <td>~{{$row.Label}}</td>
+              <td{{if $row.Cold}} style="color:#eab308"{{end}}>{{$row.Temp}}{{if $row.Cold}}*{{end}}</td>
+              <td style="color:{{$row.WindColor}}">{{$row.Wind}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </article>
+      {{end}}
+    {{else}}
+      <p class="empty">No viable trip found — every bearing hit rain or severe gusts on at least one day.</p>
+    {{end}}
+  {{end}}
+
+  <footer>
+    <a href="/api/v1/scout?{{.JSONQuery}}">JSON</a> · refreshed {{.Now}}
+  </footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>

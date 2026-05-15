@@ -132,7 +132,7 @@ func runScout(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if FlagScoutHeatmap {
-		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg)
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, heatmapGridSize())
 		renderHeatmap(hm)
 		return nil
 	}

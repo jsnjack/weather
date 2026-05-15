@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +29,15 @@ const (
 	buineradarColor = "#a855f7"
 )
 
-var indexTmpl = template.Must(template.ParseFS(webFS, "web/index.html.tmpl"))
+var tmplFuncs = template.FuncMap{
+	"add": func(a, b int) int { return a + b },
+}
+
+var (
+	indexTmpl = template.Must(template.New("index.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index.html.tmpl"))
+	todayTmpl = template.Must(template.New("today.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today.html.tmpl"))
+	scoutTmpl = template.Must(template.New("scout.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout.html.tmpl"))
+)
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -42,7 +52,11 @@ installed on Android as a stand-in for a native widget.`,
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /", handleIndex)
+		mux.HandleFunc("GET /today", handleToday)
+		mux.HandleFunc("GET /scout", handleScout)
 		mux.HandleFunc("GET /api/v1/rain", handleRainJSON)
+		mux.HandleFunc("GET /api/v1/today", handleTodayJSON)
+		mux.HandleFunc("GET /api/v1/scout", handleScoutJSON)
 		mux.HandleFunc("GET /manifest.webmanifest", embedHandler("web/manifest.webmanifest", "application/manifest+json"))
 		mux.HandleFunc("GET /sw.js", embedHandler("web/sw.js", "application/javascript"))
 		mux.HandleFunc("GET /icon.svg", embedHandler("web/icon.svg", "image/svg+xml"))
@@ -98,6 +112,7 @@ type indexData struct {
 	BuineradarColor string
 	Rows            []indexRow
 	Now             string
+	Q               template.URL // shared lat/lon query string for nav links
 }
 
 type indexRow struct {
@@ -152,6 +167,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		BuineradarColor: buineradarColor,
 		Rows:            mergeRows(alarm, radar),
 		Now:             time.Now().Format("15:04:05"),
+		Q:               locQuery(loc),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -260,6 +276,574 @@ func nearest(points []ForecastDataPoint, t time.Time) (float64, bool) {
 		return 0, false
 	}
 	return points[best].Value, true
+}
+
+// locQuery returns "lat=...&lon=..." for the resolved location so nav links
+// preserve the user's place when hopping between pages. Returned as
+// template.URL so html/template doesn't percent-encode the & and = chars.
+func locQuery(loc Location) template.URL {
+	return template.URL(fmt.Sprintf("lat=%.4f&lon=%.4f", loc.Latitude, loc.Longitude))
+}
+
+// ---------- /today ----------
+
+func parseTodayParams(r *http.Request) (hours int, start time.Time, radius float64, grid int, startInput string) {
+	q := r.URL.Query()
+	hours = 6
+	if v, err := strconv.Atoi(q.Get("hours")); err == nil && v >= 1 && v <= 24 {
+		hours = v
+	}
+	radius = 50
+	if v, err := strconv.ParseFloat(q.Get("radius"), 64); err == nil && v > 0 {
+		radius = v
+	}
+	grid = 21
+	if v, err := strconv.Atoi(q.Get("grid")); err == nil && v >= 5 {
+		grid = v
+	}
+	startInput = q.Get("start")
+	now := time.Now()
+	if startInput == "" {
+		t := now.Add(30 * time.Minute).Truncate(time.Hour).Add(time.Hour)
+		start = t
+		startInput = t.Format("15:04")
+		return
+	}
+	if parsed, err := time.Parse("15:04", startInput); err == nil {
+		start = time.Date(now.Year(), now.Month(), now.Day(),
+			parsed.Hour(), parsed.Minute(), 0, 0, now.Location())
+		return
+	}
+	t := now.Add(30 * time.Minute).Truncate(time.Hour).Add(time.Hour)
+	start = t
+	startInput = t.Format("15:04")
+	return
+}
+
+func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
+	lat, lon, name := locationQuery(r)
+	loc, err := ResolveLocationFor(lat, lon, name)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	hours, start, radius, grid, _ := parseTodayParams(r)
+	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius)
+	rec := RecommendToday(result)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"location":       loc,
+		"result":         result,
+		"recommendation": rec,
+	})
+}
+
+type todaySectorRow struct {
+	Name      string
+	Cells     []string
+	OverWater bool
+}
+
+type todayPageData struct {
+	Location       Location
+	Q              template.URL
+	Result         todayResult
+	Recommendation TodayRecommendation
+	HeatmapSVG     template.HTML
+	StartLabel     string
+	EndLabel       string
+	StartInput     string
+	HourLabels     []string
+	SectorRows     []todaySectorRow
+	BestDesc       string
+	BestWind       string
+	WorstDesc      string
+	Now            string
+}
+
+func handleToday(w http.ResponseWriter, r *http.Request) {
+	lat, lon, name := locationQuery(r)
+	loc, err := ResolveLocationFor(lat, lon, name)
+	if err != nil {
+		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	hours, start, radius, grid, startInput := parseTodayParams(r)
+	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius)
+	rec := RecommendToday(result)
+
+	gridCells := make([][]GridCell, len(result.Cells))
+	mid := result.Grid / 2
+	for rIdx, row := range result.Cells {
+		gridCells[rIdx] = make([]GridCell, len(row))
+		for cIdx, cell := range row {
+			gridCells[rIdx][cIdx] = todayCellToGrid(cell, hours, rIdx == mid && cIdx == mid)
+		}
+	}
+	heatmapSVG := RenderHeatGridSVG(gridCells, GridOpts{
+		CellSize: 22,
+		StepKm:   result.StepKm,
+		Title:    fmt.Sprintf("Rain timing  ·  %dh window", hours),
+	})
+
+	hourLabels := make([]string, 0, hours)
+	for i := 0; i < hours; i++ {
+		hourLabels = append(hourLabels, start.Add(time.Duration(i)*time.Hour).Format("15"))
+	}
+	sectorRows := make([]todaySectorRow, 0, len(result.Sectors))
+	for _, s := range result.Sectors {
+		row := todaySectorRow{Name: s.Name, OverWater: s.OverWater}
+		if s.NoData {
+			row.Cells = []string{"(no data)"}
+			sectorRows = append(sectorRows, row)
+			continue
+		}
+		for _, w := range s.Wind {
+			if w.Speed <= windCalmKmh {
+				row.Cells = append(row.Cells, "·")
+			} else {
+				row.Cells = append(row.Cells, CompassArrow(w.BlowsTo))
+			}
+		}
+		sectorRows = append(sectorRows, row)
+	}
+
+	page := todayPageData{
+		Location:       loc,
+		Q:              locQuery(loc),
+		Result:         result,
+		Recommendation: rec,
+		HeatmapSVG:     heatmapSVG,
+		StartLabel:     start.Format("15:04"),
+		EndLabel:       start.Add(time.Duration(hours) * time.Hour).Format("15:04"),
+		StartInput:     startInput,
+		HourLabels:     hourLabels,
+		SectorRows:     sectorRows,
+		Now:            time.Now().Format("15:04:05"),
+	}
+	if len(rec.Rideable) > 0 {
+		page.BestDesc = describeDry(rec.Best.DryHours, hours)
+		page.BestWind = describeWind(rec.Best.Tailwind, rec.Best.Cell.WindSpeed)
+		page.WorstDesc = describeDry(rec.Worst.DryHours, hours)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := todayTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("today template execute: %s\n", err)
+	}
+}
+
+func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
+	if isStart {
+		return GridCell{Color: todayBandHex(rainTimingBand(c.DryHours, windowHours), c.NoData), Symbol: "●", SymbolColor: "#fff", Border: "#fff"}
+	}
+	if c.NoData {
+		return GridCell{Color: "#3f3f46", Symbol: ""}
+	}
+	band := rainTimingBand(c.DryHours, windowHours)
+	bg := todayBandHex(band, false)
+	if band == 3 {
+		return GridCell{Color: bg, Symbol: "✗", SymbolColor: "#fff"}
+	}
+	sym := ""
+	if WindBand(c.WindSpeed) > 0 {
+		sym = CompassArrow(c.WindBlowsTo)
+	} else {
+		sym = "·"
+	}
+	sc := "#111"
+	if c.Sea {
+		sc = "#06b6d4"
+	}
+	return GridCell{Color: bg, Symbol: sym, SymbolColor: sc}
+}
+
+func todayBandHex(band int, noData bool) string {
+	if noData {
+		return "#3f3f46"
+	}
+	switch band {
+	case 0:
+		return "#86efac" // bright green — dry full window
+	case 1:
+		return "#4ade80" // green — rain late
+	case 2:
+		return "#facc15" // yellow — rain middle
+	default:
+		return "#ef4444" // red — raining now
+	}
+}
+
+// ---------- /scout ----------
+
+type scoutQuery struct {
+	Days             int
+	KmPerDay         float64
+	MinTemp          float64
+	StartDate        time.Time
+	StartDateInput   string
+	BeamWidth        int
+	PivotPenalty     float64
+	RoundTrip        bool
+	RoundTripPenalty float64
+	TopN             int
+	Heatmap          bool
+	HeatmapGrid      int
+}
+
+func parseScoutParams(r *http.Request) scoutQuery {
+	q := r.URL.Query()
+	out := scoutQuery{
+		Days: 5, KmPerDay: 100, MinTemp: 15,
+		BeamWidth: 16, PivotPenalty: 3,
+		RoundTripPenalty: 20, TopN: 3,
+		HeatmapGrid: 21,
+	}
+	if v, err := strconv.Atoi(q.Get("days")); err == nil && v > 0 && v <= 14 {
+		out.Days = v
+	}
+	if v, err := strconv.ParseFloat(q.Get("km-per-day"), 64); err == nil && v > 0 {
+		out.KmPerDay = v
+	}
+	if v, err := strconv.ParseFloat(q.Get("min-temp"), 64); err == nil {
+		out.MinTemp = v
+	}
+	if v, err := strconv.Atoi(q.Get("beam-width")); err == nil && v > 0 {
+		out.BeamWidth = v
+	}
+	if v, err := strconv.ParseFloat(q.Get("pivot-penalty"), 64); err == nil {
+		out.PivotPenalty = v
+	}
+	if q.Get("round-trip") != "" {
+		out.RoundTrip = true
+	}
+	if v, err := strconv.ParseFloat(q.Get("round-trip-penalty"), 64); err == nil {
+		out.RoundTripPenalty = v
+	}
+	if v, err := strconv.Atoi(q.Get("top")); err == nil && v > 0 {
+		out.TopN = v
+	}
+	if q.Get("heatmap") != "" {
+		out.Heatmap = true
+	}
+	if v, err := strconv.Atoi(q.Get("heatmap-grid")); err == nil && v >= 5 {
+		out.HeatmapGrid = v
+	}
+	out.StartDateInput = q.Get("start-date")
+	if out.StartDateInput != "" {
+		if t, err := time.Parse("2006-01-02", out.StartDateInput); err == nil {
+			out.StartDate = t
+		}
+	}
+	if out.StartDate.IsZero() {
+		out.StartDate = time.Now()
+		out.StartDateInput = out.StartDate.Format("2006-01-02")
+	}
+	return out
+}
+
+func (sq scoutQuery) Config() beamConfig {
+	return beamConfig{
+		KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
+		BeamWidth: sq.BeamWidth, PivotPenalty: sq.PivotPenalty,
+		RoundTrip: sq.RoundTrip, RoundTripPenalty: sq.RoundTripPenalty,
+	}
+}
+
+func (sq scoutQuery) Encode() string {
+	return fmt.Sprintf("days=%d&km-per-day=%.0f&min-temp=%.0f&start-date=%s&top=%d&round-trip=%t&heatmap=%t",
+		sq.Days, sq.KmPerDay, sq.MinTemp, sq.StartDateInput, sq.TopN, sq.RoundTrip, sq.Heatmap)
+}
+
+type scoutTripJSON struct {
+	Score       float64    `json:"score"`
+	Bearings    []float64  `json:"bearings"`
+	Positions   []latLon   `json:"positions"`
+	DailyScores []DayScore `json:"dailyScores"`
+	Labels      []string   `json:"labels"`
+}
+
+func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
+	lat, lon, name := locationQuery(r)
+	loc, err := ResolveLocationFor(lat, lon, name)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	sq := parseScoutParams(r)
+	cfg := sq.Config()
+
+	resp := map[string]any{
+		"location": loc,
+		"config": map[string]any{
+			"days":      sq.Days,
+			"kmPerDay":  sq.KmPerDay,
+			"minTemp":   sq.MinTemp,
+			"startDate": sq.StartDate.Format("2006-01-02"),
+			"roundTrip": sq.RoundTrip,
+		},
+	}
+
+	if sq.Heatmap {
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid)
+		resp["heatmap"] = hm
+	} else {
+		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg)
+		if len(trips) > sq.TopN {
+			trips = trips[:sq.TopN]
+		}
+		labels := annotateTripLabels(trips)
+		out := make([]scoutTripJSON, len(trips))
+		for i, t := range trips {
+			out[i] = scoutTripJSON{
+				Score: t.Score, Bearings: t.Bearings, Positions: t.Positions,
+				DailyScores: t.DailyScores, Labels: labels[i],
+			}
+		}
+		resp["trips"] = out
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+type scoutTripRow struct {
+	Dir       string
+	Label     string
+	Temp      string
+	Cold      bool
+	Wind      string
+	WindColor string
+}
+
+type scoutTripView struct {
+	Score     float64
+	Path      string
+	EndLabel  string
+	EndDistKm float64
+	Days      []scoutTripRow
+}
+
+type scoutPageData struct {
+	Location           Location
+	Q                  template.URL
+	Cfg                scoutPageCfg
+	IsHeatmap          bool
+	StartLabel         string
+	EndLabel           string
+	StartInput         string
+	Trips              []scoutTripView
+	HeatmapDaysSVG     []template.HTML
+	RecommendationText string
+	JSONQuery          template.URL
+	Now                string
+}
+
+type scoutPageCfg struct {
+	Days      int
+	KmPerDay  float64
+	MinTemp   float64
+	TopN      int
+	RoundTrip bool
+}
+
+func handleScout(w http.ResponseWriter, r *http.Request) {
+	lat, lon, name := locationQuery(r)
+	loc, err := ResolveLocationFor(lat, lon, name)
+	if err != nil {
+		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	sq := parseScoutParams(r)
+	cfg := sq.Config()
+	endDate := sq.StartDate.AddDate(0, 0, sq.Days-1)
+
+	page := scoutPageData{
+		Location: loc,
+		Q:        locQuery(loc),
+		Cfg: scoutPageCfg{
+			Days: sq.Days, KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
+			TopN: sq.TopN, RoundTrip: sq.RoundTrip,
+		},
+		IsHeatmap:  sq.Heatmap,
+		StartLabel: sq.StartDate.Format("2006-01-02"),
+		EndLabel:   endDate.Format("2006-01-02"),
+		StartInput: sq.StartDateInput,
+		JSONQuery:  template.URL(string(locQuery(loc)) + "&" + sq.Encode()),
+		Now:        time.Now().Format("15:04:05"),
+	}
+
+	if sq.Heatmap {
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid)
+		page.HeatmapDaysSVG = scoutHeatmapToSVG(hm)
+	} else {
+		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg)
+		if len(trips) > sq.TopN {
+			trips = trips[:sq.TopN]
+		}
+		labels := annotateTripLabels(trips)
+		for i, t := range trips {
+			page.Trips = append(page.Trips, tripToView(t, labels[i], loc.Latitude, loc.Longitude, sq.RoundTrip))
+		}
+		if len(trips) > 0 {
+			page.RecommendationText = summarizeWinner(trips[0], labels[0], sq.RoundTrip)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := scoutTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("scout template execute: %s\n", err)
+	}
+}
+
+func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTrip bool) scoutTripView {
+	v := scoutTripView{Score: t.Score}
+	parts := make([]string, 0, len(t.Bearings))
+	for _, b := range t.Bearings {
+		parts = append(parts, CompassName(b))
+	}
+	v.Path = strings.Join(parts, " → ")
+	end := t.Positions[len(t.Positions)-1]
+	v.EndDistKm = HaversineKm(end.Lat, end.Lon, startLat, startLon)
+	if len(labels) > 0 {
+		v.EndLabel = labels[len(labels)-1]
+	}
+	for i, b := range t.Bearings {
+		ds := t.DailyScores[i]
+		row := scoutTripRow{
+			Dir:  fmt.Sprintf("%s %s", CompassName(b), CompassArrow(b)),
+			Temp: fmt.Sprintf("%.0f°", ds.MaxTemp),
+			Cold: ds.BelowMinTemp,
+		}
+		if i < len(labels) {
+			row.Label = labels[i]
+		}
+		switch {
+		case ds.TailwindAvg > tailHeadSwitchKmh:
+			row.Wind = fmt.Sprintf("T%.0f", ds.TailwindAvg)
+			row.WindColor = "#4ade80"
+		case ds.TailwindAvg < -tailHeadSwitchKmh:
+			row.Wind = fmt.Sprintf("H%.0f", -ds.TailwindAvg)
+			row.WindColor = "#ef4444"
+		default:
+			row.Wind = "·"
+			row.WindColor = "var(--muted)"
+		}
+		v.Days = append(v.Days, row)
+	}
+	return v
+}
+
+func summarizeWinner(winner beamNode, labels []string, roundTrip bool) string {
+	endLabel := "the endpoint"
+	if len(labels) > 0 {
+		endLabel = "~" + labels[len(labels)-1]
+	}
+	minT, maxT := math.MaxFloat64, -math.MaxFloat64
+	twSum, twCount := 0.0, 0
+	pivots := countPivots(winner.Bearings)
+	for _, ds := range winner.DailyScores {
+		if ds.MaxTemp > maxT {
+			maxT = ds.MaxTemp
+		}
+		if ds.MinTemp < minT {
+			minT = ds.MinTemp
+		}
+		twSum += ds.TailwindAvg
+		twCount++
+	}
+	twAvg := 0.0
+	if twCount > 0 {
+		twAvg = twSum / float64(twCount)
+	}
+	shape := "a straight bearing"
+	if pivots == 1 {
+		shape = "one pivot"
+	} else if pivots > 1 {
+		shape = fmt.Sprintf("%d pivots", pivots)
+	}
+	var wind string
+	switch {
+	case twAvg > tailHeadSwitchKmh:
+		wind = fmt.Sprintf("avg tailwind %+.0f km/h", twAvg)
+	case twAvg < -tailHeadSwitchKmh:
+		wind = fmt.Sprintf("avg headwind %.0f km/h", -twAvg)
+	default:
+		wind = "mostly crosswind"
+	}
+	return fmt.Sprintf("Trip 1 — %s with %s, %.0f–%.0f°C, %s.", endLabel, shape, minT, maxT, wind)
+}
+
+func scoutHeatmapToSVG(h heatmapResult) []template.HTML {
+	out := make([]template.HTML, 0, len(h.Days))
+	for d, day := range h.Days {
+		cells := make([][]GridCell, h.Grid)
+		mid := h.Grid / 2
+		for r := 0; r < h.Grid; r++ {
+			cells[r] = make([]GridCell, h.Grid)
+			for c := 0; c < h.Grid; c++ {
+				cells[r][c] = heatmapCellToGrid(h.Cells[d][r][c], r == mid && c == mid)
+			}
+		}
+		out = append(out, RenderHeatGridSVG(cells, GridOpts{
+			CellSize: 20,
+			StepKm:   h.StepKm,
+			Title:    fmt.Sprintf("Day %d  ·  %s", d+1, day.Format("2006-01-02")),
+		}))
+	}
+	return out
+}
+
+func heatmapCellToGrid(c cellStatus, isStart bool) GridCell {
+	bg := heatmapBandHex(c)
+	sym := ""
+	sc := "#111"
+	switch {
+	case c.NoData:
+		bg = "#3f3f46"
+	case c.Sea:
+		bg = "#0e7490"
+		sym = "~"
+		sc = "#ecfeff"
+	case c.Rain:
+		bg = "#3b82f6"
+		sym = "·"
+		sc = "#0a0a0a"
+	case c.Gust:
+		bg = "#ef4444"
+		sym = "✗"
+		sc = "#fff"
+	default:
+		switch c.WindBand {
+		case 1:
+			sym = "·"
+		case 2:
+			sym = "~"
+		case 3:
+			sym = "≈"
+		}
+	}
+	if isStart {
+		return GridCell{Color: bg, Symbol: "●", SymbolColor: "#fff", Border: "#fff"}
+	}
+	return GridCell{Color: bg, Symbol: sym, SymbolColor: sc}
+}
+
+func heatmapBandHex(c cellStatus) string {
+	switch c.TempBand {
+	case 3:
+		return "#86efac"
+	case 2:
+		return "#4ade80"
+	case 1:
+		return "#facc15"
+	default:
+		return "#52525b"
+	}
 }
 
 func firstLANIP() string {

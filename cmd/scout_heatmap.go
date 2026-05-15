@@ -27,29 +27,35 @@ func heatmapGridSize() int {
 // encoding: background colour from TempBand, symbol from WindBand. Rain,
 // severe gust, sea, and missing-data are overrides that replace both.
 type cellStatus struct {
-	TempBand int // 0 = cold .. 3 = ideal (ignored when an override is set)
-	WindBand int // 0 = calm .. 3 = strong
-	Rain     bool
-	Gust     bool
-	Sea      bool
-	NoData   bool
+	TempBand int  `json:"tempBand"` // 0 = cold .. 3 = ideal (ignored when an override is set)
+	WindBand int  `json:"windBand"` // 0 = calm .. 3 = strong
+	Rain     bool `json:"rain"`
+	Gust     bool `json:"gust"`
+	Sea      bool `json:"sea"`
+	NoData   bool `json:"noData"`
 }
 
 // heatmapResult is the full result: days × rows × cols, plus the axis step
 // in km so renderHeatmap can print distance labels.
 type heatmapResult struct {
-	Days     []time.Time
-	StepKm   float64 // km between adjacent cells
-	Cells    [][][]cellStatus // [day][row][col]; row 0 = north, col 0 = west
-	StartLat float64
-	StartLon float64
+	Days     []time.Time      `json:"days"`
+	StepKm   float64          `json:"stepKm"` // km between adjacent cells
+	Grid     int              `json:"grid"`
+	Cells    [][][]cellStatus `json:"cells"` // [day][row][col]; row 0 = north, col 0 = west
+	StartLat float64          `json:"startLat"`
+	StartLon float64          `json:"startLon"`
 }
 
 // RunHeatmap builds a grid of sample points around (startLat, startLon),
 // fetches a multi-day forecast for each, and scores each (cell, day) with
 // ScoreDayOmni.
-func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig) heatmapResult {
-	gridSize := heatmapGridSize()
+func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig, gridSize int) heatmapResult {
+	if gridSize < 5 {
+		gridSize = 5
+	}
+	if gridSize%2 == 0 {
+		gridSize++
+	}
 	halfSpanKm := float64(days) * cfg.KmPerDay
 	stepKm := halfSpanKm / float64(gridSize/2)
 
@@ -102,6 +108,7 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 
 	out := heatmapResult{
 		StepKm:   stepKm,
+		Grid:     gridSize,
 		StartLat: startLat,
 		StartLon: startLon,
 		Days:     make([]time.Time, days),
@@ -160,7 +167,7 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 // renderHeatmap prints one small map per day, stacked vertically, with a
 // legend at the bottom.
 func renderHeatmap(h heatmapResult) {
-	gridSize := heatmapGridSize()
+	gridSize := h.Grid
 	mid := gridSize / 2
 	for d, day := range h.Days {
 		fmt.Printf("%sDay %d  %s%s\n",

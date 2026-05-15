@@ -17,16 +17,16 @@ const (
 
 // DayScore summarises a single day at a single sample point.
 type DayScore struct {
-	Disqualified     bool
-	Reason           string // "RAIN", "GUST", "NODATA" — empty if ok
-	Score            float64
-	MaxTemp          float64
-	MinTemp          float64
-	TailwindAvg      float64 // km/h, positive = tailwind, negative = headwind
-	MaxSustainedWind float64 // km/h, daytime max of sustained 10m wind
-	MaxGust          float64
-	MaxPrecip        float64
-	BelowMinTemp     bool // true if MaxTemp < user's minTemp
+	Disqualified     bool    `json:"disqualified"`
+	Reason           string  `json:"reason"` // "RAIN", "GUST", "NODATA" — empty if ok
+	Score            float64 `json:"score"`
+	MaxTemp          float64 `json:"maxTemp"`
+	MinTemp          float64 `json:"minTemp"`
+	TailwindAvg      float64 `json:"tailwindAvg"`      // km/h, positive = tailwind, negative = headwind
+	MaxSustainedWind float64 `json:"maxSustainedWind"` // km/h, daytime max of sustained 10m wind
+	MaxGust          float64 `json:"maxGust"`
+	MaxPrecip        float64 `json:"maxPrecip"`
+	BelowMinTemp     bool    `json:"belowMinTemp"` // true if MaxTemp < user's minTemp
 }
 
 // ScoreDay evaluates a day's daytime-hour weather against the chosen bearing.

@@ -38,36 +38,38 @@ func init() {
 
 // todayCell is the scored result for one grid cell over the ride window.
 type todayCell struct {
-	DryHours      int     // consecutive dry hours from ride start (0..windowHours)
-	WindBlowsTo   float64 // degrees, 0=N — where wind is pushing you (midpoint hour)
-	WindSpeed     float64 // km/h, midpoint hour sustained wind
-	Sea           bool
-	NoData        bool
+	DryHours    int     `json:"dryHours"`    // consecutive dry hours from ride start (0..windowHours)
+	WindBlowsTo float64 `json:"windBlowsTo"` // degrees, 0=N — where wind is pushing you (midpoint hour)
+	WindSpeed   float64 `json:"windSpeed"`   // km/h, midpoint hour sustained wind
+	Sea         bool    `json:"sea"`
+	NoData      bool    `json:"noData"`
 }
 
 // hourlyWind holds a single hour's wind observation for the evolution strip.
 type hourlyWind struct {
-	BlowsTo float64 // degrees, 0 = N — where wind is pushing
-	Speed   float64 // km/h, sustained
+	BlowsTo float64 `json:"blowsTo"` // degrees, 0 = N — where wind is pushing
+	Speed   float64 `json:"speed"`   // km/h, sustained
 }
 
 // sectorEvolution is the per-hour wind sequence for one compass sector,
 // sampled at half-radius from the start.
 type sectorEvolution struct {
-	Name      string
-	Wind      []hourlyWind // one entry per hour of the ride window
-	OverWater bool
-	NoData    bool
+	Name      string       `json:"name"`
+	Wind      []hourlyWind `json:"wind"` // one entry per hour of the ride window
+	OverWater bool         `json:"overWater"`
+	NoData    bool         `json:"noData"`
 }
 
 type todayResult struct {
-	Cells       [][]todayCell // [row][col]; row 0 = north
-	StepKm      float64
-	StartLat    float64
-	StartLon    float64
-	StartTime   time.Time
-	WindowHours int
-	Sectors     []sectorEvolution // 8 entries in compass order: N, NE, E, SE, S, SW, W, NW
+	Cells       [][]todayCell     `json:"cells"` // [row][col]; row 0 = north
+	StepKm      float64           `json:"stepKm"`
+	RadiusKm    float64           `json:"radiusKm"`
+	Grid        int               `json:"grid"`
+	StartLat    float64           `json:"startLat"`
+	StartLon    float64           `json:"startLon"`
+	StartTime   time.Time         `json:"startTime"`
+	WindowHours int               `json:"windowHours"`
+	Sectors     []sectorEvolution `json:"sectors"` // 8 entries in compass order: N, NE, E, SE, S, SW, W, NW
 }
 
 func runToday(cmd *cobra.Command, args []string) error {
@@ -97,7 +99,7 @@ func runToday(cmd *cobra.Command, args []string) error {
 		FlagTodayRadius,
 	)
 
-	result := runTodayGrid(loc.Latitude, loc.Longitude, startTime, FlagTodayHours)
+	result := runTodayGrid(loc.Latitude, loc.Longitude, startTime, FlagTodayHours, todayGridSize(), FlagTodayRadius)
 	renderToday(result)
 	fmt.Println()
 	renderWindEvolution(result)
@@ -138,10 +140,14 @@ func todayGridSize() int {
 
 // runTodayGrid builds the sample grid, fetches hourly weather for every cell
 // across the ride window, and scores each cell.
-func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours int) todayResult {
-	gridSize := todayGridSize()
-	halfSpanKm := FlagTodayRadius
-	stepKm := halfSpanKm / float64(gridSize/2)
+func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, gridSize int, radiusKm float64) todayResult {
+	if gridSize < 5 {
+		gridSize = 5
+	}
+	if gridSize%2 == 0 {
+		gridSize++
+	}
+	stepKm := radiusKm / float64(gridSize/2)
 
 	latStep := stepKm / 111.0
 	lonFactor := 111.0 * math.Cos(startLat*math.Pi/180)
@@ -197,6 +203,8 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours i
 
 	out := todayResult{
 		StepKm:      stepKm,
+		RadiusKm:    radiusKm,
+		Grid:        gridSize,
 		StartLat:    startLat,
 		StartLon:    startLon,
 		StartTime:   startTime,
@@ -318,7 +326,7 @@ func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int
 // ---------- rendering ----------
 
 func renderToday(r todayResult) {
-	gridSize := todayGridSize()
+	gridSize := r.Grid
 	mid := gridSize / 2
 	for row := 0; row < gridSize; row++ {
 		fmt.Print("  ")
@@ -441,7 +449,7 @@ func renderWindEvolution(r todayResult) {
 	if len(r.Sectors) == 0 {
 		return
 	}
-	gridSize := todayGridSize()
+	gridSize := r.Grid
 	half := (gridSize / 2) / 2
 	if half < 1 {
 		half = 1
@@ -513,78 +521,87 @@ func renderTodayLegend() {
 		termplt.ColorBackgroundBrightGreen+b+termplt.ColorWhite+" ●"+rst)
 }
 
-// printTodayRecommendation samples 8 compass sectors at half-radius and
-// reports best + worst direction to head.
-func printTodayRecommendation(r todayResult) {
-	gridSize := todayGridSize()
-	mid := gridSize / 2
+// TodaySectorScore is one compass direction's rideability summary at
+// half-radius from the start. Used for the recommendation.
+type TodaySectorScore struct {
+	Name     string  `json:"name"`
+	Bearing  float64 `json:"bearing"`
+	DryHours int     `json:"dryHours"`
+	Tailwind float64 `json:"tailwind"`  // km/h along bearing (positive = tailwind)
+	Cell     todayCell `json:"cell"`
+}
+
+// TodayRecommendation is the pure (no-stdout) result of evaluating the 8
+// compass sectors. Best/Worst are zero-valued when Rideable is empty.
+type TodayRecommendation struct {
+	Rideable []TodaySectorScore `json:"rideable"`
+	Best     TodaySectorScore   `json:"best"`
+	Worst    TodaySectorScore   `json:"worst"`
+}
+
+// RecommendToday samples 8 compass sectors at half-radius and ranks them.
+// Pure function: no rendering. The CLI renderer and the HTTP handler both
+// call this and present the result in their own way.
+func RecommendToday(r todayResult) TodayRecommendation {
+	mid := r.Grid / 2
 	half := mid / 2
 	if half < 1 {
 		half = 1
 	}
-
-	type sector struct {
-		Name     string
-		Bearing  float64
-		Cell     todayCell
-	}
-	// Offsets to grid cells at half-radius in each of 8 directions.
-	sectors := []sector{
-		{"N", 0, r.Cells[mid-half][mid]},
-		{"NE", 45, r.Cells[mid-half][mid+half]},
-		{"E", 90, r.Cells[mid][mid+half]},
-		{"SE", 135, r.Cells[mid+half][mid+half]},
-		{"S", 180, r.Cells[mid+half][mid]},
-		{"SW", 225, r.Cells[mid+half][mid-half]},
-		{"W", 270, r.Cells[mid][mid-half]},
-		{"NW", 315, r.Cells[mid-half][mid-half]},
+	probes := []TodaySectorScore{
+		{Name: "N", Bearing: 0, Cell: r.Cells[mid-half][mid]},
+		{Name: "NE", Bearing: 45, Cell: r.Cells[mid-half][mid+half]},
+		{Name: "E", Bearing: 90, Cell: r.Cells[mid][mid+half]},
+		{Name: "SE", Bearing: 135, Cell: r.Cells[mid+half][mid+half]},
+		{Name: "S", Bearing: 180, Cell: r.Cells[mid+half][mid]},
+		{Name: "SW", Bearing: 225, Cell: r.Cells[mid+half][mid-half]},
+		{Name: "W", Bearing: 270, Cell: r.Cells[mid][mid-half]},
+		{Name: "NW", Bearing: 315, Cell: r.Cells[mid-half][mid-half]},
 	}
 
-	type scored struct {
-		sector
-		DryHours int
-		Tailwind float64
-	}
-	rideable := make([]scored, 0, 8)
-	for _, s := range sectors {
+	out := TodayRecommendation{}
+	for _, s := range probes {
 		if s.Cell.Sea || s.Cell.NoData {
 			continue
 		}
-		// Tailwind for this bearing: projection of the cell's wind vector
-		// onto the ride direction. WindBlowsTo is where wind pushes — if it
-		// aligns with your bearing, it's a tailwind.
+		// Tailwind: projection of cell wind onto bearing; positive = push.
 		diff := (s.Bearing - s.Cell.WindBlowsTo) * math.Pi / 180
-		tail := s.Cell.WindSpeed * math.Cos(diff)
-		rideable = append(rideable, scored{sector: s, DryHours: s.Cell.DryHours, Tailwind: tail})
+		s.Tailwind = s.Cell.WindSpeed * math.Cos(diff)
+		s.DryHours = s.Cell.DryHours
+		out.Rideable = append(out.Rideable, s)
+	}
+	if len(out.Rideable) == 0 {
+		return out
 	}
 
-	if len(rideable) == 0 {
-		fmt.Println(termplt.ColorRed + "No rideable direction found — everything around you is water or missing data." + termplt.ColorReset)
-		return
-	}
-
-	// Best: most dry hours, tie-break on tailwind (higher = more favourable).
 	bestIdx, worstIdx := 0, 0
-	for i := 1; i < len(rideable); i++ {
-		if rideable[i].DryHours > rideable[bestIdx].DryHours ||
-			(rideable[i].DryHours == rideable[bestIdx].DryHours && rideable[i].Tailwind > rideable[bestIdx].Tailwind) {
+	for i := 1; i < len(out.Rideable); i++ {
+		if out.Rideable[i].DryHours > out.Rideable[bestIdx].DryHours ||
+			(out.Rideable[i].DryHours == out.Rideable[bestIdx].DryHours && out.Rideable[i].Tailwind > out.Rideable[bestIdx].Tailwind) {
 			bestIdx = i
 		}
-		if rideable[i].DryHours < rideable[worstIdx].DryHours {
+		if out.Rideable[i].DryHours < out.Rideable[worstIdx].DryHours {
 			worstIdx = i
 		}
 	}
+	out.Best = out.Rideable[bestIdx]
+	out.Worst = out.Rideable[worstIdx]
+	return out
+}
 
-	best := rideable[bestIdx]
-	worst := rideable[worstIdx]
-
+func printTodayRecommendation(r todayResult) {
+	rec := RecommendToday(r)
 	b := termplt.ColorBold
 	rst := termplt.ColorReset
+	if len(rec.Rideable) == 0 {
+		fmt.Println(termplt.ColorRed + "No rideable direction found — everything around you is water or missing data." + termplt.ColorReset)
+		return
+	}
 	fmt.Printf("%sBest:%s head %s — %s, %s.\n",
-		b, rst, best.Name, describeDry(best.DryHours, r.WindowHours), describeWind(best.Tailwind, best.Cell.WindSpeed))
-	if worst.Name != best.Name && worst.DryHours < r.WindowHours {
+		b, rst, rec.Best.Name, describeDry(rec.Best.DryHours, r.WindowHours), describeWind(rec.Best.Tailwind, rec.Best.Cell.WindSpeed))
+	if rec.Worst.Name != rec.Best.Name && rec.Worst.DryHours < r.WindowHours {
 		fmt.Printf("%sAvoid:%s %s — %s.\n",
-			b, rst, worst.Name, describeDry(worst.DryHours, r.WindowHours))
+			b, rst, rec.Worst.Name, describeDry(rec.Worst.DryHours, r.WindowHours))
 	}
 }
 

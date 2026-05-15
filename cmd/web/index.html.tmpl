@@ -11,6 +11,11 @@
 </head>
 <body>
 <main>
+  <nav class="nav">
+    <a href="/{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Rain 2h</a>
+    <a href="/today{{if .Q}}?{{.Q}}{{end}}">Today</a>
+    <a href="/scout{{if .Q}}?{{.Q}}{{end}}">Scout</a>
+  </nav>
   <header>
     <h1>{{.Location.Description}}</h1>
     <p class="sub">Next 2 hours

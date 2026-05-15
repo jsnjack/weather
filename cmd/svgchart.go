@@ -163,3 +163,111 @@ func RenderLineChartSVG(series []SVGSeries, opts SVGOpts) template.HTML {
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String())
 }
+
+// GridCell is one cell in a heat grid. Color is the background CSS color;
+// Symbol is an optional center glyph (already a complete string like "↗" or
+// "✗"); SymbolColor overrides the default text color. Border is drawn when
+// non-empty, used for the start cell.
+type GridCell struct {
+	Color       string
+	Symbol      string
+	SymbolColor string
+	Border      string
+}
+
+// GridOpts controls heat-grid layout.
+type GridOpts struct {
+	CellSize int    // px per cell in the viewBox; default 22
+	StepKm   float64 // optional — when >0, axis labels show ±km on edges
+	Title    string // optional caption shown above the grid
+}
+
+// RenderHeatGridSVG draws cells[row][col] as a square grid. Row 0 is at the
+// top of the SVG (matching the CLI heatmap where row 0 = north). The grid
+// shows km-distance axis labels along the top and left edges when StepKm > 0.
+func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
+	if len(cells) == 0 || len(cells[0]) == 0 {
+		return template.HTML(`<svg viewBox="0 0 1 1"></svg>`)
+	}
+	if opts.CellSize == 0 {
+		opts.CellSize = 22
+	}
+	rows := len(cells)
+	cols := len(cells[0])
+	mid := rows / 2
+
+	padL := 36
+	padT := 16
+	padR, padB := 16, 16
+	if opts.Title != "" {
+		padT += 18
+	}
+	w := padL + cols*opts.CellSize + padR
+	h := padT + rows*opts.CellSize + padB
+
+	var b strings.Builder
+	fmt.Fprintf(&b,
+		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" preserveAspectRatio="xMidYMid meet" role="img" style="width:100%%;height:auto;max-width:520px;font:11px system-ui,sans-serif">`,
+		w, h)
+
+	if opts.Title != "" {
+		fmt.Fprintf(&b,
+			`<text x="%d" y="14" font-weight="600" fill="currentColor">%s</text>`,
+			padL, template.HTMLEscapeString(opts.Title))
+	}
+
+	// Axis: N/S km labels along left edge (one per row, only at edges and center to reduce clutter).
+	if opts.StepKm > 0 {
+		// Top row (north edge) and bottom row (south edge), plus middle = start.
+		labelRows := map[int]string{
+			0:        fmt.Sprintf("+%d km", int(float64(mid)*opts.StepKm)),
+			mid:      "start",
+			rows - 1: fmt.Sprintf("-%d km", int(float64(mid)*opts.StepKm)),
+		}
+		for r, txt := range labelRows {
+			y := padT + r*opts.CellSize + opts.CellSize/2 + 4
+			fmt.Fprintf(&b,
+				`<text x="%d" y="%d" text-anchor="end" fill="currentColor" opacity="0.7">%s</text>`,
+				padL-4, y, template.HTMLEscapeString(txt))
+		}
+		// W / E labels under the bottom-left and bottom-right.
+		yLab := padT + rows*opts.CellSize + 12
+		fmt.Fprintf(&b,
+			`<text x="%d" y="%d" fill="currentColor" opacity="0.7">-%d W</text>`,
+			padL, yLab, int(float64(mid)*opts.StepKm))
+		fmt.Fprintf(&b,
+			`<text x="%d" y="%d" text-anchor="end" fill="currentColor" opacity="0.7">+%d E</text>`,
+			padL+cols*opts.CellSize, yLab, int(float64(mid)*opts.StepKm))
+	}
+
+	// Cells.
+	for r := 0; r < rows; r++ {
+		for c := 0; c < cols; c++ {
+			cell := cells[r][c]
+			x := padL + c*opts.CellSize
+			y := padT + r*opts.CellSize
+			fmt.Fprintf(&b,
+				`<rect x="%d" y="%d" width="%d" height="%d" fill="%s"`,
+				x, y, opts.CellSize, opts.CellSize, template.HTMLEscapeString(cell.Color))
+			if cell.Border != "" {
+				fmt.Fprintf(&b, ` stroke="%s" stroke-width="2"`, template.HTMLEscapeString(cell.Border))
+			}
+			b.WriteString(`/>`)
+			if cell.Symbol != "" {
+				sc := cell.SymbolColor
+				if sc == "" {
+					sc = "#111"
+				}
+				fmt.Fprintf(&b,
+					`<text x="%d" y="%d" text-anchor="middle" dominant-baseline="central" fill="%s" font-size="%d">%s</text>`,
+					x+opts.CellSize/2, y+opts.CellSize/2+1,
+					template.HTMLEscapeString(sc), opts.CellSize-6,
+					template.HTMLEscapeString(cell.Symbol))
+			}
+		}
+	}
+
+	b.WriteString(`</svg>`)
+	return template.HTML(b.String())
+}
+

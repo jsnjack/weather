@@ -9,14 +9,15 @@ import (
 
 // beamNode is one partial or complete trip plan evaluated by the beam search.
 type beamNode struct {
-	Bearings    []float64    // day-by-day compass bearing (len == depth so far)
-	Positions   []latLon     // cumulative positions — Positions[0] is start, len == depth+1
-	DailyScores []DayScore   // per-day scored details for rendering
-	Score       float64      // cumulative score after all penalties
+	Bearings    []float64  `json:"bearings"`    // day-by-day compass bearing (len == depth so far)
+	Positions   []latLon   `json:"positions"`   // cumulative positions — Positions[0] is start, len == depth+1
+	DailyScores []DayScore `json:"dailyScores"` // per-day scored details for rendering
+	Score       float64    `json:"score"`       // cumulative score after all penalties
 }
 
 type latLon struct {
-	Lat, Lon float64
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
 }
 
 // beamConfig bundles user-tunable knobs for the search.

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>Today — {{.Location.Description}}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main>
+  <nav class="nav">
+    <a href="/{{if .Q}}?{{.Q}}{{end}}">Rain 2h</a>
+    <a href="/today{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Today</a>
+    <a href="/scout{{if .Q}}?{{.Q}}{{end}}">Scout</a>
+  </nav>
+  <header>
+    <h1>{{.Location.Description}}</h1>
+    <p class="sub">{{.StartLabel}}–{{.EndLabel}} · {{printf "%.0f" .Result.RadiusKm}} km radius</p>
+  </header>
+
+  <form class="controls" method="get">
+    <input type="hidden" name="lat" value="{{.Location.Latitude}}">
+    <input type="hidden" name="lon" value="{{.Location.Longitude}}">
+    <label>Hours <input type="number" name="hours" min="1" max="24" value="{{.Result.WindowHours}}"></label>
+    <label>Start <input type="time" name="start" value="{{.StartInput}}"></label>
+    <label>Radius km <input type="number" name="radius" min="5" max="500" value="{{printf "%.0f" .Result.RadiusKm}}"></label>
+    <label>Grid <input type="number" name="grid" min="5" max="41" step="2" value="{{.Result.Grid}}"></label>
+    <button type="submit">Refresh</button>
+  </form>
+
+  {{if .Recommendation.Best.Name}}
+  <p class="recommendation">
+    <strong>Best:</strong> head {{.Recommendation.Best.Name}} — {{.BestDesc}}, {{.BestWind}}.
+    {{if and .Recommendation.Worst.Name (ne .Recommendation.Worst.Name .Recommendation.Best.Name)}}
+    <br><strong>Avoid:</strong> {{.Recommendation.Worst.Name}} — {{.WorstDesc}}.
+    {{end}}
+  </p>
+  {{else}}
+  <p class="empty">No rideable direction — everything around is water or missing data.</p>
+  {{end}}
+
+  <section>{{.HeatmapSVG}}</section>
+
+  <section class="evolution">
+    <h2>Wind evolution</h2>
+    <p class="sub">arrow points where wind pushes you · · = calm (≤10 km/h)</p>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          {{range .HourLabels}}<th>{{.}}</th>{{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range .SectorRows}}
+        <tr>
+          <th>{{.Name}}</th>
+          {{range .Cells}}<td{{if $.OverWater}} class="water"{{end}}>{{.}}</td>{{end}}
+          {{if .OverWater}}<td class="water">(water)</td>{{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <a href="/api/v1/today?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}&hours={{.Result.WindowHours}}&start={{.StartInput}}&radius={{printf "%.0f" .Result.RadiusKm}}&grid={{.Result.Grid}}">JSON</a>
+    · refreshed {{.Now}}
+  </footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>
