@@ -22,11 +22,11 @@
         </tr>
       </thead>
       <tbody>
-        {{range .SectorRows}}
+        {{range $row := .SectorRows}}
         <tr>
-          <th>{{.Name}}</th>
-          {{range .Cells}}<td{{if $.OverWater}} class="water"{{end}}>{{.}}</td>{{end}}
-          {{if .OverWater}}<td class="water">(water)</td>{{end}}
+          <th>{{$row.Name}}</th>
+          {{range $row.Cells}}<td{{if $row.OverWater}} class="water"{{end}}>{{.}}</td>{{end}}
+          {{if $row.OverWater}}<td class="water">(water)</td>{{end}}
         </tr>
         {{end}}
       </tbody>
