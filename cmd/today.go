@@ -369,12 +369,19 @@ func renderToday(r todayResult) {
 func todayCellGlyph(c todayCell, windowHours int, isStart bool) string {
 	rst := termplt.ColorReset
 	// Start cell always shows the ● marker regardless of underlying data.
+	// Use the same sea-cyan tint as the rest of the heatmap when the start
+	// itself sits on water (rare, but possible if the user drops a lat/lon
+	// on the IJsselmeer or an IP geocode puts them in the North Sea).
 	if isStart {
 		bg := todayBg(rainTimingBand(c.DryHours, windowHours))
 		if c.NoData {
 			bg = termplt.ColorBackgroundBrightBlack
 		}
-		return bg + termplt.ColorBold + termplt.ColorWhite + " ●" + rst
+		fg := termplt.ColorBold + termplt.ColorWhite
+		if c.Sea {
+			fg = termplt.ColorBold + termplt.ColorCyan
+		}
+		return bg + fg + " ●" + rst
 	}
 	if c.NoData {
 		return termplt.ColorBackgroundBrightBlack + "  " + rst
@@ -384,8 +391,14 @@ func todayCellGlyph(c todayCell, windowHours int, isStart bool) string {
 	bg := todayBg(band)
 
 	if band == 3 {
-		// Raining now / within 1h.
-		return bg + termplt.ColorBold + termplt.ColorWhite + " ✗" + rst
+		// Raining now / within 1h. Tint the ✗ cyan if this cell is over water,
+		// so the "you can't ride here anyway" info isn't lost behind the
+		// rain colour.
+		fg := termplt.ColorBold + termplt.ColorWhite
+		if c.Sea {
+			fg = termplt.ColorBold + termplt.ColorCyan
+		}
+		return bg + fg + " ✗" + rst
 	}
 
 	// Cyan foreground marks cells that are over water — weather still shown,
@@ -474,7 +487,13 @@ func renderWindEvolution(r todayResult) {
 	fmt.Println()
 
 	for _, sec := range r.Sectors {
-		fmt.Printf("  %-4s  ", sec.Name)
+		// Sector name is cyan when over water so the row reads as "water"
+		// from the very first column, matching how individual cells are tinted.
+		if sec.OverWater {
+			fmt.Printf("  %s%-4s%s  ", termplt.ColorCyan, sec.Name, rst)
+		} else {
+			fmt.Printf("  %-4s  ", sec.Name)
+		}
 		if sec.NoData {
 			fmt.Println("(no data)")
 			continue
@@ -519,10 +538,14 @@ func renderTodayLegend() {
 	fmt.Printf("    %s    strong, %.0f–%.0f km/h\n", sw(termplt.ColorBackgroundGreen, "→≈"), windWindyKmh, windStrongKmh)
 	fmt.Println()
 	fmt.Println(b + "  Overrides" + rst)
-	fmt.Printf("    %s    over water (weather still shown; you can't ride there)\n",
+	fmt.Printf("    %s    over water, dry (weather still shown; you can't ride there)\n",
 		termplt.ColorBackgroundBrightGreen+termplt.ColorCyan+"→·"+rst)
+	fmt.Printf("    %s    over water, raining (cyan ✗ on rain background)\n",
+		termplt.ColorBackgroundRed+b+termplt.ColorCyan+" ✗"+rst)
 	fmt.Printf("    %s    your starting point\n",
 		termplt.ColorBackgroundBrightGreen+b+termplt.ColorWhite+" ●"+rst)
+	fmt.Printf("    %s    no data from the forecast provider (try refreshing)\n",
+		termplt.ColorBackgroundBrightBlack+"  "+rst)
 }
 
 // TodaySectorScore is one compass direction's rideability summary at

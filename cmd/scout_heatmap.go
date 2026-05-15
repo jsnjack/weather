@@ -300,4 +300,6 @@ func renderHeatmapLegend() {
 	fmt.Printf("    %s    over water — not rideable\n", sw(termplt.ColorBackgroundCyan, "~~ "))
 	fmt.Printf("    %s    your starting point (overlaid on whichever colour that cell would be)\n",
 		termplt.ColorBackgroundBrightGreen+b+termplt.ColorWhite+" ● "+rst)
+	fmt.Printf("    %s    no data from the forecast provider (try refreshing)\n",
+		sw(termplt.ColorBackgroundBrightBlack, "   "))
 }

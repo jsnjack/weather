@@ -24,7 +24,7 @@
       <tbody>
         {{range $row := .SectorRows}}
         <tr>
-          <th>{{$row.Name}}</th>
+          <th{{if $row.OverWater}} class="water"{{end}}>{{$row.Name}}</th>
           {{range $row.Cells}}<td{{if $row.OverWater}} class="water"{{end}}>{{.}}</td>{{end}}
           {{if $row.OverWater}}<td class="water">(water)</td>{{end}}
         </tr>
@@ -51,8 +51,10 @@
     </div>
     <div class="legend-group">
       <h4>Overrides</h4>
-      <span class="legend-item"><span class="swatch" style="background:#86efac;color:#06b6d4">→·</span>over water (you can't ride there)</span>
+      <span class="legend-item"><span class="swatch" style="background:#86efac;color:#06b6d4">→·</span>over water, dry</span>
+      <span class="legend-item"><span class="swatch" style="background:#ef4444;color:#06b6d4">✗</span>over water, raining</span>
       <span class="legend-item"><span class="swatch" style="background:#86efac;color:#fff;border:2px solid #fff">●</span>your starting point</span>
+      <span class="legend-item"><span class="swatch" style="background:#3f3f46"></span>no data from forecast provider</span>
     </div>
   </section>
 

@@ -38,24 +38,28 @@ type OpenMeteoData struct {
 	Elevation float64
 }
 
-// seaElevationThreshold is the cell elevation (in metres) at or below which
-// we treat a grid cell as water. Half of the Netherlands sits between roughly
-// -7 m and 0 m NAP — Schiphol is at about -4 m — so the cutoff has to dip a
-// bit under sea level to keep polders on the land side without missing real
-// water bodies like the IJsselmeer.
-const seaElevationThreshold = -3.0
-
-// IsSea returns true if the grid cell is water. See seaElevationThreshold for
-// why we accept slightly-negative elevations as land.
+// IsSea returns true if the grid cell is water. Empirically Open-Meteo's
+// model reports:
+//   - exactly 0.0 m for ocean, the IJsselmeer / Markermeer, and other open
+//     water (its grid clamps surface water to NAP zero);
+//   - -3 to -5 m for the deepest Dutch polders (Flevoland, Wieringermeer);
+//   - +11 m for coastal cells averaged with dunes (Amsterdam, Schiphol).
+//
+// So matching on exact 0 correctly flags real water while keeping polders
+// on the land side. Originally we relaxed this to <= -3 thinking polders
+// would otherwise be miscategorised as sea — they aren't, because polders
+// return *negative* values, not zero.
 func (d *OpenMeteoData) IsSea() bool {
-	return d.Elevation <= seaElevationThreshold
+	return d.Elevation == 0.0
 }
 
 // GetOpenMeteoRange fetches hourly forecast data for a single lat/lon across
 // the inclusive [startDate, endDate] range. Times come back in the local
 // timezone of the point (timezone=auto) so hour-of-day comparisons are local.
-// Retries up to three times on 429 (rate limit) — beam search can issue
-// hundreds of calls.
+// Retries up to four times with exponential back-off on any transient
+// failure — rate limits, 5xx, or network errors. Beam search and the today
+// heatmap issue 100+ parallel calls, where a single brief glitch otherwise
+// shows up as a contiguous block of "no data" cells.
 func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMeteoData, error) {
 	start := startDate.Format("2006-01-02")
 	end := endDate.Format("2006-01-02")
@@ -68,21 +72,24 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 	client := &http.Client{Timeout: 15 * time.Second}
 
 	var resp *http.Response
-	for attempt := 0; attempt < 3; attempt++ {
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
 		r, err := client.Get(url)
 		if err != nil {
-			return nil, err
-		}
-		if r.StatusCode != http.StatusTooManyRequests {
+			lastErr = err
+			DebugLogger.Printf("open-meteo net error on %.4f,%.4f (attempt %d): %s\n", lat, lon, attempt+1, err)
+		} else if r.StatusCode == http.StatusTooManyRequests || r.StatusCode >= 500 {
+			lastErr = fmt.Errorf("open-meteo transient status %d", r.StatusCode)
+			r.Body.Close()
+			DebugLogger.Printf("open-meteo %d on %.4f,%.4f (attempt %d), backing off\n", r.StatusCode, lat, lon, attempt+1)
+		} else {
 			resp = r
 			break
 		}
-		r.Body.Close()
-		DebugLogger.Printf("open-meteo 429 on %.4f,%.4f (attempt %d), backing off\n", lat, lon, attempt+1)
 		time.Sleep(time.Duration(1<<attempt) * time.Second)
 	}
 	if resp == nil {
-		return nil, fmt.Errorf("open-meteo kept returning 429 after retries")
+		return nil, fmt.Errorf("open-meteo retries exhausted: %w", lastErr)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

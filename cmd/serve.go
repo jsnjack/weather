@@ -548,7 +548,11 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 
 func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
 	if isStart {
-		return GridCell{Color: todayBandHex(rainTimingBand(c.DryHours, windowHours), c.NoData), Symbol: "●", SymbolColor: "#fff", Border: "#fff"}
+		sc := "#fff"
+		if c.Sea {
+			sc = "#06b6d4" // start over water keeps the sea-cyan tint
+		}
+		return GridCell{Color: todayBandHex(rainTimingBand(c.DryHours, windowHours), c.NoData), Symbol: "●", SymbolColor: sc, Border: "#fff"}
 	}
 	if c.NoData {
 		return GridCell{Color: "#3f3f46", Symbol: ""}
@@ -556,7 +560,14 @@ func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
 	band := rainTimingBand(c.DryHours, windowHours)
 	bg := todayBandHex(band, false)
 	if band == 3 {
-		return GridCell{Color: bg, Symbol: "✗", SymbolColor: "#fff"}
+		// Tint the ✗ cyan over water so the "this is water" cue isn't lost
+		// behind the rain colour.
+		sym := "✗"
+		sc := "#fff"
+		if c.Sea {
+			sc = "#06b6d4"
+		}
+		return GridCell{Color: bg, Symbol: sym, SymbolColor: sc}
 	}
 	sym := ""
 	if WindBand(c.WindSpeed) > 0 {
