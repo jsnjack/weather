@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log"
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -73,9 +75,10 @@ installed on Android as a stand-in for a native widget.`,
 		}
 		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
+		accessLog := log.New(os.Stdout, "", log.LstdFlags)
 		srv := &http.Server{
 			Addr:              FlagServeAddr,
-			Handler:           mux,
+			Handler:           accessLogMiddleware(accessLog, mux),
 			ReadHeaderTimeout: 5 * time.Second,
 		}
 
@@ -87,6 +90,66 @@ installed on Android as a stand-in for a native widget.`,
 
 		return srv.ListenAndServe()
 	},
+}
+
+// statusRecorder wraps a ResponseWriter so we can log the final status code
+// and byte count. Implements http.Flusher explicitly so the streaming
+// handlers can still flush head/progress chunks through the middleware.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(p []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	n, err := r.ResponseWriter.Write(p)
+	r.bytes += n
+	return n, err
+}
+
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func accessLogMiddleware(logger *log.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w}
+		next.ServeHTTP(rec, r)
+		if rec.status == 0 {
+			rec.status = http.StatusOK
+		}
+		path := r.URL.Path
+		if r.URL.RawQuery != "" {
+			path += "?" + r.URL.RawQuery
+		}
+		logger.Printf("%s %s %s %d %dB %s",
+			remoteIP(r), r.Method, path, rec.status, rec.bytes, time.Since(start).Round(time.Millisecond))
+	})
+}
+
+func remoteIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if comma := strings.IndexByte(xff, ','); comma > 0 {
+			return strings.TrimSpace(xff[:comma])
+		}
+		return strings.TrimSpace(xff)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func init() {
@@ -131,6 +194,12 @@ type indexRow struct {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
+	// "GET /" matches any path the other patterns don't claim. Send a real
+	// 404 for unknown paths instead of silently rendering the rain page.
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
 	lat, lon, name := locationQuery(r)
 	loc, err := ResolveLocationFor(lat, lon, name)
 	if err != nil {
