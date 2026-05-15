@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>Weather — {{.Location.Description}}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{.Location.Description}}</h1>
+    <p class="sub">Next 2 hours
+      <span class="legend"><span class="dot" style="background:{{.BuienalarmColor}}"></span>Buienalarm</span>
+      <span class="legend"><span class="dot" style="background:{{.BuineradarColor}}"></span>Buineradar</span>
+    </p>
+    {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
+  </header>
+
+  <section class="chart">{{.ChartSVG}}</section>
+
+  {{if .Rows}}
+  <details class="data">
+    <summary>Data</summary>
+    <table>
+      <thead><tr><th>Time</th><th>Buienalarm</th><th>Buineradar</th></tr></thead>
+      <tbody>
+        {{range .Rows}}
+        <tr><td>{{.Time}}</td><td>{{.A}}</td><td>{{.B}}</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </details>
+  {{end}}
+
+  <footer>
+    <a href="/api/v1/rain?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
+    · refreshed {{.Now}}
+  </footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(function (e) { console.warn("SW", e); });
+  }
+</script>
+</body>
+</html>

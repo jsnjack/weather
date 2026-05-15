@@ -47,12 +47,12 @@ func (ft ForecastType) Unit() string {
 }
 
 type ForecastDataPoint struct {
-	Time  time.Time
-	Value float64
+	Time  time.Time `json:"time"`
+	Value float64   `json:"value"`
 }
 
 type Forecast struct {
-	Data []ForecastDataPoint
-	Desc string
-	Type ForecastType
+	Data []ForecastDataPoint `json:"data"`
+	Desc string              `json:"desc"`
+	Type ForecastType        `json:"type"`
 }
