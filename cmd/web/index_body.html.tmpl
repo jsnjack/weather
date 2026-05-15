@@ -1,0 +1,30 @@
+  {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
+
+  <section class="chart">{{.ChartSVG}}</section>
+
+  {{if .Rows}}
+  <details class="data">
+    <summary>Data</summary>
+    <table>
+      <thead><tr><th>Time</th><th>Buienalarm</th><th>Buineradar</th></tr></thead>
+      <tbody>
+        {{range .Rows}}
+        <tr><td>{{.Time}}</td><td>{{.A}}</td><td>{{.B}}</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </details>
+  {{end}}
+
+  <footer>
+    <a href="/api/v1/rain?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
+    · refreshed {{.Now}}
+  </footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(function (e) { console.warn("SW", e); });
+  }
+</script>
+</body>
+</html>

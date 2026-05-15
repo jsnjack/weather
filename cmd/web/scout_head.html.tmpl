@@ -34,50 +34,17 @@
     <button type="submit">Refresh</button>
   </form>
 
-  {{if .IsHeatmap}}
-    {{if .HeatmapDaysSVG}}
-    <section class="heatmaps">
-      {{range .HeatmapDaysSVG}}
-      <div class="heatmap-day">{{.}}</div>
-      {{end}}
-    </section>
-    {{else}}
-    <p class="empty">No heatmap data.</p>
-    {{end}}
-  {{else}}
-    {{if .Trips}}
-      {{if .RecommendationText}}<p class="recommendation"><strong>Recommendation:</strong> {{.RecommendationText}}</p>{{end}}
-      {{range $i, $t := .Trips}}
-      <article class="trip">
-        <h3>Trip {{add $i 1}} — score {{printf "%.0f" $t.Score}}</h3>
-        <p class="path">{{$t.Path}} {{if $.Cfg.RoundTrip}}(ends {{printf "%.0f" $t.EndDistKm}} km from start){{else}}(ends ~{{$t.EndLabel}}, {{printf "%.0f" $t.EndDistKm}} km away){{end}}</p>
-        <table>
-          <thead><tr><th></th><th>Dir</th><th>~Endpoint</th><th>Max°</th><th>Wind</th></tr></thead>
-          <tbody>
-            {{range $d, $row := $t.Days}}
-            <tr>
-              <th>Day {{add $d 1}}</th>
-              <td>{{$row.Dir}}</td>
-              <td>~{{$row.Label}}</td>
-              <td{{if $row.Cold}} style="color:#eab308"{{end}}>{{$row.Temp}}{{if $row.Cold}}*{{end}}</td>
-              <td style="color:{{$row.WindColor}}">{{$row.Wind}}</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
-      </article>
-      {{end}}
-    {{else}}
-      <p class="empty">No viable trip found — every bearing hit rain or severe gusts on at least one day.</p>
-    {{end}}
-  {{end}}
-
-  <footer>
-    <a href="/api/v1/scout?{{.JSONQuery}}">JSON</a> · refreshed {{.Now}}
-  </footer>
-</main>
-<script>
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
-</script>
-</body>
-</html>
+  <section class="loading" id="loading">
+    <progress id="prog" max="1" value="0"></progress>
+    <span id="prog-label" class="sub">starting…</span>
+  </section>
+  <script>
+    window.__p = function(n, total) {
+      var p = document.getElementById('prog'), l = document.getElementById('prog-label');
+      if (p) { p.max = Math.max(1, total); p.value = n; }
+      if (l) l.textContent = total > 0 ? (n + ' / ' + total) : 'starting…';
+    };
+    window.__pDone = function() {
+      var s = document.getElementById('loading'); if (s) s.remove();
+    };
+  </script>

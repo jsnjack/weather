@@ -51,13 +51,14 @@ User can also specify the location manually.`,
 			return err
 		}
 
-		buinealarmForecast, err := GetBuinealarmForecast(loc.Latitude, loc.Longitude)
-		if err != nil {
-			return err
+		prog := NewCLIProgress("rain forecast")
+		buinealarmForecast, buineradarForecast, alarmErr, radarErr := fetchRain(cmd.Context(), loc.Latitude, loc.Longitude, prog)
+		prog.Finish()
+		if alarmErr != nil {
+			return alarmErr
 		}
-		buineradarForecast, err := GetBuineradarForecast(loc.Latitude, loc.Longitude)
-		if err != nil {
-			return err
+		if radarErr != nil {
+			return radarErr
 		}
 		fmt.Printf(termplt.ColorBold+"Weather in %s\n"+termplt.ColorReset, loc.Description)
 		fmt.Println("Next 2 hours (" + termplt.ColorCyan + "Buienalarm" + termplt.ColorReset + ", " + termplt.ColorPurple + "Buineradar" + termplt.ColorReset + ")")

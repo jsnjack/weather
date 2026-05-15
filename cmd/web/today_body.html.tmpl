@@ -1,0 +1,45 @@
+  {{if .Recommendation.Best.Name}}
+  <p class="recommendation">
+    <strong>Best:</strong> head {{.Recommendation.Best.Name}} — {{.BestDesc}}, {{.BestWind}}.
+    {{if and .Recommendation.Worst.Name (ne .Recommendation.Worst.Name .Recommendation.Best.Name)}}
+    <br><strong>Avoid:</strong> {{.Recommendation.Worst.Name}} — {{.WorstDesc}}.
+    {{end}}
+  </p>
+  {{else}}
+  <p class="empty">No rideable direction — everything around is water or missing data.</p>
+  {{end}}
+
+  <section>{{.HeatmapSVG}}</section>
+
+  <section class="evolution">
+    <h2>Wind evolution</h2>
+    <p class="sub">arrow points where wind pushes you · · = calm (≤10 km/h)</p>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          {{range .HourLabels}}<th>{{.}}</th>{{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range .SectorRows}}
+        <tr>
+          <th>{{.Name}}</th>
+          {{range .Cells}}<td{{if $.OverWater}} class="water"{{end}}>{{.}}</td>{{end}}
+          {{if .OverWater}}<td class="water">(water)</td>{{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <a href="/api/v1/today?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}&hours={{.WindowHours}}&start={{.StartInput}}&radius={{printf "%.0f" .RadiusKm}}&grid={{.Grid}}">JSON</a>
+    · refreshed {{.Now}}
+  </footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>

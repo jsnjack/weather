@@ -132,12 +132,16 @@ func runScout(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if FlagScoutHeatmap {
-		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, heatmapGridSize())
+		prog := NewCLIProgress("heatmap cells")
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, heatmapGridSize(), prog)
+		prog.Finish()
 		renderHeatmap(hm)
 		return nil
 	}
 
-	trips := RunBeamSearch(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg)
+	beamProg := NewCLIProgress("beam search")
+	trips := RunBeamSearch(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, beamProg)
+	beamProg.Finish()
 	if len(trips) == 0 {
 		fmt.Println(termplt.ColorRed + "No viable trip found — every bearing hit rain or severe gusts on at least one day." + termplt.ColorReset)
 		return nil
@@ -149,7 +153,9 @@ func runScout(cmd *cobra.Command, args []string) error {
 	}
 	top := trips[:topN]
 
-	labelsByTrip := annotateTripLabels(top)
+	labelProg := NewCLIProgress("place labels")
+	labelsByTrip := annotateTripLabels(top, labelProg)
+	labelProg.Finish()
 
 	renderLegend()
 	for i := range top {
@@ -169,7 +175,7 @@ func runScout(cmd *cobra.Command, args []string) error {
 // deduping by rounded lat/lon so overlapping trips share calls. Returns a
 // slice of label-lists parallel to the trips slice (labels[i][d] = locality
 // at the end of day d+1 of trip i).
-func annotateTripLabels(trips []beamNode) [][]string {
+func annotateTripLabels(trips []beamNode, prog Progress) [][]string {
 	type geoKey struct{ LatR, LonR int }
 	keyFor := func(lat, lon float64) geoKey {
 		return geoKey{int(math.Round(lat * 100)), int(math.Round(lon * 100))}
@@ -194,12 +200,14 @@ func annotateTripLabels(trips []beamNode) [][]string {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, scoutFetchWorkers)
+	prog.AddTotal(len(pending))
 	for _, t := range pending {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(t geoTask) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer prog.Inc(1)
 			name, err := GetDescriptionFromCoordinates(t.Lat, t.Lon)
 			if err != nil {
 				DebugLogger.Printf("scout: reverse-geocode %.2f,%.2f: %s\n", t.Lat, t.Lon, err)

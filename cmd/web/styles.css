@@ -53,3 +53,11 @@ form.controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; font
 form.controls label { display: flex; flex-direction: column; gap: .15rem; color: var(--muted); }
 form.controls input, form.controls select { padding: .25rem .35rem; background: var(--bg); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: .25rem; min-width: 4rem; }
 form.controls button { padding: .25rem .75rem; align-self: flex-end; background: var(--accent); color: white; border: 0; border-radius: .25rem; cursor: pointer; }
+
+/* progress / loading */
+.loading { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
+.loading progress { flex: 1; height: .5rem; max-width: 360px; }
+.loading progress::-webkit-progress-bar { background: color-mix(in srgb, var(--fg) 10%, transparent); border-radius: .25rem; }
+.loading progress::-webkit-progress-value { background: var(--accent); border-radius: .25rem; transition: width .15s linear; }
+.loading progress::-moz-progress-bar { background: var(--accent); border-radius: .25rem; }
+.loading .sub { font-variant-numeric: tabular-nums; }

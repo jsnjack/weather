@@ -33,10 +33,16 @@ var tmplFuncs = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 }
 
+// Each page streams in two parts: a "_head" template flushed before the work
+// starts (so the browser paints the shell + progress bar immediately) and a
+// "_body" template flushed after the work completes.
 var (
-	indexTmpl = template.Must(template.New("index.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index.html.tmpl"))
-	todayTmpl = template.Must(template.New("today.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today.html.tmpl"))
-	scoutTmpl = template.Must(template.New("scout.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout.html.tmpl"))
+	indexHeadTmpl = template.Must(template.New("index_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_head.html.tmpl"))
+	indexBodyTmpl = template.Must(template.New("index_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_body.html.tmpl"))
+	todayHeadTmpl = template.Must(template.New("today_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_head.html.tmpl"))
+	todayBodyTmpl = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
+	scoutHeadTmpl = template.Must(template.New("scout_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_head.html.tmpl"))
+	scoutBodyTmpl = template.Must(template.New("scout_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_body.html.tmpl"))
 )
 
 var serveCmd = &cobra.Command{
@@ -89,15 +95,18 @@ func init() {
 }
 
 // fetchRain runs both rain providers in parallel for the given coordinates.
-func fetchRain(ctx context.Context, lat, lon float64) (alarm, radar *Forecast, alarmErr, radarErr error) {
+func fetchRain(ctx context.Context, lat, lon float64, prog Progress) (alarm, radar *Forecast, alarmErr, radarErr error) {
+	prog.AddTotal(2)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+		defer prog.Inc(1)
 		alarm, alarmErr = GetBuinealarmForecast(lat, lon)
 	}()
 	go func() {
 		defer wg.Done()
+		defer prog.Inc(1)
 		radar, radarErr = GetBuineradarForecast(lat, lon)
 	}()
 	wg.Wait()
@@ -129,7 +138,30 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alarm, radar, _, _ := fetchRain(r.Context(), loc.Latitude, loc.Longitude)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	flusher, _ := w.(http.Flusher)
+
+	data := indexData{
+		Location:        loc,
+		BuienalarmColor: buienalarmColor,
+		BuineradarColor: buineradarColor,
+		Q:               locQuery(loc),
+	}
+	if err := indexHeadTmpl.Execute(w, data); err != nil {
+		DebugLogger.Printf("index head execute: %s\n", err)
+		return
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+
+	var prog Progress = NoProgress
+	if flusher != nil {
+		prog = NewHTTPProgress(w, flusher)
+	}
+	alarm, radar, _, _ := fetchRain(r.Context(), loc.Latitude, loc.Longitude, prog)
+	prog.Finish()
 
 	series := []SVGSeries{}
 	var lastAlarmT time.Time
@@ -138,42 +170,30 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		lastAlarmT = alarm.Data[len(alarm.Data)-1].Time
 	}
 	if radar != nil && len(radar.Data) > 0 {
-		data := radar.Data
+		rdata := radar.Data
 		if !lastAlarmT.IsZero() {
-			cut := data
-			for i, p := range data {
+			cut := rdata
+			for i, p := range rdata {
 				if p.Time.After(lastAlarmT) {
-					cut = data[:i]
+					cut = rdata[:i]
 					break
 				}
 			}
-			data = cut
+			rdata = cut
 		}
-		if len(data) > 0 {
-			series = append(series, SVGSeries{Name: "Buineradar", Color: buineradarColor, Data: data})
+		if len(rdata) > 0 {
+			series = append(series, SVGSeries{Name: "Buineradar", Color: buineradarColor, Data: rdata})
 		}
 	}
-
-	desc := ""
 	if alarm != nil {
-		desc = alarm.Desc
+		data.Description = alarm.Desc
 	}
+	data.ChartSVG = RenderLineChartSVG(series, SVGOpts{YUnit: " mm/h", XTimeFormat: "15:04"})
+	data.Rows = mergeRows(alarm, radar)
+	data.Now = time.Now().Format("15:04:05")
 
-	data := indexData{
-		Location:        loc,
-		Description:     desc,
-		ChartSVG:        RenderLineChartSVG(series, SVGOpts{YUnit: " mm/h", XTimeFormat: "15:04"}),
-		BuienalarmColor: buienalarmColor,
-		BuineradarColor: buineradarColor,
-		Rows:            mergeRows(alarm, radar),
-		Now:             time.Now().Format("15:04:05"),
-		Q:               locQuery(loc),
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := indexTmpl.Execute(w, data); err != nil {
-		DebugLogger.Printf("template execute: %s\n", err)
+	if err := indexBodyTmpl.Execute(w, data); err != nil {
+		DebugLogger.Printf("index body execute: %s\n", err)
 	}
 }
 
@@ -190,7 +210,7 @@ func handleRainJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	alarm, radar, alarmErr, radarErr := fetchRain(r.Context(), loc.Latitude, loc.Longitude)
+	alarm, radar, alarmErr, radarErr := fetchRain(r.Context(), loc.Latitude, loc.Longitude, NoProgress)
 	if alarm == nil && radar == nil {
 		writeJSONError(w, http.StatusBadGateway, errors.Join(alarmErr, radarErr))
 		return
@@ -328,7 +348,7 @@ func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hours, start, radius, grid, _ := parseTodayParams(r)
-	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius)
+	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius, NoProgress)
 	rec := RecommendToday(result)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -346,14 +366,18 @@ type todaySectorRow struct {
 }
 
 type todayPageData struct {
-	Location       Location
-	Q              template.URL
-	Result         todayResult
+	// inputs (set before head render)
+	Location    Location
+	Q           template.URL
+	WindowHours int
+	Grid        int
+	RadiusKm    float64
+	StartLabel  string
+	EndLabel    string
+	StartInput  string
+	// results (set before body render)
 	Recommendation TodayRecommendation
 	HeatmapSVG     template.HTML
-	StartLabel     string
-	EndLabel       string
-	StartInput     string
 	HourLabels     []string
 	SectorRows     []todaySectorRow
 	BestDesc       string
@@ -370,9 +394,37 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hours, start, radius, grid, startInput := parseTodayParams(r)
-	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius)
-	rec := RecommendToday(result)
 
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	flusher, _ := w.(http.Flusher)
+
+	page := todayPageData{
+		Location:    loc,
+		Q:           locQuery(loc),
+		WindowHours: hours,
+		Grid:        grid,
+		RadiusKm:    radius,
+		StartLabel:  start.Format("15:04"),
+		EndLabel:    start.Add(time.Duration(hours) * time.Hour).Format("15:04"),
+		StartInput:  startInput,
+	}
+	if err := todayHeadTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("today head execute: %s\n", err)
+		return
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+
+	var prog Progress = NoProgress
+	if flusher != nil {
+		prog = NewHTTPProgress(w, flusher)
+	}
+	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius, prog)
+	prog.Finish()
+
+	rec := RecommendToday(result)
 	gridCells := make([][]GridCell, len(result.Cells))
 	mid := result.Grid / 2
 	for rIdx, row := range result.Cells {
@@ -381,22 +433,21 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 			gridCells[rIdx][cIdx] = todayCellToGrid(cell, hours, rIdx == mid && cIdx == mid)
 		}
 	}
-	heatmapSVG := RenderHeatGridSVG(gridCells, GridOpts{
+	page.HeatmapSVG = RenderHeatGridSVG(gridCells, GridOpts{
 		CellSize: 22,
 		StepKm:   result.StepKm,
 		Title:    fmt.Sprintf("Rain timing  ·  %dh window", hours),
 	})
-
 	hourLabels := make([]string, 0, hours)
 	for i := 0; i < hours; i++ {
 		hourLabels = append(hourLabels, start.Add(time.Duration(i)*time.Hour).Format("15"))
 	}
-	sectorRows := make([]todaySectorRow, 0, len(result.Sectors))
+	page.HourLabels = hourLabels
 	for _, s := range result.Sectors {
 		row := todaySectorRow{Name: s.Name, OverWater: s.OverWater}
 		if s.NoData {
 			row.Cells = []string{"(no data)"}
-			sectorRows = append(sectorRows, row)
+			page.SectorRows = append(page.SectorRows, row)
 			continue
 		}
 		for _, w := range s.Wind {
@@ -406,32 +457,18 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 				row.Cells = append(row.Cells, CompassArrow(w.BlowsTo))
 			}
 		}
-		sectorRows = append(sectorRows, row)
+		page.SectorRows = append(page.SectorRows, row)
 	}
-
-	page := todayPageData{
-		Location:       loc,
-		Q:              locQuery(loc),
-		Result:         result,
-		Recommendation: rec,
-		HeatmapSVG:     heatmapSVG,
-		StartLabel:     start.Format("15:04"),
-		EndLabel:       start.Add(time.Duration(hours) * time.Hour).Format("15:04"),
-		StartInput:     startInput,
-		HourLabels:     hourLabels,
-		SectorRows:     sectorRows,
-		Now:            time.Now().Format("15:04:05"),
-	}
+	page.Recommendation = rec
 	if len(rec.Rideable) > 0 {
 		page.BestDesc = describeDry(rec.Best.DryHours, hours)
 		page.BestWind = describeWind(rec.Best.Tailwind, rec.Best.Cell.WindSpeed)
 		page.WorstDesc = describeDry(rec.Worst.DryHours, hours)
 	}
+	page.Now = time.Now().Format("15:04:05")
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := todayTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("today template execute: %s\n", err)
+	if err := todayBodyTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("today body execute: %s\n", err)
 	}
 }
 
@@ -587,14 +624,14 @@ func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if sq.Heatmap {
-		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid)
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid, NoProgress)
 		resp["heatmap"] = hm
 	} else {
-		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg)
+		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, NoProgress)
 		if len(trips) > sq.TopN {
 			trips = trips[:sq.TopN]
 		}
-		labels := annotateTripLabels(trips)
+		labels := annotateTripLabels(trips, NoProgress)
 		out := make([]scoutTripJSON, len(trips))
 		for i, t := range trips {
 			out[i] = scoutTripJSON{
@@ -661,6 +698,10 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	cfg := sq.Config()
 	endDate := sq.StartDate.AddDate(0, 0, sq.Days-1)
 
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	flusher, _ := w.(http.Flusher)
+
 	page := scoutPageData{
 		Location: loc,
 		Q:        locQuery(loc),
@@ -673,18 +714,31 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 		EndLabel:   endDate.Format("2006-01-02"),
 		StartInput: sq.StartDateInput,
 		JSONQuery:  template.URL(string(locQuery(loc)) + "&" + sq.Encode()),
-		Now:        time.Now().Format("15:04:05"),
+	}
+	if err := scoutHeadTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("scout head execute: %s\n", err)
+		return
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+
+	var prog Progress = NoProgress
+	if flusher != nil {
+		prog = NewHTTPProgress(w, flusher)
 	}
 
 	if sq.Heatmap {
-		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid)
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid, prog)
+		prog.Finish()
 		page.HeatmapDaysSVG = scoutHeatmapToSVG(hm)
 	} else {
-		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg)
+		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, prog)
 		if len(trips) > sq.TopN {
 			trips = trips[:sq.TopN]
 		}
-		labels := annotateTripLabels(trips)
+		labels := annotateTripLabels(trips, prog)
+		prog.Finish()
 		for i, t := range trips {
 			page.Trips = append(page.Trips, tripToView(t, labels[i], loc.Latitude, loc.Longitude, sq.RoundTrip))
 		}
@@ -692,11 +746,10 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 			page.RecommendationText = summarizeWinner(trips[0], labels[0], sq.RoundTrip)
 		}
 	}
+	page.Now = time.Now().Format("15:04:05")
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := scoutTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("scout template execute: %s\n", err)
+	if err := scoutBodyTmpl.Execute(w, page); err != nil {
+		DebugLogger.Printf("scout body execute: %s\n", err)
 	}
 }
 

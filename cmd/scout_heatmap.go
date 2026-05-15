@@ -49,7 +49,7 @@ type heatmapResult struct {
 // RunHeatmap builds a grid of sample points around (startLat, startLon),
 // fetches a multi-day forecast for each, and scores each (cell, day) with
 // ScoreDayOmni.
-func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig, gridSize int) heatmapResult {
+func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig, gridSize int, prog Progress) heatmapResult {
 	if gridSize < 5 {
 		gridSize = 5
 	}
@@ -94,12 +94,14 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 	results := make([]cellData, len(cells))
 	sem := make(chan struct{}, scoutFetchWorkers)
 	var wg sync.WaitGroup
+	prog.AddTotal(len(cells))
 	for i, c := range cells {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int, c cellCoord) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer prog.Inc(1)
 			data, err := GetOpenMeteoRange(c.Lat, c.Lon, startDate, endDate)
 			results[i] = cellData{Row: c.Row, Col: c.Col, Data: data, Err: err}
 		}(i, c)

@@ -22,34 +22,18 @@
       <span class="legend"><span class="dot" style="background:{{.BuienalarmColor}}"></span>Buienalarm</span>
       <span class="legend"><span class="dot" style="background:{{.BuineradarColor}}"></span>Buineradar</span>
     </p>
-    {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
   </header>
-
-  <section class="chart">{{.ChartSVG}}</section>
-
-  {{if .Rows}}
-  <details class="data">
-    <summary>Data</summary>
-    <table>
-      <thead><tr><th>Time</th><th>Buienalarm</th><th>Buineradar</th></tr></thead>
-      <tbody>
-        {{range .Rows}}
-        <tr><td>{{.Time}}</td><td>{{.A}}</td><td>{{.B}}</td></tr>
-        {{end}}
-      </tbody>
-    </table>
-  </details>
-  {{end}}
-
-  <footer>
-    <a href="/api/v1/rain?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
-    · refreshed {{.Now}}
-  </footer>
-</main>
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(function (e) { console.warn("SW", e); });
-  }
-</script>
-</body>
-</html>
+  <section class="loading" id="loading">
+    <progress id="prog" max="1" value="0"></progress>
+    <span id="prog-label" class="sub">starting…</span>
+  </section>
+  <script>
+    window.__p = function(n, total) {
+      var p = document.getElementById('prog'), l = document.getElementById('prog-label');
+      if (p) { p.max = Math.max(1, total); p.value = n; }
+      if (l) l.textContent = total > 0 ? (n + ' / ' + total) : 'starting…';
+    };
+    window.__pDone = function() {
+      var s = document.getElementById('loading'); if (s) s.remove();
+    };
+  </script>

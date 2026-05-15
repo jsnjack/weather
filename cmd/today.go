@@ -99,7 +99,9 @@ func runToday(cmd *cobra.Command, args []string) error {
 		FlagTodayRadius,
 	)
 
-	result := runTodayGrid(loc.Latitude, loc.Longitude, startTime, FlagTodayHours, todayGridSize(), FlagTodayRadius)
+	prog := NewCLIProgress("forecast cells")
+	result := runTodayGrid(loc.Latitude, loc.Longitude, startTime, FlagTodayHours, todayGridSize(), FlagTodayRadius, prog)
+	prog.Finish()
 	renderToday(result)
 	fmt.Println()
 	renderWindEvolution(result)
@@ -140,7 +142,7 @@ func todayGridSize() int {
 
 // runTodayGrid builds the sample grid, fetches hourly weather for every cell
 // across the ride window, and scores each cell.
-func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, gridSize int, radiusKm float64) todayResult {
+func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, gridSize int, radiusKm float64, prog Progress) todayResult {
 	if gridSize < 5 {
 		gridSize = 5
 	}
@@ -189,12 +191,14 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, 
 	results := make([]cellData, len(cells))
 	sem := make(chan struct{}, scoutFetchWorkers)
 	var wg sync.WaitGroup
+	prog.AddTotal(len(cells))
 	for i, c := range cells {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int, c cellCoord) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer prog.Inc(1)
 			data, err := GetOpenMeteoRange(c.Lat, c.Lon, startDate, endDate)
 			results[i] = cellData{Row: c.Row, Col: c.Col, Data: data, Err: err}
 		}(i, c)

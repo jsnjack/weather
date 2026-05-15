@@ -48,9 +48,10 @@ func hourlyCacheKey(lat, lon float64, date time.Time) string {
 // prefetch fills the cache with every (lat, lon, date) triple in points,
 // using a bounded worker pool. Errors on individual points are logged but
 // don't abort the batch — we just won't have data for that candidate.
-func (c *hourlyCache) prefetch(points []fetchPoint) {
+func (c *hourlyCache) prefetch(points []fetchPoint, prog Progress) {
 	sem := make(chan struct{}, scoutFetchWorkers)
 	var wg sync.WaitGroup
+	queued := 0
 	for _, p := range points {
 		key := hourlyCacheKey(p.Lat, p.Lon, p.Date)
 		c.mu.Lock()
@@ -62,11 +63,13 @@ func (c *hourlyCache) prefetch(points []fetchPoint) {
 		c.data[key] = nil
 		c.mu.Unlock()
 
+		queued++
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(p fetchPoint, key string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer prog.Inc(1)
 			data, err := GetOpenMeteoRange(p.Lat, p.Lon, p.Date, p.Date)
 			c.mu.Lock()
 			defer c.mu.Unlock()
@@ -78,6 +81,7 @@ func (c *hourlyCache) prefetch(points []fetchPoint) {
 			c.data[key] = data
 		}(p, key)
 	}
+	prog.AddTotal(queued)
 	wg.Wait()
 }
 
@@ -97,7 +101,7 @@ type fetchPoint struct {
 // BeamWidth surviving paths at each depth. Returns all surviving final-day
 // paths, sorted by score descending. An empty result means every candidate
 // was disqualified (e.g. rain in every direction on some day).
-func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig) []beamNode {
+func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cfg beamConfig, prog Progress) []beamNode {
 	cache := newHourlyCache()
 	start := latLon{startLat, startLon}
 	beam := []beamNode{{
@@ -123,7 +127,7 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 			points = append(points, p)
 		}
 		DebugLogger.Printf("scout: day %d — %d unique fetches from %d beam nodes\n", day+1, len(points), len(beam))
-		cache.prefetch(points)
+		cache.prefetch(points, prog)
 
 		// Phase 2: expand each beam node with 8 bearings; score the resulting leg.
 		candidates := make([]beamNode, 0, len(beam)*scoutNumDirections)
