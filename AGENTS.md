@@ -112,8 +112,6 @@ make build          # multi-arch binaries in bin/
 
 ## Gotchas
 
-- Module path is `weather` (not `github.com/jsnjack/weather`). ldflags
-  must stamp `weather/cmd.Version`, not the GitHub-style import path.
 - Open-Meteo returns inconsistent array lengths if a column is missing;
   `GetOpenMeteoRange` rejects the response rather than silently zero-filling.
 - `scout` and `today` issue 100+ parallel Open-Meteo requests. The retry loop

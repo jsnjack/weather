@@ -87,10 +87,6 @@ installed on Android as a stand-in for a native widget.`,
 		// <addr>" convention.
 		fmt.Fprintf(os.Stderr, "Listening on %s\n", FlagServeAddr)
 		slog.Log(cmd.Context(), LevelTrace, "server listening", "addr", FlagServeAddr)
-		if ip := firstLANIP(); ip != "" {
-			_, port, _ := net.SplitHostPort(FlagServeAddr)
-			fmt.Fprintf(os.Stderr, "LAN access:  http://%s:%s\n", ip, port)
-		}
 
 		return srv.ListenAndServe()
 	},
@@ -163,7 +159,7 @@ func remoteIP(r *http.Request) string {
 }
 
 func init() {
-	serveCmd.Flags().StringVar(&FlagServeAddr, "addr", "0.0.0.0:8080", "address to bind")
+	serveCmd.Flags().StringVar(&FlagServeAddr, "addr", "127.0.0.1:8080", "address to bind (use 0.0.0.0:8080 to expose on the LAN)")
 	rootCmd.AddCommand(serveCmd)
 }
 
@@ -1005,23 +1001,4 @@ func heatmapBandHex(c cellStatus) string {
 	default:
 		return "#52525b"
 	}
-}
-
-func firstLANIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, a := range addrs {
-		ipn, ok := a.(*net.IPNet)
-		if !ok || ipn.IP.IsLoopback() {
-			continue
-		}
-		ip := ipn.IP.To4()
-		if ip == nil {
-			continue
-		}
-		return ip.String()
-	}
-	return ""
 }
