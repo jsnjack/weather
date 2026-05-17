@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_bg">#F2FFFFFF</color>
+    <color name="widget_text">#0A0A0A</color>
+    <color name="widget_subtle">#666666</color>
+    <color name="chart_grid">#22000000</color>
+    <color name="chart_axis">#88000000</color>
+    <color name="chart_buienalarm">#06B6D4</color>
+    <color name="chart_buienradar">#A855F7</color>
+</resources>

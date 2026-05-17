@@ -41,6 +41,9 @@ cmd/
   svgchart.go                    Inline SVG chart for the HTML pages
   today.go                       Short ride-window heatmap command
   web/                           Embedded HTML templates, manifest, service worker, icon, CSS
+android/                         Native Android home-screen widget (Kotlin, separate Gradle build)
+                                 Calls /api/v1/rain and mirrors svgchart.go on the device.
+                                 See android/README.md for the build + iterate workflow.
 ```
 
 External APIs:
@@ -91,6 +94,11 @@ make build          # multi-arch binaries in bin/
 
 ## Design Decisions
 
+- **Android widget mirrors `svgchart.go`, not invents its own.** Colors
+  (`#06b6d4` Buienalarm, `#a855f7` Buienradar), `niceStep` y-axis ticks,
+  data-derived x extents, and `MinYHi=1` floor are all ported in
+  `android/app/src/main/java/net/surfly/weather/widget/render/ChartRenderer.kt`
+  so the home-screen widget looks like the PWA. Change both together.
 - **Both nowcast providers, same chart.** Buienalarm and Buienradar disagree
   often enough that showing both lines is more useful than picking one. The
   shorter Buienalarm horizon caps the x-axis to keep them comparable.
