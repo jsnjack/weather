@@ -41,12 +41,53 @@ func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
 		return "", err
 	}
 
-	description := response.Locality
-	if description == "" {
-		description = response.City
+	// Compose "Locality, City" (e.g. "Oost, Amsterdam") when both are
+	// present and differ. The city is the wider context; the locality
+	// is the named neighbourhood. When they're equal or one is missing,
+	// fall back to whichever is set.
+	parts := make([]string, 0, 3)
+	if response.Locality != "" {
+		parts = append(parts, response.Locality)
 	}
-	if description != "" && response.CountryName != "" {
-		description = description + ", " + response.CountryName
+	if response.City != "" && response.City != response.Locality {
+		parts = append(parts, response.City)
+	}
+
+	// Country: strip parenthesised official-name qualifiers such as
+	// "Netherlands (Kingdom of the)". They're correct but unhelpful in
+	// a small UI.
+	country := stripParenthesisedQualifier(response.CountryName)
+	if country != "" {
+		parts = append(parts, country)
+	}
+
+	description := ""
+	for i, p := range parts {
+		if i > 0 {
+			description += ", "
+		}
+		description += p
 	}
 	return description, nil
+}
+
+// stripParenthesisedQualifier removes a trailing "( ... )" qualifier and any
+// whitespace before it. Idempotent on strings that don't contain a paren.
+func stripParenthesisedQualifier(s string) string {
+	open := -1
+	for i, r := range s {
+		if r == '(' {
+			open = i
+			break
+		}
+	}
+	if open < 0 {
+		return s
+	}
+	// Trim trailing whitespace before the paren.
+	trimmed := s[:open]
+	for len(trimmed) > 0 && (trimmed[len(trimmed)-1] == ' ' || trimmed[len(trimmed)-1] == '\t') {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	return trimmed
 }

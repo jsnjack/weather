@@ -63,6 +63,7 @@ installed on Android as a stand-in for a native widget.`,
 		mux.HandleFunc("GET /today", handleToday)
 		mux.HandleFunc("GET /scout", handleScout)
 		mux.HandleFunc("GET /api/v1/rain", handleRainJSON)
+		mux.HandleFunc("GET /api/v1/glance", handleGlanceJSON)
 		mux.HandleFunc("GET /api/v1/today", handleTodayJSON)
 		mux.HandleFunc("GET /api/v1/scout", handleScoutJSON)
 		mux.HandleFunc("GET /manifest.webmanifest", embedHandler("web/manifest.webmanifest", "application/manifest+json"))

@@ -12,12 +12,16 @@ import (
 // HourlyForecast is a single hour of weather data for one location. WindDirection
 // follows the meteorological convention: degrees the wind is coming FROM.
 type HourlyForecast struct {
-	Time          time.Time
-	Temperature   float64 // °C
-	Precipitation float64 // mm
-	WindSpeed     float64 // km/h, sustained at 10m
-	WindDirection float64 // degrees, 0 = from N
-	WindGusts     float64 // km/h, max gust at 10m
+	Time                     time.Time
+	Temperature              float64 // °C
+	ApparentTemperature      float64 // °C "feels like"
+	Precipitation            float64 // mm
+	PrecipitationProbability int     // 0-100 (% chance), 0 if unavailable
+	WindSpeed                float64 // km/h, sustained at 10m
+	WindDirection            float64 // degrees, 0 = from N
+	WindGusts                float64 // km/h, max gust at 10m
+	UVIndex                  float64 // 0-11+
+	WeatherCode              int     // WMO weather interpretation code
 }
 
 type openMeteoRangeResponse struct {
@@ -25,18 +29,35 @@ type openMeteoRangeResponse struct {
 	Hourly    struct {
 		Time             []string  `json:"time"`
 		Temperature2m    []float64 `json:"temperature_2m"`
+		ApparentTemp     []float64 `json:"apparent_temperature"`
 		Precipitation    []float64 `json:"precipitation"`
+		PrecipProb       []*int    `json:"precipitation_probability"` // null for past hours
 		WindSpeed10m     []float64 `json:"wind_speed_10m"`
 		WindDirection10m []float64 `json:"wind_direction_10m"`
 		WindGusts10m     []float64 `json:"wind_gusts_10m"`
+		UvIndex          []float64 `json:"uv_index"`
+		WeatherCode      []int     `json:"weather_code"`
 	} `json:"hourly"`
+	Daily struct {
+		Time    []string `json:"time"`
+		Sunrise []string `json:"sunrise"`
+		Sunset  []string `json:"sunset"`
+	} `json:"daily"`
 }
 
 // OpenMeteoData is the parsed result of one Open-Meteo request: hourly weather
 // plus the elevation of the weather-grid cell (used to detect sea points).
 type OpenMeteoData struct {
 	Hourly    []HourlyForecast
+	Daily     []DailyForecast // sunrise/sunset per day, in local time
 	Elevation float64
+}
+
+// DailyForecast carries the per-day sunrise and sunset (local zone).
+type DailyForecast struct {
+	Date    time.Time
+	Sunrise time.Time
+	Sunset  time.Time
 }
 
 // IsSea returns true if the grid cell is water. Empirically Open-Meteo's
@@ -65,7 +86,7 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 	start := startDate.Format("2006-01-02")
 	end := endDate.Format("2006-01-02")
 	url := fmt.Sprintf(
-		"https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto&start_date=%s&end_date=%s",
+		"https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,weather_code&daily=sunrise,sunset&timezone=auto&start_date=%s&end_date=%s",
 		lat, lon, start, end,
 	)
 	slog.Debug("open-meteo: requesting", "url", url)
@@ -105,10 +126,14 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 
 	n := len(parsed.Hourly.Time)
 	if len(parsed.Hourly.Temperature2m) != n ||
+		len(parsed.Hourly.ApparentTemp) != n ||
 		len(parsed.Hourly.Precipitation) != n ||
+		len(parsed.Hourly.PrecipProb) != n ||
 		len(parsed.Hourly.WindSpeed10m) != n ||
 		len(parsed.Hourly.WindDirection10m) != n ||
-		len(parsed.Hourly.WindGusts10m) != n {
+		len(parsed.Hourly.WindGusts10m) != n ||
+		len(parsed.Hourly.UvIndex) != n ||
+		len(parsed.Hourly.WeatherCode) != n {
 		return nil, fmt.Errorf("open-meteo returned inconsistent hourly array lengths")
 	}
 
@@ -122,14 +147,34 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 			slog.Debug("open-meteo: skipping unparseable time", "time", t, "err", err)
 			continue
 		}
+		prob := 0
+		if parsed.Hourly.PrecipProb[i] != nil {
+			prob = *parsed.Hourly.PrecipProb[i]
+		}
 		hourly = append(hourly, HourlyForecast{
-			Time:          parsedTime,
-			Temperature:   parsed.Hourly.Temperature2m[i],
-			Precipitation: parsed.Hourly.Precipitation[i],
-			WindSpeed:     parsed.Hourly.WindSpeed10m[i],
-			WindDirection: parsed.Hourly.WindDirection10m[i],
-			WindGusts:     parsed.Hourly.WindGusts10m[i],
+			Time:                     parsedTime,
+			Temperature:              parsed.Hourly.Temperature2m[i],
+			ApparentTemperature:      parsed.Hourly.ApparentTemp[i],
+			Precipitation:            parsed.Hourly.Precipitation[i],
+			PrecipitationProbability: prob,
+			WindSpeed:                parsed.Hourly.WindSpeed10m[i],
+			WindDirection:            parsed.Hourly.WindDirection10m[i],
+			WindGusts:                parsed.Hourly.WindGusts10m[i],
+			UVIndex:                  parsed.Hourly.UvIndex[i],
+			WeatherCode:              parsed.Hourly.WeatherCode[i],
 		})
 	}
-	return &OpenMeteoData{Hourly: hourly, Elevation: parsed.Elevation}, nil
+	daily := make([]DailyForecast, 0, len(parsed.Daily.Time))
+	if len(parsed.Daily.Time) == len(parsed.Daily.Sunrise) && len(parsed.Daily.Time) == len(parsed.Daily.Sunset) {
+		for i, ds := range parsed.Daily.Time {
+			d, dErr := time.ParseInLocation("2006-01-02", ds, time.Local)
+			sr, srErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunrise[i], time.Local)
+			ss, ssErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunset[i], time.Local)
+			if dErr != nil || srErr != nil || ssErr != nil {
+				continue
+			}
+			daily = append(daily, DailyForecast{Date: d, Sunrise: sr, Sunset: ss})
+		}
+	}
+	return &OpenMeteoData{Hourly: hourly, Daily: daily, Elevation: parsed.Elevation}, nil
 }
