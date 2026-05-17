@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -67,7 +68,7 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 		"https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto&start_date=%s&end_date=%s",
 		lat, lon, start, end,
 	)
-	DebugLogger.Printf("Requesting %s\n", url)
+	slog.Debug("open-meteo: requesting", "url", url)
 
 	client := &http.Client{Timeout: 15 * time.Second}
 
@@ -77,11 +78,11 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 		r, err := client.Get(url)
 		if err != nil {
 			lastErr = err
-			DebugLogger.Printf("open-meteo net error on %.4f,%.4f (attempt %d): %s\n", lat, lon, attempt+1, err)
+			slog.Debug("open-meteo net error", "lat", lat, "lon", lon, "attempt", attempt+1, "err", err)
 		} else if r.StatusCode == http.StatusTooManyRequests || r.StatusCode >= 500 {
 			lastErr = fmt.Errorf("open-meteo transient status %d", r.StatusCode)
-			r.Body.Close()
-			DebugLogger.Printf("open-meteo %d on %.4f,%.4f (attempt %d), backing off\n", r.StatusCode, lat, lon, attempt+1)
+			closeBody(r.Body, "open-meteo transient response")
+			slog.Debug("open-meteo transient status", "status", r.StatusCode, "lat", lat, "lon", lon, "attempt", attempt+1)
 		} else {
 			resp = r
 			break
@@ -91,7 +92,7 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 	if resp == nil {
 		return nil, fmt.Errorf("open-meteo retries exhausted: %w", lastErr)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body, "open-meteo response body")
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("open-meteo status %d: %s", resp.StatusCode, string(body))
@@ -118,7 +119,7 @@ func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMet
 		// comparisons work for short-range planning within a single TZ.
 		parsedTime, err := time.ParseInLocation("2006-01-02T15:04", t, time.Local)
 		if err != nil {
-			DebugLogger.Printf("scout: skipping unparseable time %q: %s\n", t, err)
+			slog.Debug("open-meteo: skipping unparseable time", "time", t, "err", err)
 			continue
 		}
 		hourly = append(hourly, HourlyForecast{

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -75,17 +75,21 @@ installed on Android as a stand-in for a native widget.`,
 		}
 		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
-		accessLog := log.New(os.Stdout, "", log.LstdFlags)
 		srv := &http.Server{
 			Addr:              FlagServeAddr,
-			Handler:           accessLogMiddleware(accessLog, mux),
+			Handler:           accessLogMiddleware(mux),
 			ReadHeaderTimeout: 5 * time.Second,
 		}
 
-		fmt.Printf("Serving on http://%s\n", FlagServeAddr)
+		// Always announce the bind address, regardless of --debug / --trace.
+		// stderr keeps it visible to operators; the trace file captures it for
+		// post-mortem diagnosis. Format matches the standard "Listening on
+		// <addr>" convention.
+		fmt.Fprintf(os.Stderr, "Listening on %s\n", FlagServeAddr)
+		slog.Log(cmd.Context(), LevelTrace, "server listening", "addr", FlagServeAddr)
 		if ip := firstLANIP(); ip != "" {
 			_, port, _ := net.SplitHostPort(FlagServeAddr)
-			fmt.Printf("LAN access:  http://%s:%s\n", ip, port)
+			fmt.Fprintf(os.Stderr, "LAN access:  http://%s:%s\n", ip, port)
 		}
 
 		return srv.ListenAndServe()
@@ -121,7 +125,7 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
-func accessLogMiddleware(logger *log.Logger, next http.Handler) http.Handler {
+func accessLogMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
@@ -133,8 +137,14 @@ func accessLogMiddleware(logger *log.Logger, next http.Handler) http.Handler {
 		if r.URL.RawQuery != "" {
 			path += "?" + r.URL.RawQuery
 		}
-		logger.Printf("%s %s %s %d %dB %s",
-			remoteIP(r), r.Method, path, rec.status, rec.bytes, time.Since(start).Round(time.Millisecond))
+		slog.Info("http",
+			"remote", remoteIP(r),
+			"method", r.Method,
+			"path", path,
+			"status", rec.status,
+			"bytes", rec.bytes,
+			"dur", time.Since(start).Round(time.Millisecond),
+		)
 	})
 }
 
@@ -218,14 +228,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		Q:               locQuery(loc),
 	}
 	if err := indexHeadTmpl.Execute(w, data); err != nil {
-		DebugLogger.Printf("index head execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "indexHead", "err", err)
 		return
 	}
 	if flusher != nil {
 		flusher.Flush()
 	}
 
-	var prog Progress = NoProgress
+	prog := NoProgress
 	if flusher != nil {
 		prog = NewHTTPProgress(w, flusher)
 	}
@@ -267,7 +277,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	data.Now = time.Now().Format("15:04:05")
 
 	if err := indexBodyTmpl.Execute(w, data); err != nil {
-		DebugLogger.Printf("index body execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "indexBody", "err", err)
 	}
 }
 
@@ -291,13 +301,17 @@ func handleRainJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(rainAPIResponse{Location: loc, Buienalarm: alarm, Buineradar: radar})
+	if err := json.NewEncoder(w).Encode(rainAPIResponse{Location: loc, Buienalarm: alarm, Buineradar: radar}); err != nil {
+		slog.Log(r.Context(), LevelTrace, "encode rain response", "err", err)
+	}
 }
 
 func writeJSONError(w http.ResponseWriter, code int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+	if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+		slog.Log(context.Background(), LevelTrace, "encode error response", "err", encErr)
+	}
 }
 
 func locationQuery(r *http.Request) (lat, lon float64, name string) {
@@ -321,7 +335,9 @@ func embedHandler(path, contentType string) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "public, max-age=300")
-		_, _ = w.Write(data)
+		if _, werr := w.Write(data); werr != nil {
+			slog.Log(r.Context(), LevelTrace, "write embedded asset", "path", path, "err", werr)
+		}
 	}
 }
 
@@ -426,11 +442,13 @@ func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
 	rec := RecommendToday(result)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"location":       loc,
 		"result":         result,
 		"recommendation": rec,
-	})
+	}); err != nil {
+		slog.Log(r.Context(), LevelTrace, "encode today response", "err", err)
+	}
 }
 
 type todaySectorRow struct {
@@ -484,14 +502,14 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 		StartInput:  startInput,
 	}
 	if err := todayHeadTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("today head execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "todayHead", "err", err)
 		return
 	}
 	if flusher != nil {
 		flusher.Flush()
 	}
 
-	var prog Progress = NoProgress
+	prog := NoProgress
 	if flusher != nil {
 		prog = NewHTTPProgress(w, flusher)
 	}
@@ -542,7 +560,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 	page.Now = time.Now().Format("15:04:05")
 
 	if err := todayBodyTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("today body execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "todayBody", "err", err)
 	}
 }
 
@@ -729,7 +747,9 @@ func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Log(r.Context(), LevelTrace, "encode scout response", "err", err)
+	}
 }
 
 type scoutTripRow struct {
@@ -765,13 +785,13 @@ type scoutPageData struct {
 }
 
 type scoutPageCfg struct {
-	Days         int
-	KmPerDay     float64
-	MinTemp      float64
-	MinTempPlus5 float64 // = MinTemp + 5, pre-computed for the heatmap legend
+	Days          int
+	KmPerDay      float64
+	MinTemp       float64
+	MinTempPlus5  float64 // = MinTemp + 5, pre-computed for the heatmap legend
 	MinTempMinus5 float64 // = MinTemp - 5
-	TopN         int
-	RoundTrip    bool
+	TopN          int
+	RoundTrip     bool
 }
 
 func handleScout(w http.ResponseWriter, r *http.Request) {
@@ -804,14 +824,14 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 		JSONQuery:  template.URL(string(locQuery(loc)) + "&" + sq.Encode()),
 	}
 	if err := scoutHeadTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("scout head execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "scoutHead", "err", err)
 		return
 	}
 	if flusher != nil {
 		flusher.Flush()
 	}
 
-	var prog Progress = NoProgress
+	prog := NoProgress
 	if flusher != nil {
 		prog = NewHTTPProgress(w, flusher)
 	}
@@ -837,7 +857,7 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	page.Now = time.Now().Format("15:04:05")
 
 	if err := scoutBodyTmpl.Execute(w, page); err != nil {
-		DebugLogger.Printf("scout body execute: %s\n", err)
+		slog.Debug("template execute", "tmpl", "scoutBody", "err", err)
 	}
 }
 

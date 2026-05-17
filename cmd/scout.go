@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"strings"
@@ -210,7 +211,7 @@ func annotateTripLabels(trips []beamNode, prog Progress) [][]string {
 			defer prog.Inc(1)
 			name, err := GetDescriptionFromCoordinates(t.Lat, t.Lon)
 			if err != nil {
-				DebugLogger.Printf("scout: reverse-geocode %.2f,%.2f: %s\n", t.Lat, t.Lon, err)
+				slog.Debug("scout: reverse-geocode failed", "lat", t.Lat, "lon", t.Lon, "err", err)
 			}
 			if name == "" {
 				name = fmt.Sprintf("%.2f,%.2f", t.Lat, t.Lon)
@@ -236,10 +237,10 @@ func annotateTripLabels(trips []beamNode, prog Progress) [][]string {
 
 const (
 	cellWidth    = 9
-	dayColWidth  = 5  // "Day5 "
-	dirColWidth  = 4  // "NE ↗"
-	tempColWidth = 5  // "21°"
-	windColWidth = 5  // "T20"
+	dayColWidth  = 5 // "Day5 "
+	dirColWidth  = 4 // "NE ↗"
+	tempColWidth = 5 // "21°"
+	windColWidth = 5 // "T20"
 )
 
 func renderLegend() {
@@ -299,14 +300,13 @@ func renderDayRow(day int, bearingDeg float64, endLabel string, ds DayScore) {
 	endCol := padRight("~"+endLabel, 22)
 
 	tempCol := padRight(fmt.Sprintf("%.0f°", ds.MaxTemp), tempColWidth)
-	tempColored := tempCol
+	var tempColored string
 	if ds.BelowMinTemp {
 		tempColored = termplt.ColorYellow + strings.TrimRight(tempCol, " ") + "*" + termplt.ColorReset
-		tempColored = padRight(tempColored, tempColWidth+1)
 	} else {
 		tempColored = termplt.ColorGreen + strings.TrimRight(tempCol, " ") + termplt.ColorReset
-		tempColored = padRight(tempColored, tempColWidth+1)
 	}
+	tempColored = padRight(tempColored, tempColWidth+1)
 
 	var windLabel, windColor string
 	mag := math.Abs(ds.TailwindAvg)

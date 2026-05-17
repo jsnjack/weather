@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -74,7 +76,9 @@ func (p *CLIProgress) Finish() {
 	p.wg.Wait()
 	if p.tty {
 		// Erase the line so the subsequent stdout output starts clean.
-		fmt.Fprint(p.out, "\r\033[2K")
+		if _, err := fmt.Fprint(p.out, "\r\033[2K"); err != nil {
+			slog.Log(context.Background(), LevelTrace, "progress: erase line", "err", err)
+		}
 	}
 }
 
@@ -111,7 +115,9 @@ func (p *CLIProgress) render() {
 		}
 		bar = "[" + strings.Repeat(" ", pos) + "#" + strings.Repeat(" ", width-pos-1) + "]"
 	}
-	fmt.Fprintf(p.out, "\r%s %d/%d %s", bar, n, total, p.label)
+	if _, err := fmt.Fprintf(p.out, "\r%s %d/%d %s", bar, n, total, p.label); err != nil {
+		slog.Log(context.Background(), LevelTrace, "progress: render", "err", err)
+	}
 }
 
 // ---------- HTTP ----------
@@ -152,7 +158,9 @@ func (p *HTTPProgress) Finish() {
 	// Final update + hide. After this returns, the main handler goroutine
 	// owns w again and can write the body template.
 	total := p.total.Load()
-	fmt.Fprintf(p.w, `<script>__p(%d,%d);__pDone()</script>`, total, total)
+	if _, err := fmt.Fprintf(p.w, `<script>__p(%d,%d);__pDone()</script>`, total, total); err != nil {
+		slog.Log(context.Background(), LevelTrace, "progress: http finish", "err", err)
+	}
 	p.flusher.Flush()
 }
 
@@ -166,7 +174,9 @@ func (p *HTTPProgress) run() {
 		if n == lastN && total == lastT {
 			return
 		}
-		fmt.Fprintf(p.w, `<script>__p(%d,%d)</script>`, n, total)
+		if _, err := fmt.Fprintf(p.w, `<script>__p(%d,%d)</script>`, n, total); err != nil {
+			slog.Log(context.Background(), LevelTrace, "progress: http emit", "err", err)
+		}
 		p.flusher.Flush()
 		lastN, lastT = n, total
 	}

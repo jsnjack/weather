@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -27,7 +28,7 @@ type OpenstreetmapResponse struct {
 }
 
 func GetLocationFromString(str string) (Location, error) {
-	DebugLogger.Printf("Getting location from string: %s\n", str)
+	slog.Debug("getting location from string", "name", str)
 	location := Location{}
 	client := &http.Client{
 		Timeout: time.Second * 10,
@@ -36,13 +37,16 @@ func GetLocationFromString(str string) (Location, error) {
 	reqURL := fmt.Sprintf("https://nominatim.openstreetmap.org/search?q=%s&format=json", url.QueryEscape(str))
 
 	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return location, fmt.Errorf("build nominatim request: %w", err)
+	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return location, err
+		return location, fmt.Errorf("nominatim request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body, "nominatim response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return location, fmt.Errorf("unexpected status code %d", resp.StatusCode)

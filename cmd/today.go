@@ -551,10 +551,10 @@ func renderTodayLegend() {
 // TodaySectorScore is one compass direction's rideability summary at
 // half-radius from the start. Used for the recommendation.
 type TodaySectorScore struct {
-	Name     string  `json:"name"`
-	Bearing  float64 `json:"bearing"`
-	DryHours int     `json:"dryHours"`
-	Tailwind float64 `json:"tailwind"`  // km/h along bearing (positive = tailwind)
+	Name     string    `json:"name"`
+	Bearing  float64   `json:"bearing"`
+	DryHours int       `json:"dryHours"`
+	Tailwind float64   `json:"tailwind"` // km/h along bearing (positive = tailwind)
 	Cell     todayCell `json:"cell"`
 }
 

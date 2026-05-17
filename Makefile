@@ -1,28 +1,80 @@
-BINARY:=weather
-PWD:=$(shell pwd)
-VERSION=0.0.0
-MONOVA:=$(shell which monova dot 2> /dev/null)
+BINARY  := weather
+PKG     := ./...
+VERSION := 0.0.0
+MONOVA  := $(shell which monova 2> /dev/null)
+LDFLAGS  = -ldflags="-X weather/cmd.Version=$(VERSION)"
+
+export PATH := $(PATH):$(shell go env GOPATH)/bin
 
 version:
 ifdef MONOVA
-override VERSION=$(shell monova)
+override VERSION = $(shell monova)
+override LDFLAGS = -ldflags="-X weather/cmd.Version=$(VERSION)"
 else
-	$(info "Install monova (https://github.com/jsnjack/monova) to calculate version")
+	$(info "Install monova with: grm install jsnjack/monova")
 endif
 
 start:
 	find . -name "*.go" | entr -sr "go build && ./${BINARY}"
 
-bin/${BINARY}: bin/${BINARY}_linux_amd64
-	cp bin/${BINARY}_linux_amd64 bin/${BINARY}
+test:
+	go test $(PKG)
 
-bin/${BINARY}_linux_amd64: version *.go
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-X github.com/jsnjack/${BINARY}/cmd.Version=${VERSION}" -o bin/${BINARY}_linux_amd64
+vet:
+	go vet $(PKG)
 
-build: bin/${BINARY} bin/${BINARY}_linux_amd64
+fmt:
+	@command -v goimports >/dev/null 2>&1 || { \
+	  echo "goimports is not installed. Install it with:"; \
+	  echo "  go install golang.org/x/tools/cmd/goimports@latest"; \
+	  exit 1; \
+	}
+	goimports -w .
+
+lint: vet
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+	  echo "golangci-lint is not installed. Install it with:"; \
+	  echo "  grm install golangci/golangci-lint"; \
+	  exit 1; \
+	}
+	golangci-lint run
+
+check: fmt vet build test lint
+	@echo "==> make check: all green"
+
+standards:
+	curl -sL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.universal.md \
+	    -o AGENTS.universal.md
+	curl -sL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.go.md \
+	    -o AGENTS.go.md
+
+bin/$(BINARY): bin/$(BINARY)_linux_amd64
+	cp $< $@
+	ln -sf bin/$(BINARY) $(BINARY)
+bin/$(BINARY)_linux_amd64: version
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $@
+bin/$(BINARY)_linux_arm64: version
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $@
+bin/$(BINARY)_darwin_amd64: version
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $@
+bin/$(BINARY)_darwin_arm64: version
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $@
+
+build: bin/$(BINARY) bin/$(BINARY)_linux_amd64 bin/$(BINARY)_linux_arm64 bin/$(BINARY)_darwin_amd64 bin/$(BINARY)_darwin_arm64
 
 release: build
-	tar --transform='s,_.*,,' --transform='s,bin/,,' -cz -f bin/${BINARY}_linux_amd64.tar.gz bin/${BINARY}_linux_amd64
-	grm release jsnjack/${BINARY} -f bin/${BINARY}_linux_amd64.tar.gz -t "v`monova`"
+	tar -czf bin/$(BINARY)_linux_amd64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_amd64
+	tar -czf bin/$(BINARY)_linux_arm64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_arm64
+	tar -czf bin/$(BINARY)_darwin_amd64.tar.gz --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_darwin_amd64
+	tar -czf bin/$(BINARY)_darwin_arm64.tar.gz --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_darwin_arm64
+	grm release jsnjack/$(BINARY) \
+		-f bin/$(BINARY)_linux_amd64.tar.gz \
+		-f bin/$(BINARY)_linux_arm64.tar.gz \
+		-f bin/$(BINARY)_darwin_amd64.tar.gz \
+		-f bin/$(BINARY)_darwin_arm64.tar.gz \
+		-t "v`monova`"
 
-.PHONY: version release build
+clean:
+	rm -rf bin/ $(BINARY)
+
+.PHONY: version start build release test vet fmt lint check standards clean

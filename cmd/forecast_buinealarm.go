@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -29,9 +30,9 @@ type NowcastMessage struct {
 }
 
 func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
-	DebugLogger.Printf("Getting forecast for lat %.2f, long %.2f\n", lat, long)
+	slog.Debug("buienalarm: getting forecast", "lat", lat, "lon", long)
 	url := fmt.Sprintf("https://imn-rust-lb.infoplaza.io/v4/nowcast/timeseries/%.2f/%.2f", lat, long)
-	DebugLogger.Printf("Requesting %s\n", url)
+	slog.Debug("buienalarm: requesting", "url", url)
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -46,7 +47,7 @@ func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body, "buienalarm response body")
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
@@ -85,7 +86,7 @@ func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
 			return s // Return original string if conversion fails
 		}
 		t := time.Unix(int64(timestamp), 0)
-		return fmt.Sprintf("%s", t.Format("15:04"))
+		return t.Format("15:04")
 	}
 	forecast.Desc = timestampRe.ReplaceAllStringFunc(forecast.Desc, replaceFunc)
 	return forecast, nil

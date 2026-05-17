@@ -5,24 +5,27 @@ package cmd
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"os"
 
 	"github.com/jsnjack/termplt"
 	"github.com/spf13/cobra"
 )
 
-var FlagVersion bool
-var FlagStrLocation string
-var FlagLat float64
-var FlagLon float64
-var FlagDebug bool
+var (
+	FlagVersion     bool
+	FlagStrLocation string
+	FlagLat         float64
+	FlagLon         float64
+	FlagDebug       bool
+	FlagTrace       bool
+)
 
-var Version string
+// Version is set at build time via ldflags; defaults to "dev".
+var Version = "dev"
 
-var Logger *log.Logger
-var DebugLogger *log.Logger
+// loggerCleanup closes the trace log file if one was opened. Set in
+// PersistentPreRunE, invoked from Execute on shutdown.
+var loggerCleanup = func() {}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -30,13 +33,16 @@ var rootCmd = &cobra.Command{
 	Long: `Shows the weather using the Buinealarm API.
 By default, it tries to guess your location based on your IP address.
 User can also specify the location manually.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		Logger = log.New(os.Stdout, "", log.Lmicroseconds|log.Lshortfile)
-		if FlagDebug {
-			DebugLogger = log.New(os.Stdout, "", log.Lmicroseconds|log.Lshortfile)
-		} else {
-			DebugLogger = log.New(io.Discard, "", 0)
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		level, tracePath := "", ""
+		switch {
+		case FlagTrace:
+			level, tracePath = "trace", "/tmp/weather.log"
+		case FlagDebug:
+			level = "debug"
 		}
+		loggerCleanup = initLogger(tracePath, level)
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
@@ -48,17 +54,17 @@ User can also specify the location manually.`,
 
 		loc, err := ResolveLocation()
 		if err != nil {
-			return err
+			return fmt.Errorf("resolve location: %w", err)
 		}
 
 		prog := NewCLIProgress("rain forecast")
 		buinealarmForecast, buineradarForecast, alarmErr, radarErr := fetchRain(cmd.Context(), loc.Latitude, loc.Longitude, prog)
 		prog.Finish()
 		if alarmErr != nil {
-			return alarmErr
+			return fmt.Errorf("buienalarm: %w", alarmErr)
 		}
 		if radarErr != nil {
-			return radarErr
+			return fmt.Errorf("buineradar: %w", radarErr)
 		}
 		fmt.Printf(termplt.ColorBold+"Weather in %s\n"+termplt.ColorReset, loc.Description)
 		fmt.Println("Next 2 hours (" + termplt.ColorCyan + "Buienalarm" + termplt.ColorReset + ", " + termplt.ColorPurple + "Buineradar" + termplt.ColorReset + ")")
@@ -106,14 +112,16 @@ User can also specify the location manually.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
+	loggerCleanup()
 	if err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&FlagVersion, "version", "v", false, "print version and exit")
-	rootCmd.PersistentFlags().BoolVarP(&FlagDebug, "debug", "d", false, "print debug information")
+	rootCmd.PersistentFlags().BoolVar(&FlagVersion, "version", false, "print version and exit")
+	rootCmd.PersistentFlags().BoolVarP(&FlagDebug, "debug", "d", false, "Debug-level logging on stderr.")
+	rootCmd.PersistentFlags().BoolVar(&FlagTrace, "trace", false, "Trace-level logs to /tmp/weather.log (truncated each run).")
 	rootCmd.PersistentFlags().Float64VarP(&FlagLat, "lat", "a", 0, "latitude")
 	rootCmd.PersistentFlags().Float64VarP(&FlagLon, "lon", "o", 0, "longitude")
 	rootCmd.PersistentFlags().StringVarP(&FlagStrLocation, "name", "n", "", "location name, e.g. 'Amsterdam'")

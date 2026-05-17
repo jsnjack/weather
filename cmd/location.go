@@ -1,6 +1,9 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 // Location represents a location to show the weather for
 type Location struct {
@@ -17,7 +20,7 @@ func ResolveLocationFor(lat, lon float64, name string) (Location, error) {
 	if lat != 0 || lon != 0 {
 		desc, err := GetDescriptionFromCoordinates(lat, lon)
 		if err != nil {
-			DebugLogger.Printf("Error getting description from coordinates: %s\n", err)
+			slog.Debug("reverse-geocode failed; using fallback description", "err", err)
 			desc = fmt.Sprintf("Lat %.2f, Lon %.2f", lat, lon)
 		}
 		return Location{

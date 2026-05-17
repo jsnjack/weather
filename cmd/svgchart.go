@@ -54,9 +54,9 @@ func RenderLineChartSVG(series []SVGSeries, opts SVGOpts) template.HTML {
 
 	// Combined extents across non-empty series.
 	var (
-		minT, maxT       time.Time
-		minV, maxV       float64
-		any              bool
+		minT, maxT time.Time
+		minV, maxV float64
+		any        bool
 	)
 	for _, s := range series {
 		for _, p := range s.Data {
@@ -246,9 +246,9 @@ type GridCell struct {
 
 // GridOpts controls heat-grid layout.
 type GridOpts struct {
-	CellSize int    // px per cell in the viewBox; default 22
+	CellSize int     // px per cell in the viewBox; default 22
 	StepKm   float64 // optional — when >0, axis labels show ±km on edges
-	Title    string // optional caption shown above the grid
+	Title    string  // optional caption shown above the grid
 }
 
 // RenderHeatGridSVG draws cells[row][col] as a square grid. Row 0 is at the
@@ -339,4 +339,3 @@ func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String())
 }
-

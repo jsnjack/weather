@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -67,13 +68,16 @@ type MaxMindResponse struct {
 }
 
 func GetLocationFromIP() (Location, error) {
-	DebugLogger.Println("Getting location from IP")
+	slog.Debug("getting location from IP")
 	location := Location{}
 	client := &http.Client{
 		Timeout: time.Second * 10,
 	}
 
 	req, err := http.NewRequest("GET", MAXMIND_URL, nil)
+	if err != nil {
+		return location, fmt.Errorf("build maxmind request: %w", err)
+	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Referer", "https://www.maxmind.com/")
 
@@ -81,7 +85,7 @@ func GetLocationFromIP() (Location, error) {
 	if err != nil {
 		return location, err
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body, "maxmind response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return location, fmt.Errorf("unexpected status code %d", resp.StatusCode)

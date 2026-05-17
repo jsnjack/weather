@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -22,12 +23,12 @@ type latLon struct {
 
 // beamConfig bundles user-tunable knobs for the search.
 type beamConfig struct {
-	KmPerDay          float64
-	MinTemp           float64
-	BeamWidth         int
-	PivotPenalty      float64 // subtracted per bearing change
-	RoundTrip         bool
-	RoundTripPenalty  float64 // subtracted per km from start at trip end (only when RoundTrip)
+	KmPerDay         float64
+	MinTemp          float64
+	BeamWidth        int
+	PivotPenalty     float64 // subtracted per bearing change
+	RoundTrip        bool
+	RoundTripPenalty float64 // subtracted per km from start at trip end (only when RoundTrip)
 }
 
 // hourlyCache dedupes Open-Meteo fetches. Two paths that arrive at the same
@@ -74,7 +75,7 @@ func (c *hourlyCache) prefetch(points []fetchPoint, prog Progress) {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			if err != nil {
-				DebugLogger.Printf("scout: fetch failed (%.2f,%.2f %s): %s\n", p.Lat, p.Lon, p.Date.Format("2006-01-02"), err)
+				slog.Debug("scout: fetch failed", "lat", p.Lat, "lon", p.Lon, "date", p.Date.Format("2006-01-02"), "err", err)
 				delete(c.data, key) // leave as cache miss; get() returns error
 				return
 			}
@@ -126,7 +127,7 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 		for _, p := range uniq {
 			points = append(points, p)
 		}
-		DebugLogger.Printf("scout: day %d — %d unique fetches from %d beam nodes\n", day+1, len(points), len(beam))
+		slog.Debug("scout: day pass", "day", day+1, "uniqueFetches", len(points), "beamNodes", len(beam))
 		cache.prefetch(points, prog)
 
 		// Phase 2: expand each beam node with 8 bearings; score the resulting leg.

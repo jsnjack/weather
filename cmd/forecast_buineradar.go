@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -22,9 +23,9 @@ type RadarForecast struct {
 }
 
 func GetBuineradarForecast(lat, long float64) (*Forecast, error) {
-	DebugLogger.Printf("Getting Buineradar forecast for lat %.3f, long %.3f\n", lat, long)
+	slog.Debug("buineradar: getting forecast", "lat", lat, "lon", long)
 	url := fmt.Sprintf("https://graphdata.buienradar.nl/3.0/forecast/geo/RainHistoryForecast?lat=%.3f&lon=%.3f", lat, long)
-	DebugLogger.Printf("Requesting %s\n", url)
+	slog.Debug("buineradar: requesting", "url", url)
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -39,7 +40,7 @@ func GetBuineradarForecast(lat, long float64) (*Forecast, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body, "buineradar response body")
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
