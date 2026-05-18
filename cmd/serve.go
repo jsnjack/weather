@@ -192,6 +192,38 @@ type indexData struct {
 	Rows            []indexRow
 	Now             string
 	Q               template.URL // shared lat/lon query string for nav links
+
+	// Hero/glance fields — populated from the unified Open-Meteo fetch.
+	HasGlance      bool
+	IsDry          bool   // true when both providers stay under DryThresholdMmH
+	ConditionLabel string // human label e.g. "Light rain"
+	TempNow        int
+	TempEnd        int
+	TempDelta      int // TempEnd - TempNow, used for arrow choice
+	FeelsNow       int
+	FeelsEnd       int
+	WindNow        windView
+	WindEnd        windView
+	UVNow          microView
+	UVEnd          microView
+	SunEvents      []sunEventView
+}
+
+type windView struct {
+	Arrow string // "↑↗→↘↓↙←↖"
+	Kmh   int
+	Class string // "muted" | "caution" | "critical"
+}
+
+type microView struct {
+	Value int
+	Class string // "muted" | "caution" | "critical"
+}
+
+type sunEventView struct {
+	Kind  string // "sunrise" | "sunset"
+	Glyph string // "↑" | "↓"
+	Time  string // HH:MM in local zone
 }
 
 type indexRow struct {
@@ -236,8 +268,20 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if flusher != nil {
 		prog = NewHTTPProgress(w, flusher)
 	}
-	alarm, radar, _, _ := fetchRain(r.Context(), loc.Latitude, loc.Longitude, prog)
+	glance, glanceErr := buildGlanceResponse(r.Context(), loc, prog)
 	prog.Finish()
+	if glanceErr != nil && glance == nil {
+		// Total upstream failure — render the page with an empty chart and a
+		// short note. The shell + nav stay visible so the user can navigate.
+		data.Description = "Unable to fetch forecast right now."
+		data.Now = time.Now().Format("15:04:05")
+		if err := indexBodyTmpl.Execute(w, data); err != nil {
+			slog.Debug("template execute", "tmpl", "indexBody", "err", err)
+		}
+		return
+	}
+
+	alarm, radar := glance.Buienalarm, glance.Buineradar
 
 	series := []SVGSeries{}
 	var lastAlarmT time.Time
@@ -264,17 +308,121 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if alarm != nil {
 		data.Description = alarm.Desc
 	}
-	// YUnit comes from the forecast type so HTML matches the CLI label.
-	// MinYHi=1 keeps the axis at 0..1 mm/h when there is no rain, which
-	// reads as "nothing happening" rather than collapsing to a sub-0.1
-	// span with repeating identical tick labels.
-	yUnit := PrecipitationForecast.Unit()
-	data.ChartSVG = RenderLineChartSVG(series, SVGOpts{YUnit: yUnit, XTimeFormat: "15:04", MinYHi: 1})
+
+	data.HasGlance = true
+	data.IsDry = glance.IsDry()
+	data.ConditionLabel = conditionHumanLabel(glance.Condition)
+	data.TempNow = glance.Temperature.Now
+	data.TempEnd = glance.Temperature.End
+	data.TempDelta = glance.Temperature.End - glance.Temperature.Now
+	data.FeelsNow = glance.FeelsLike.Now
+	data.FeelsEnd = glance.FeelsLike.End
+	data.WindNow = makeWindView(glance.Wind.Now)
+	data.WindEnd = makeWindView(glance.Wind.End)
+	data.UVNow = makeUVView(glance.UVIndex.Now)
+	data.UVEnd = makeUVView(glance.UVIndex.End)
+	for _, ev := range glance.Sun {
+		t, err := time.Parse(time.RFC3339, ev.Time)
+		if err != nil {
+			continue
+		}
+		glyph := "↑"
+		if ev.Kind == "sunset" {
+			glyph = "↓"
+		}
+		data.SunEvents = append(data.SunEvents, sunEventView{
+			Kind:  ev.Kind,
+			Glyph: glyph,
+			Time:  t.In(time.Local).Format("15:04"),
+		})
+	}
+
+	// Build SVG only when there's rain in the window — otherwise the hero
+	// carries the page on its own. MinYHi=1 keeps the axis from collapsing.
+	if !data.IsDry {
+		sunMarkers := buildSunMarkers(glance.Sun)
+		yUnit := PrecipitationForecast.Unit()
+		data.ChartSVG = RenderLineChartSVG(series, SVGOpts{
+			YUnit:       yUnit,
+			XTimeFormat: "15:04",
+			MinYHi:      1,
+			FillArea:    true,
+			SunEvents:   sunMarkers,
+		})
+	}
 	data.Rows = mergeRows(alarm, radar)
 	data.Now = time.Now().Format("15:04:05")
 
 	if err := indexBodyTmpl.Execute(w, data); err != nil {
 		slog.Debug("template execute", "tmpl", "indexBody", "err", err)
+	}
+}
+
+// makeWindView produces a HTML-ready wind summary with caution colouring.
+func makeWindView(w glanceWind) windView {
+	cls := "muted"
+	switch {
+	case w.SpeedKmh >= WindCriticalKmh:
+		cls = "critical"
+	case w.SpeedKmh >= WindCautionKmh:
+		cls = "caution"
+	}
+	return windView{Arrow: windArrowFor(w.DirectionDeg), Kmh: w.SpeedKmh, Class: cls}
+}
+
+func makeUVView(uv int) microView {
+	cls := "muted"
+	switch {
+	case uv >= UVCritical:
+		cls = "critical"
+	case uv >= UVCaution:
+		cls = "caution"
+	}
+	return microView{Value: uv, Class: cls}
+}
+
+// windArrowFor maps "wind from N° (meteorological)" to the arrow showing
+// where the wind is BLOWING TO — the direction the rider feels it push.
+func windArrowFor(fromDeg int) string {
+	toDeg := ((fromDeg+180)%360 + 360) % 360
+	sector := ((toDeg + 22) / 45) % 8
+	return []string{"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"}[sector]
+}
+
+func buildSunMarkers(events []sunEvent) []SVGSunEvent {
+	out := make([]SVGSunEvent, 0, len(events))
+	for _, ev := range events {
+		t, err := time.Parse(time.RFC3339, ev.Time)
+		if err != nil {
+			continue
+		}
+		out = append(out, SVGSunEvent{Kind: ev.Kind, Time: t})
+	}
+	return out
+}
+
+// conditionHumanLabel reverses wmoCondition into a display label. Kept here
+// alongside the page wiring so the CLI and web stay in sync.
+func conditionHumanLabel(token string) string {
+	switch token {
+	case "clear":
+		return "Clear"
+	case "partly_cloudy":
+		return "Partly cloudy"
+	case "overcast":
+		return "Overcast"
+	case "fog":
+		return "Fog"
+	case "drizzle":
+		return "Drizzle"
+	case "rain":
+		return "Rain"
+	case "snow":
+		return "Snow"
+	case "thunderstorm":
+		return "Thunderstorm"
+	default:
+		return "Clear"
 	}
 }
 

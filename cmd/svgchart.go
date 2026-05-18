@@ -22,6 +22,22 @@ type SVGOpts struct {
 	YUnit       string  // e.g. "mm/h" or "°C" — printed once above the axis
 	XTimeFormat string  // e.g. "15:04"
 	MinYHi      float64 // if non-zero, force the top of the y-axis to be at least this value
+
+	// FillArea draws a translucent fill under each series so visual weight
+	// scales with intensity (drizzle leaves a sliver, downpour fills the
+	// chart). Matches the Android widget's rain chart.
+	FillArea bool
+
+	// SunEvents draws a vertical hairline plus a small glyph (↑ sunrise,
+	// ↓ sunset) at each event whose time falls within the chart's x range.
+	SunEvents []SVGSunEvent
+}
+
+// SVGSunEvent is a sunrise or sunset marker drawn as a vertical hairline +
+// glyph at Time.
+type SVGSunEvent struct {
+	Kind string // "sunrise" or "sunset"
+	Time time.Time
 }
 
 // RenderLineChartSVG returns an inline SVG <svg> element containing a
@@ -134,6 +150,26 @@ func RenderLineChartSVG(series []SVGSeries, opts SVGOpts) template.HTML {
 		padL, padT, padL, padT+plotH,
 		padL, padT+plotH, padL+plotW, padT+plotH)
 
+	// Sun event markers — vertical hairline plus a small glyph above the
+	// top of the plot. Drawn before the series so the rain lines overlay
+	// cleanly; the glyph above sits clear of everything.
+	for _, ev := range opts.SunEvents {
+		if ev.Time.Before(minT) || ev.Time.After(maxT) {
+			continue
+		}
+		x := xPx(ev.Time)
+		fmt.Fprintf(&b,
+			`<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="2,3"/>`,
+			x, padT, x, padT+plotH)
+		glyph := "↑"
+		if ev.Kind == "sunset" {
+			glyph = "↓"
+		}
+		fmt.Fprintf(&b,
+			`<text x="%.1f" y="%d" text-anchor="middle" fill="currentColor" opacity="0.75">%s %s</text>`,
+			x, padT-6, glyph, template.HTMLEscapeString(ev.Time.Format(opts.XTimeFormat)))
+	}
+
 	// Unit caption above the y-axis (printed once instead of on every tick).
 	if opts.YUnit != "" {
 		fmt.Fprintf(&b,
@@ -170,7 +206,8 @@ func RenderLineChartSVG(series []SVGSeries, opts SVGOpts) template.HTML {
 			x, padT+plotH+16, template.HTMLEscapeString(t.Format(opts.XTimeFormat)))
 	}
 
-	// Series lines.
+	// Series lines (plus optional filled area underneath).
+	yBase := float64(padT + plotH)
 	for _, s := range series {
 		if len(s.Data) == 0 {
 			continue
@@ -181,6 +218,18 @@ func RenderLineChartSVG(series []SVGSeries, opts SVGOpts) template.HTML {
 				pts.WriteByte(' ')
 			}
 			fmt.Fprintf(&pts, "%.1f,%.1f", xPx(p.Time), yPx(p.Value))
+		}
+		if opts.FillArea && len(s.Data) >= 2 {
+			// Build a closed polygon: walk the points then drop to the
+			// baseline at the right edge and left edge. ~22% alpha so the
+			// fill adds visual weight without overpowering the stroke.
+			var area strings.Builder
+			fmt.Fprintf(&area, "%.1f,%.1f ", xPx(s.Data[0].Time), yBase)
+			area.WriteString(pts.String())
+			fmt.Fprintf(&area, " %.1f,%.1f", xPx(s.Data[len(s.Data)-1].Time), yBase)
+			fmt.Fprintf(&b,
+				`<polygon fill="%s" fill-opacity="0.22" stroke="none" points="%s"/>`,
+				template.HTMLEscapeString(s.Color), area.String())
 		}
 		fmt.Fprintf(&b,
 			`<polyline fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="%s"/>`,

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -9,27 +10,37 @@ import (
 	"time"
 )
 
+// Caution thresholds — match the Android widget's ChartRenderer so the web
+// page, the home-screen widget, and the CLI all agree on when a metric is
+// worth highlighting. Beaufort 5+ for wind, sunscreen-recommended for UV.
+const (
+	WindCautionKmh  = 28
+	WindCriticalKmh = 50
+	UVCaution       = 3
+	UVCritical      = 8
+	// DryThresholdMmH: when both providers stay below this across the
+	// whole window we render the dry hero ("23° → 21° · clear") instead
+	// of an empty chart. Matches the Android widget.
+	DryThresholdMmH = 0.05
+)
+
 // glanceAPIResponse is the single-fetch payload consumed by the Android
 // widget. Combines the precipitation nowcast (from Buienalarm/Buienradar)
 // with a snapshot of temperature + weather condition from Open-Meteo so
 // the widget only needs one HTTP round-trip per refresh.
+//
+// Precipitation probability is intentionally not exposed here: over the
+// buinealarm 2h window it contradicts the precise rain line and adds noise.
 type glanceAPIResponse struct {
-	Location         Location       `json:"location"`
-	Buienalarm       *Forecast      `json:"buienalarm"`
-	Buineradar       *Forecast      `json:"buineradar"`
-	Temperature      glancePair     `json:"temperature"`                      // °C
-	FeelsLike        glancePair     `json:"feels_like"`                       // °C (apparent_temperature)
-	Wind             glanceWindPair `json:"wind"`                             // km/h + degrees-from-N
-	UVIndex          glancePair     `json:"uv_index"`                         // integer 0..11+
-	PrecipProb       glancePair     `json:"precipitation_probability"`        // 0..100 (%)
-	PrecipProbHourly []probPoint    `json:"precipitation_probability_hourly"` // hourly array spanning [now-1h, now+3h]
-	Condition        string         `json:"condition"`
-	Sun              []sunEvent     `json:"sun"` // events within [now, now+2h], empty if none
-}
-
-type probPoint struct {
-	Time  string `json:"time"`
-	Value int    `json:"value"`
+	Location    Location       `json:"location"`
+	Buienalarm  *Forecast      `json:"buienalarm"`
+	Buineradar  *Forecast      `json:"buineradar"`
+	Temperature glancePair     `json:"temperature"` // °C
+	FeelsLike   glancePair     `json:"feels_like"`  // °C (apparent_temperature)
+	Wind        glanceWindPair `json:"wind"`        // km/h + degrees-from-N
+	UVIndex     glancePair     `json:"uv_index"`    // integer 0..11+
+	Condition   string         `json:"condition"`
+	Sun         []sunEvent     `json:"sun"` // events within [now, now+2h], empty if none
 }
 
 type sunEvent struct {
@@ -61,9 +72,24 @@ func handleGlanceJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
+	resp, err := buildGlanceResponse(r.Context(), loc, NoProgress)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Log(r.Context(), LevelTrace, "encode glance response", "err", err)
+	}
+}
 
-	// Fan out: rain providers + Open-Meteo in parallel. Open-Meteo covers
-	// today + tomorrow so a +2h window crossing midnight still resolves.
+// buildGlanceResponse fans out the rain providers + Open-Meteo for `loc` and
+// returns the unified payload consumed by /api/v1/glance, /, and the CLI
+// root command. Returns an error only when every upstream failed; partial
+// results (e.g. radar present but alarm down) are passed through with the
+// missing fields nil/zero so the renderer can degrade gracefully.
+func buildGlanceResponse(ctx context.Context, loc Location, prog Progress) (*glanceAPIResponse, error) {
 	var (
 		alarm, radar       *Forecast
 		alarmErr, radarErr error
@@ -71,24 +97,26 @@ func handleGlanceJSON(w http.ResponseWriter, r *http.Request) {
 		meteoErr           error
 		wg                 sync.WaitGroup
 	)
+	// Open-Meteo is the third unit of work alongside the two rain fetches.
+	prog.AddTotal(1)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		alarm, radar, alarmErr, radarErr = fetchRain(r.Context(), loc.Latitude, loc.Longitude, NoProgress)
+		alarm, radar, alarmErr, radarErr = fetchRain(ctx, loc.Latitude, loc.Longitude, prog)
 	}()
 	go func() {
 		defer wg.Done()
+		defer prog.Inc(1)
 		now := time.Now()
 		meteo, meteoErr = GetOpenMeteoRange(loc.Latitude, loc.Longitude, now, now.Add(24*time.Hour))
 	}()
 	wg.Wait()
 
 	if alarm == nil && radar == nil && meteo == nil {
-		writeJSONError(w, http.StatusBadGateway, errors.Join(alarmErr, radarErr, meteoErr))
-		return
+		return nil, errors.Join(alarmErr, radarErr, meteoErr)
 	}
 
-	resp := glanceAPIResponse{
+	resp := &glanceAPIResponse{
 		Location:   loc,
 		Buienalarm: alarm,
 		Buineradar: radar,
@@ -109,10 +137,6 @@ func handleGlanceJSON(w http.ResponseWriter, r *http.Request) {
 			Now: interpolateInt(meteo.Hourly, now, func(h HourlyForecast) float64 { return h.UVIndex }),
 			End: interpolateInt(meteo.Hourly, end, func(h HourlyForecast) float64 { return h.UVIndex }),
 		}
-		resp.PrecipProb = glancePair{
-			Now: interpolateInt(meteo.Hourly, now, func(h HourlyForecast) float64 { return float64(h.PrecipitationProbability) }),
-			End: interpolateInt(meteo.Hourly, end, func(h HourlyForecast) float64 { return float64(h.PrecipitationProbability) }),
-		}
 		resp.Wind = glanceWindPair{
 			Now: glanceWind{
 				SpeedKmh:     interpolateInt(meteo.Hourly, now, func(h HourlyForecast) float64 { return h.WindSpeed }),
@@ -125,14 +149,36 @@ func handleGlanceJSON(w http.ResponseWriter, r *http.Request) {
 		}
 		resp.Condition = wmoCondition(weatherCodeAt(meteo.Hourly, now))
 		resp.Sun = sunEventsInWindow(meteo.Daily, now, end)
-		resp.PrecipProbHourly = probabilityWindow(meteo.Hourly, now.Add(-1*time.Hour), end.Add(time.Hour))
 	}
+	return resp, nil
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Log(r.Context(), LevelTrace, "encode glance response", "err", err)
+// IsDry returns true when both providers stay below the dry threshold across
+// every available data point. The chart is suppressed in this state and the
+// hero ("23° → 21° · clear") takes its place.
+func (g *glanceAPIResponse) IsDry() bool {
+	if g == nil {
+		return true
 	}
+	peak := 0.0
+	for _, p := range forecastPoints(g.Buienalarm) {
+		if p.Value > peak {
+			peak = p.Value
+		}
+	}
+	for _, p := range forecastPoints(g.Buineradar) {
+		if p.Value > peak {
+			peak = p.Value
+		}
+	}
+	return peak < DryThresholdMmH
+}
+
+func forecastPoints(f *Forecast) []ForecastDataPoint {
+	if f == nil {
+		return nil
+	}
+	return f.Data
 }
 
 // interpolateInt linearly interpolates a scalar selected by `get` over the
@@ -190,23 +236,6 @@ func interpolateDirectionInt(hourly []HourlyForecast, t time.Time, get func(Hour
 		}
 	}
 	return int(round(normalizeDeg(get(hourly[len(hourly)-1]))))
-}
-
-// probabilityWindow returns hourly precipitation_probability values whose
-// time bucket overlaps the window [from, to]. The widget paints these as
-// background tint behind the rain lines so the user reads "rain chance"
-// alongside the actual rain forecast.
-func probabilityWindow(hourly []HourlyForecast, from, to time.Time) []probPoint {
-	out := make([]probPoint, 0, 8)
-	for _, h := range hourly {
-		// The hourly value covers the [time, time+1h) interval.
-		end := h.Time.Add(time.Hour)
-		if end.Before(from) || h.Time.After(to) {
-			continue
-		}
-		out = append(out, probPoint{Time: h.Time.Format(time.RFC3339), Value: h.PrecipitationProbability})
-	}
-	return out
 }
 
 // sunEventsInWindow returns sunrise and sunset events whose timestamp

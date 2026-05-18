@@ -1,6 +1,29 @@
+  {{if .HasGlance}}
+  <section class="hero {{if .IsDry}}hero-dry{{end}}">
+    <div class="hero-temps">
+      <span class="t-now">{{.TempNow}}°</span>
+      <span class="t-arrow">{{if gt .TempDelta 0}}↗{{else if lt .TempDelta 0}}↘{{else}}→{{end}}</span>
+      <span class="t-end">{{.TempEnd}}°</span>
+    </div>
+    <p class="hero-condition">
+      {{.ConditionLabel}}{{if .IsDry}} · dry next 2h{{end}}
+    </p>
+    <p class="micro">
+      <span class="mi">feels {{.FeelsNow}}° → {{.FeelsEnd}}°</span>
+      <span class="mi mi-{{.WindNow.Class}}">{{.WindNow.Arrow}} {{.WindNow.Kmh}} km/h</span>
+      <span class="mi mi-{{.UVNow.Class}}">UV {{.UVNow.Value}}</span>
+    </p>
+    {{if .SunEvents}}
+    <p class="sun">
+      {{range .SunEvents}}<span class="sun-ev">{{.Glyph}} {{.Time}}</span>{{end}}
+    </p>
+    {{end}}
+  </section>
+  {{end}}
+
   {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
 
-  <section class="chart">{{.ChartSVG}}</section>
+  {{if .ChartSVG}}<section class="chart">{{.ChartSVG}}</section>{{end}}
 
   {{if .Rows}}
   <details class="data">
@@ -17,7 +40,7 @@
   {{end}}
 
   <footer>
-    <a href="/api/v1/rain?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
+    <a href="/api/v1/glance?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
     · refreshed {{.Now}}
   </footer>
 </main>
