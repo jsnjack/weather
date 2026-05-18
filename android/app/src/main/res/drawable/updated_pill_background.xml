@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Subtle rounded pill behind the "↻ Updated HH:MM" text so the tap target
+  reads as a button (not just text). Day mode uses a near-transparent black
+  tint; values-night/ swaps to a near-transparent white.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#10000000" />
+    <corners android:radius="10dp" />
+</shape>
