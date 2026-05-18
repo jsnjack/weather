@@ -1,29 +1,30 @@
+  {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
+
+  {{if .ChartSVG}}<section class="chart">{{.ChartSVG}}</section>{{end}}
+
   {{if .HasGlance}}
-  <section class="hero {{if .IsDry}}hero-dry{{end}}">
-    <div class="hero-temps">
-      <span class="t-now">{{.TempNow}}°</span>
-      <span class="t-arrow">{{if gt .TempDelta 0}}↗{{else if lt .TempDelta 0}}↘{{else}}→{{end}}</span>
-      <span class="t-end">{{.TempEnd}}°</span>
-    </div>
-    <p class="hero-condition">
-      {{.ConditionLabel}}{{if .IsDry}} · dry next 2h{{end}}
+  <section class="glance">
+    <p class="g-row">
+      <span class="g-label">now</span>
+      <span class="g-temp">{{.TempNow}}°</span>
+      <span class="g-mi">feels {{.FeelsNow}}°</span>
+      <span class="g-mi g-mi-{{.WindNow.Class}}">{{.WindNow.Arrow}} {{.WindNow.Kmh}} km/h</span>
+      <span class="g-mi g-mi-{{.UVNow.Class}}">UV {{.UVNow.Value}}</span>
     </p>
-    <p class="micro">
-      <span class="mi">feels {{.FeelsNow}}° → {{.FeelsEnd}}°</span>
-      <span class="mi mi-{{.WindNow.Class}}">{{.WindNow.Arrow}} {{.WindNow.Kmh}} km/h</span>
-      <span class="mi mi-{{.UVNow.Class}}">UV {{.UVNow.Value}}</span>
+    <p class="g-row">
+      <span class="g-label">+2h</span>
+      <span class="g-temp">{{.TempEnd}}°</span>
+      <span class="g-mi">feels {{.FeelsEnd}}°</span>
+      <span class="g-mi g-mi-{{.WindEnd.Class}}">{{.WindEnd.Arrow}} {{.WindEnd.Kmh}} km/h</span>
+      <span class="g-mi g-mi-{{.UVEnd.Class}}">UV {{.UVEnd.Value}}</span>
     </p>
     {{if .SunEvents}}
-    <p class="sun">
-      {{range .SunEvents}}<span class="sun-ev">{{.Glyph}} {{.Time}}</span>{{end}}
+    <p class="g-sun">
+      {{range .SunEvents}}<span>{{.Glyph}} {{.Kind}} {{.Time}}</span>{{end}}
     </p>
     {{end}}
   </section>
   {{end}}
-
-  {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
-
-  {{if .ChartSVG}}<section class="chart">{{.ChartSVG}}</section>{{end}}
 
   {{if .Rows}}
   <details class="data">

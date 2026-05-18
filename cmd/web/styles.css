@@ -67,22 +67,16 @@ form.controls button { padding: .25rem .75rem; align-self: flex-end; background:
   font-variant-numeric: tabular-nums;
 }
 
-/* glance hero — big now → +2h summary on the / page */
-.hero { margin: 1rem 0 .5rem; }
-.hero-temps { display: flex; align-items: baseline; gap: .6rem; font-variant-numeric: tabular-nums; }
-.hero-temps .t-now { font-size: 3rem; font-weight: 600; line-height: 1; }
-.hero-temps .t-arrow { font-size: 2rem; color: var(--muted); }
-.hero-temps .t-end { font-size: 2.25rem; font-weight: 500; color: var(--muted); line-height: 1; }
-.hero-condition { margin: .25rem 0 .5rem; color: var(--muted); font-size: .95rem; }
-.hero-dry .hero-temps { justify-content: center; }
-.hero-dry .hero-condition { text-align: center; }
-.hero-dry { padding: 1rem 0; }
-.micro { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; display: flex; flex-wrap: wrap; gap: .9rem; align-items: center; }
-.micro .mi { font-variant-numeric: tabular-nums; }
-.micro .mi-caution { color: #d97706; }
-.micro .mi-critical { color: #dc2626; font-weight: 600; }
-.sun { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; display: flex; gap: .9rem; }
-.sun-ev { font-variant-numeric: tabular-nums; }
+/* glance — two compact lines (now / +2h) under the chart, matching the
+   Android widget's corner clusters. */
+.glance { margin: .5rem 0; font-variant-numeric: tabular-nums; }
+.g-row { margin: .15rem 0; display: flex; flex-wrap: wrap; gap: .75rem; align-items: baseline; font-size: .95rem; }
+.g-label { color: var(--muted); font-size: .8rem; min-width: 2.2rem; text-transform: uppercase; letter-spacing: .04em; }
+.g-temp { font-weight: 600; font-size: 1.05rem; }
+.g-mi { color: var(--muted); }
+.g-mi-caution { color: #d97706; }
+.g-mi-critical { color: #dc2626; font-weight: 600; }
+.g-sun { margin: .35rem 0 0; color: var(--muted); font-size: .85rem; display: flex; gap: .9rem; }
 
 /* progress / loading */
 .loading { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
