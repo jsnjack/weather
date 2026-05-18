@@ -41,6 +41,9 @@ func GetLocationFromString(str string) (Location, error) {
 		return location, fmt.Errorf("build nominatim request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	// Nominatim's usage policy requires a User-Agent identifying the app
+	// and 403s anonymous Go-http-client requests on sight.
+	req.Header.Set("User-Agent", "weather-cli/"+Version+" (+https://github.com/jsnjack/weather)")
 
 	resp, err := client.Do(req)
 	if err != nil {
