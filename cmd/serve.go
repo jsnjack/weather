@@ -192,6 +192,7 @@ type indexData struct {
 	Rows            []indexRow
 	Now             string
 	Q               template.URL // shared lat/lon query string for nav links
+	NameInput       string       // raw ?name= from the URL so the form round-trips
 
 	// Hero/glance fields — populated from the unified Open-Meteo fetch.
 	HasGlance      bool
@@ -255,6 +256,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		BuienalarmColor: buienalarmColor,
 		BuineradarColor: buineradarColor,
 		Q:               locQuery(loc),
+		NameInput:       name,
 	}
 	if err := indexHeadTmpl.Execute(w, data); err != nil {
 		slog.Debug("template execute", "tmpl", "indexHead", "err", err)
@@ -606,6 +608,7 @@ type todayPageData struct {
 	// inputs (set before head render)
 	Location    Location
 	Q           template.URL
+	NameInput   string
 	WindowHours int
 	Grid        int
 	RadiusKm    float64
@@ -639,6 +642,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 	page := todayPageData{
 		Location:    loc,
 		Q:           locQuery(loc),
+		NameInput:   name,
 		WindowHours: hours,
 		Grid:        grid,
 		RadiusKm:    radius,
@@ -917,6 +921,7 @@ type scoutTripView struct {
 type scoutPageData struct {
 	Location           Location
 	Q                  template.URL
+	NameInput          string
 	Cfg                scoutPageCfg
 	IsHeatmap          bool
 	StartLabel         string
@@ -955,8 +960,9 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	flusher, _ := w.(http.Flusher)
 
 	page := scoutPageData{
-		Location: loc,
-		Q:        locQuery(loc),
+		Location:  loc,
+		Q:         locQuery(loc),
+		NameInput: name,
 		Cfg: scoutPageCfg{
 			Days: sq.Days, KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
 			MinTempPlus5: sq.MinTemp + 5, MinTempMinus5: sq.MinTemp - 5,

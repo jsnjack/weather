@@ -52,6 +52,7 @@ footer a { color: var(--accent); }
 form.controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; font-size: .9rem; }
 form.controls label { display: flex; flex-direction: column; gap: .15rem; color: var(--muted); }
 form.controls input, form.controls select { padding: .25rem .35rem; background: var(--bg); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: .25rem; min-width: 4rem; }
+form.controls .loc-name input { min-width: 9rem; }
 form.controls button { padding: .25rem .75rem; align-self: flex-end; background: var(--accent); color: white; border: 0; border-radius: .25rem; cursor: pointer; }
 
 /* legend */
