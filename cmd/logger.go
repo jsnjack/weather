@@ -16,8 +16,18 @@ var L = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // initLogger configures the package logger from --debug / --trace flags.
 // Returns a cleanup function that closes the trace file (if any).
+//
+// Default (neither flag set): Info+ to stderr. That's what makes
+// `weather serve` print its per-request access log without any flags,
+// matching standard web-server behaviour. CLI commands don't emit Info
+// at runtime, so the default stays quiet for them.
+//
+// --debug: lower to Debug, still on stderr.
+// --trace: full firehose to /tmp/weather.log (truncated each run). Stderr
+// stays clean so the trace file is the single source of truth for a
+// post-mortem.
 func initLogger(tracePath, level string) func() {
-	w := io.Writer(io.Discard)
+	w := io.Writer(os.Stderr)
 	cleanup := func() {}
 	if tracePath != "" {
 		f, err := os.OpenFile(tracePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -30,12 +40,7 @@ func initLogger(tracePath, level string) func() {
 			}
 		}
 	}
-	if level == "debug" {
-		// Debug goes to stderr, not the trace file. Trace files are for
-		// post-mortem self-diagnosis with the full firehose enabled.
-		w = os.Stderr
-	}
-	lvl := slog.LevelWarn
+	lvl := slog.LevelInfo
 	switch level {
 	case "debug":
 		lvl = slog.LevelDebug

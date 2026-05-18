@@ -77,9 +77,7 @@
   </section>
   {{end}}
 
-  <footer>
-    <a href="/api/v1/scout?{{.JSONQuery}}">JSON</a> · refreshed {{.Now}}
-  </footer>
+  <footer>refreshed {{.Now}}</footer>
 </main>
 <script>
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});

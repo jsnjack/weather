@@ -58,10 +58,7 @@
     </div>
   </section>
 
-  <footer>
-    <a href="/api/v1/today?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}&hours={{.WindowHours}}&start={{.StartInput}}&radius={{printf "%.0f" .RadiusKm}}&grid={{.Grid}}">JSON</a>
-    · refreshed {{.Now}}
-  </footer>
+  <footer>refreshed {{.Now}}</footer>
 </main>
 <script>
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});

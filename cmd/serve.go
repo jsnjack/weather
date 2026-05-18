@@ -84,9 +84,9 @@ installed on Android as a stand-in for a native widget.`,
 
 		// Always announce the bind address, regardless of --debug / --trace.
 		// stderr keeps it visible to operators; the trace file captures it for
-		// post-mortem diagnosis. Format matches the standard "Listening on
-		// <addr>" convention.
-		fmt.Fprintf(os.Stderr, "Listening on %s\n", FlagServeAddr)
+		// post-mortem diagnosis. Print as http://<addr> so terminals that
+		// auto-linkify URLs make it clickable.
+		fmt.Fprintf(os.Stderr, "Listening on http://%s\n", FlagServeAddr)
 		slog.Log(cmd.Context(), LevelTrace, "server listening", "addr", FlagServeAddr)
 
 		return srv.ListenAndServe()
@@ -141,6 +141,7 @@ func accessLogMiddleware(next http.Handler) http.Handler {
 			"status", rec.status,
 			"bytes", rec.bytes,
 			"dur", time.Since(start).Round(time.Millisecond),
+			"ua", r.UserAgent(),
 		)
 	})
 }
@@ -189,7 +190,6 @@ type indexData struct {
 	ChartSVG        template.HTML
 	BuienalarmColor string
 	BuineradarColor string
-	Rows            []indexRow
 	Now             string
 	Q               template.URL // shared lat/lon query string for nav links
 	NameInput       string       // raw ?name= from the URL so the form round-trips
@@ -225,12 +225,6 @@ type sunEventView struct {
 	Kind  string // "sunrise" | "sunset"
 	Glyph string // "↑" | "↓"
 	Time  string // HH:MM in local zone
-}
-
-type indexRow struct {
-	Time string
-	A    string
-	B    string
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +346,6 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 			SunEvents:   sunMarkers,
 		})
 	}
-	data.Rows = mergeRows(alarm, radar)
 	data.Now = time.Now().Format("15:04:05")
 
 	if err := indexBodyTmpl.Execute(w, data); err != nil {
@@ -488,52 +481,6 @@ func embedHandler(path, contentType string) http.HandlerFunc {
 	}
 }
 
-// mergeRows builds a table joining buienalarm and buineradar values by time.
-// Anchors on buienalarm timestamps when present, otherwise buineradar.
-func mergeRows(a, b *Forecast) []indexRow {
-	primary := []ForecastDataPoint{}
-	if a != nil && len(a.Data) > 0 {
-		primary = a.Data
-	} else if b != nil && len(b.Data) > 0 {
-		primary = b.Data
-	}
-	rows := make([]indexRow, 0, len(primary))
-	for _, p := range primary {
-		row := indexRow{Time: p.Time.Format("15:04"), A: "—", B: "—"}
-		if a != nil {
-			if v, ok := nearest(a.Data, p.Time); ok {
-				row.A = fmt.Sprintf("%.2f", v)
-			}
-		}
-		if b != nil {
-			if v, ok := nearest(b.Data, p.Time); ok {
-				row.B = fmt.Sprintf("%.2f", v)
-			}
-		}
-		rows = append(rows, row)
-	}
-	return rows
-}
-
-func nearest(points []ForecastDataPoint, t time.Time) (float64, bool) {
-	const tolerance = 6 * time.Minute
-	best := -1
-	bestDelta := tolerance + time.Second
-	for i, p := range points {
-		d := p.Time.Sub(t)
-		if d < 0 {
-			d = -d
-		}
-		if d < bestDelta {
-			best = i
-			bestDelta = d
-		}
-	}
-	if best < 0 {
-		return 0, false
-	}
-	return points[best].Value, true
-}
 
 // locQuery returns "lat=...&lon=..." for the resolved location so nav links
 // preserve the user's place when hopping between pages. Returned as
@@ -841,11 +788,6 @@ func (sq scoutQuery) Config() beamConfig {
 	}
 }
 
-func (sq scoutQuery) Encode() string {
-	return fmt.Sprintf("days=%d&km-per-day=%.0f&min-temp=%.0f&start-date=%s&top=%d&round-trip=%t&heatmap=%t",
-		sq.Days, sq.KmPerDay, sq.MinTemp, sq.StartDateInput, sq.TopN, sq.RoundTrip, sq.Heatmap)
-}
-
 type scoutTripJSON struct {
 	Score       float64    `json:"score"`
 	Bearings    []float64  `json:"bearings"`
@@ -930,7 +872,6 @@ type scoutPageData struct {
 	Trips              []scoutTripView
 	HeatmapDaysSVG     []template.HTML
 	RecommendationText string
-	JSONQuery          template.URL
 	Now                string
 }
 
@@ -972,7 +913,6 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 		StartLabel: sq.StartDate.Format("2006-01-02"),
 		EndLabel:   endDate.Format("2006-01-02"),
 		StartInput: sq.StartDateInput,
-		JSONQuery:  template.URL(string(locQuery(loc)) + "&" + sq.Encode()),
 	}
 	if err := scoutHeadTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "scoutHead", "err", err)

@@ -26,24 +26,7 @@
   </section>
   {{end}}
 
-  {{if .Rows}}
-  <details class="data">
-    <summary>Data</summary>
-    <table>
-      <thead><tr><th>Time</th><th>Buienalarm</th><th>Buineradar</th></tr></thead>
-      <tbody>
-        {{range .Rows}}
-        <tr><td>{{.Time}}</td><td>{{.A}}</td><td>{{.B}}</td></tr>
-        {{end}}
-      </tbody>
-    </table>
-  </details>
-  {{end}}
-
-  <footer>
-    <a href="/api/v1/glance?lat={{.Location.Latitude}}&lon={{.Location.Longitude}}">JSON</a>
-    · refreshed {{.Now}}
-  </footer>
+  <footer>refreshed {{.Now}}</footer>
 </main>
 <script>
   if ("serviceWorker" in navigator) {
