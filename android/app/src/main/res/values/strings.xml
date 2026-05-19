@@ -30,6 +30,7 @@
     <string name="state_no_location">No location</string>
     <string name="updated_at">Updated: %1$s</string>
     <string name="updated_stale">Updated: %1$s (stale)</string>
+    <string name="updating">Refreshing…</string>
     <string name="refresh_cd">Refresh</string>
 
     <string-array name="refresh_intervals_labels">
