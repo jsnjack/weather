@@ -45,6 +45,11 @@ var (
 	todayBodyTmpl = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
 	scoutHeadTmpl = template.Must(template.New("scout_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_head.html.tmpl"))
 	scoutBodyTmpl = template.Must(template.New("scout_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_body.html.tmpl"))
+
+	hourlyHeadTmpl   = template.Must(template.New("hourly_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_head.html.tmpl"))
+	hourlyBodyTmpl   = template.Must(template.New("hourly_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_body.html.tmpl"))
+	forecastHeadTmpl = template.Must(template.New("forecast_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/forecast_head.html.tmpl"))
+	forecastBodyTmpl = template.Must(template.New("forecast_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/forecast_body.html.tmpl"))
 )
 
 var serveCmd = &cobra.Command{
@@ -60,6 +65,8 @@ installed on Android as a stand-in for a native widget.`,
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /", handleIndex)
+		mux.HandleFunc("GET /hourly", handleHourly)
+		mux.HandleFunc("GET /forecast", handleForecast)
 		mux.HandleFunc("GET /today", handleToday)
 		mux.HandleFunc("GET /scout", handleScout)
 		mux.HandleFunc("GET /api/v1/rain", handleRainJSON)
@@ -480,7 +487,6 @@ func embedHandler(path, contentType string) http.HandlerFunc {
 		}
 	}
 }
-
 
 // locQuery returns "lat=...&lon=..." for the resolved location so nav links
 // preserve the user's place when hopping between pages. Returned as

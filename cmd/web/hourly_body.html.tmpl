@@ -1,0 +1,61 @@
+  {{if .Note}}<p class="empty">{{.Note}}</p>{{end}}
+
+  {{if .TempChartSVG}}
+  <section class="chart">
+    <p class="sub"><span class="legend"><span class="dot" style="background:#f97316"></span>Temp</span>
+      <span class="legend"><span class="dot" style="background:#60a5fa"></span>Feels like</span></p>
+    {{.TempChartSVG}}
+  </section>
+  {{end}}
+
+  {{if .PrecipChartSVG}}
+  <section class="chart">
+    <p class="sub"><span class="legend"><span class="dot" style="background:#06b6d4"></span>Precipitation (mm/h)</span></p>
+    {{.PrecipChartSVG}}
+  </section>
+  {{end}}
+
+  {{if .Rows}}
+  <section class="evolution">
+    <h2>By hour</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th><th>Temp</th><th>Feels</th><th>Rain</th><th>%</th><th>Wind</th><th>UV</th><th>Sky</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr{{if .NewDay}} class="newday"{{end}}>
+          <th>{{.Time}}</th>
+          <td>{{.Temp}}°</td>
+          <td class="muted">{{.Feels}}°</td>
+          <td>{{if .Precip}}{{.Precip}}{{else}}·{{end}}</td>
+          <td class="muted">{{if .PrecipPct}}{{.PrecipPct}}{{end}}</td>
+          <td class="g-mi-{{.WindClass}}">{{.WindArrow}} {{.WindKmh}}</td>
+          <td class="g-mi-{{.UVClass}}">{{.UV}}</td>
+          <td class="muted">{{.Condition}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="legend">
+    <h3>Legend</h3>
+    <div class="legend-group">
+      <span class="legend-item">Temp / Feels — °C</span>
+      <span class="legend-item">Rain — mm in the hour · % — chance of rain</span>
+      <span class="legend-item">Wind — arrow points where it pushes you · km/h</span>
+      <span class="legend-item"><span class="g-mi-caution">caution</span> wind ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind ≥50 / UV ≥8</span>
+    </div>
+  </section>
+  {{end}}
+
+  <footer>refreshed {{.Now}}</footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>

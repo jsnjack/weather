@@ -19,7 +19,8 @@
     <string name="cfg_save">Add widget</string>
     <string name="cfg_invalid_url">Invalid URL — must start with http:// or https://</string>
     <string name="cfg_invalid_coords">Lat/lon must be numbers</string>
-    <string name="cfg_location_denied">Location permission denied — falling back to server-side IP.</string>
+    <string name="cfg_location_denied">Location permission denied — pick another mode or grant location.</string>
+    <string name="cfg_background_denied">Background location off — the widget updates only while the app is open. Grant “Allow all the time” for fresh updates while travelling.</string>
 
     <string name="loading">Loading…</string>
     <string name="state_offline">Server unreachable</string>
@@ -29,9 +30,8 @@
     <string name="state_no_data">No nowcast data</string>
     <string name="state_no_location">No location</string>
     <string name="updated_at">Updated: %1$s</string>
-    <string name="updated_stale">Updated: %1$s (stale)</string>
+    <string name="cached_at">Cached: %1$s</string>
     <string name="updating">Refreshing…</string>
-    <string name="refresh_cd">Refresh</string>
 
     <string-array name="refresh_intervals_labels">
         <item>15 min</item>

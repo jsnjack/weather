@@ -3,8 +3,6 @@
     <color name="widget_bg">#0F0F0F</color>
     <color name="widget_text">#F0F0F0</color>
     <color name="widget_subtle">#9AA0A6</color>
-    <color name="chart_grid">#33FFFFFF</color>
-    <color name="chart_axis">#AAFFFFFF</color>
     <color name="chart_baseline">#33FFFFFF</color>
     <color name="chart_buienalarm">#22D3EE</color>
     <color name="chart_buienradar">#C084FC</color>

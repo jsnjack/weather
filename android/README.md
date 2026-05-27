@@ -1,8 +1,13 @@
 # weather-widget — Android home-screen widget for `weather`
 
 A native Android widget that calls the `weather serve` JSON API
-(`/api/v1/rain`) and renders the 2-hour Buienalarm + Buienradar
-mini-chart on the home screen. Tap → opens the PWA in the browser.
+(`/api/v1/glance`) and renders the 2-hour Buienalarm + Buienradar
+mini-chart on the home screen. Tap → opens the hourly forecast for the
+widget's own location in the browser.
+
+> **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).
+> `minSdk` is 31 (Android 12) — there are no compatibility shims for older
+> releases. It installs on anything API 31+, but that's the floor we test.
 
 > **Target host:** Fedora Linux. All commands assume `dnf` and standard
 > Fedora layout. The project author runs Fedora on every dev machine;
@@ -15,7 +20,7 @@ these. Bootstrap must satisfy them.
 
 | Component | Version |
 |---|---|
-| JDK | 17 or 21 (AGP 8.5 requires ≥17) |
+| JDK | 17 or 21 — **not** newer; Gradle 8.9 rejects JDK 22+ (use the Studio JBR) |
 | Android SDK platform | `android-34` |
 | Android build-tools | `34.0.0` |
 | Gradle | 8.9 (auto-fetched by `./gradlew` on first build) |
@@ -103,20 +108,33 @@ export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
 
 ## Build + install + refresh loop
 
-The standard agent dev loop, from `android/`:
+> **JDK — read this first.** Gradle 8.9 runs on JDK 17–21. A newer *system*
+> JDK (Fedora currently ships `java-25`) makes Gradle fail before it even
+> evaluates the build scripts. Point `JAVA_HOME` at Android Studio's bundled
+> JBR 21 before building:
+>
+> ```bash
+> export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
+>     -maxdepth 8 -type d -name jbr 2>/dev/null | head -1)
+> ```
+>
+> To avoid re-exporting every shell, pin it once in `~/.gradle/gradle.properties`
+> (per-machine, outside the repo): `org.gradle.java.home=/…/extra/jbr`.
+
+The standard dev loop, from `android/`:
 
 ```bash
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-# Force an immediate refresh of any placed widget instance:
-adb shell am broadcast \
-    -a net.surfly.weather.widget.ACTION_MANUAL_REFRESH \
-    -n net.surfly.weather.widget/.RainWidgetProvider
 ```
 
-`adb install -r` already delivers `APPWIDGET_UPDATE` to existing widget
-instances, so the broadcast is usually optional. Use it to force an
-immediate refetch without waiting for the next periodic tick.
+`adb install -r` redelivers `APPWIDGET_UPDATE` to existing widget instances,
+so reinstalling already forces a refresh. Manual refresh now lives on a
+**non-exported** receiver (`ManualRefreshReceiver`) so other apps can't
+trigger it — which also means the old
+`am broadcast … ACTION_MANUAL_REFRESH` command no longer reaches it from the
+adb shell. To force a refetch without reinstalling, lock/unlock the phone
+(the `USER_PRESENT` receiver, throttled to 15 min) or tap the timestamp pill.
 
 ## Visual iteration via screenshots
 
@@ -156,8 +174,12 @@ When the widget is dropped on the home screen, a small dialog opens:
   hardcoded `DEFAULT_URL` in `WidgetPrefs.kt`. Override at runtime per
   widget instance.
 - **Location** —
-  - *Auto* — last-known FLP coarse location each refresh; falls back
-    silently to the server's IP geolocation if unavailable.
+  - *Auto* — a current coarse fix each refresh, re-requested whenever the
+    last-known fix is stale (>10 min) or inaccurate (>5 km). Needs location
+    permission, plus **Allow all the time** (background) for fresh fixes
+    while the screen is off or you're travelling. When no trustworthy fix is
+    available it shows **No location** rather than silently using the
+    server's IP.
   - *Fixed name* — forward a place name to the server.
   - *Fixed coords* — explicit lat/lon.
   - *Server IP* — let the server's MaxMind fallback decide; least

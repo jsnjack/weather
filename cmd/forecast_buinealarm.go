@@ -29,7 +29,17 @@ type NowcastMessage struct {
 	Nl string `json:"nl"`
 }
 
+// GetBuinealarmForecast returns the Buienalarm 2 h nowcast, cached process-wide
+// for a short TTL (buienalarmCache) so rapid page-switching doesn't re-hit the
+// provider. The returned pointer is shared — treat it as read-only.
 func GetBuinealarmForecast(lat, long float64) (*Forecast, error) {
+	key := fmt.Sprintf("%.3f|%.3f", lat, long)
+	return memo(buienalarmCache, key, func() (*Forecast, error) {
+		return getBuinealarmForecastUncached(lat, long)
+	})
+}
+
+func getBuinealarmForecastUncached(lat, long float64) (*Forecast, error) {
 	slog.Debug("buienalarm: getting forecast", "lat", lat, "lon", long)
 	url := fmt.Sprintf("https://imn-rust-lb.infoplaza.io/v4/nowcast/timeseries/%.2f/%.2f", lat, long)
 	slog.Debug("buienalarm: requesting", "url", url)

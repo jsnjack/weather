@@ -10,10 +10,14 @@ android {
 
     defaultConfig {
         applicationId = "net.surfly.weather.widget"
-        minSdk = 26
+        // minSdk 31 (Android 12): the widget uses API-31 appwidget attributes
+        // (targetCellWidth/Height, previewLayout, maxResize*). Targeting only
+        // modern devices (this build is for a One UI 8 / Galaxy A56) means no
+        // version-guard shims for older releases.
+        minSdk = 31
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
     }
 
     buildTypes {

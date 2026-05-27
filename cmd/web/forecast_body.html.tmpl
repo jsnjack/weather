@@ -1,0 +1,58 @@
+  {{if .Note}}<p class="empty">{{.Note}}</p>{{end}}
+
+  {{if .TempChartSVG}}
+  <section class="chart">
+    <p class="sub"><span class="legend"><span class="dot" style="background:#f97316"></span>High</span>
+      <span class="legend"><span class="dot" style="background:#60a5fa"></span>Low</span></p>
+    {{.TempChartSVG}}
+  </section>
+  {{end}}
+
+  {{if .Rows}}
+  <section class="evolution">
+    <h2>By day</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Day</th><th>Sky</th><th>Temp °C</th><th class="trange-col"></th><th>Feels</th><th>Rain</th><th>%</th><th>Wind</th><th>Gust</th><th>UV</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr>
+          <th>{{.Date}}</th>
+          <td class="muted">{{.Condition}}</td>
+          <td><strong>{{.TempMax}}°</strong> <span class="muted">{{.TempMin}}°</span></td>
+          <td class="trange-col">
+            <span class="trange"><span class="trange-bar" style="left:{{printf "%.0f" .BarLeftPct}}%;width:{{printf "%.0f" .BarWidthPct}}%"></span></span>
+          </td>
+          <td class="muted">{{.FeelsMax}}° / {{.FeelsMin}}°</td>
+          <td>{{if .Precip}}{{.Precip}}{{else}}·{{end}}</td>
+          <td class="muted">{{if .PrecipPct}}{{.PrecipPct}}{{end}}</td>
+          <td class="g-mi-{{.WindClass}}">{{.WindArrow}} {{.WindKmh}}</td>
+          <td class="muted">{{.GustKmh}}</td>
+          <td class="g-mi-{{.UVClass}}">{{.UV}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="legend">
+    <h3>Legend</h3>
+    <div class="legend-group">
+      <span class="legend-item">Temp — daily high / low °C, bar spans the fortnight's range</span>
+      <span class="legend-item">Rain — total mm for the day · % — peak chance of rain</span>
+      <span class="legend-item">Wind — dominant direction (arrow points where it pushes you) · km/h · Gust — peak</span>
+      <span class="legend-item"><span class="g-mi-caution">caution</span> wind ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind ≥50 / UV ≥8</span>
+    </div>
+  </section>
+  {{end}}
+
+  <footer>refreshed {{.Now}}</footer>
+</main>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>

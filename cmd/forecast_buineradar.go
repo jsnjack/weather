@@ -22,7 +22,17 @@ type RadarForecast struct {
 	Color           string  `json:"color"`
 }
 
+// GetBuineradarForecast returns the Buienradar 2 h nowcast, cached process-wide
+// for a short TTL (buineradarCache) so rapid page-switching doesn't re-hit the
+// provider. The returned pointer is shared — treat it as read-only.
 func GetBuineradarForecast(lat, long float64) (*Forecast, error) {
+	key := fmt.Sprintf("%.3f|%.3f", lat, long)
+	return memo(buineradarCache, key, func() (*Forecast, error) {
+		return getBuineradarForecastUncached(lat, long)
+	})
+}
+
+func getBuineradarForecastUncached(lat, long float64) (*Forecast, error) {
 	slog.Debug("buineradar: getting forecast", "lat", lat, "lon", long)
 	url := fmt.Sprintf("https://graphdata.buienradar.nl/3.0/forecast/geo/RainHistoryForecast?lat=%.3f&lon=%.3f", lat, long)
 	slog.Debug("buineradar: requesting", "url", url)

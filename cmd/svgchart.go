@@ -277,8 +277,14 @@ func pickTimeTickStep(span time.Duration) time.Duration {
 		return 2 * time.Hour
 	case span <= 24*time.Hour:
 		return 3 * time.Hour
-	default:
+	case span <= 2*24*time.Hour:
 		return 6 * time.Hour
+	case span <= 4*24*time.Hour:
+		return 12 * time.Hour
+	case span <= 9*24*time.Hour:
+		return 24 * time.Hour
+	default:
+		return 2 * 24 * time.Hour
 	}
 }
 

@@ -82,7 +82,18 @@ func (d *OpenMeteoData) IsSea() bool {
 // failure — rate limits, 5xx, or network errors. Beam search and the today
 // heatmap issue 100+ parallel calls, where a single brief glitch otherwise
 // shows up as a contiguous block of "no data" cells.
+//
+// Results are cached process-wide for a short TTL (openMeteoRangeCache) and
+// MUST be treated as read-only — the cache shares the returned pointer.
 func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMeteoData, error) {
+	key := fmt.Sprintf("%.3f|%.3f|%s|%s", lat, lon,
+		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	return memo(openMeteoRangeCache, key, func() (*OpenMeteoData, error) {
+		return getOpenMeteoRangeUncached(lat, lon, startDate, endDate)
+	})
+}
+
+func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (*OpenMeteoData, error) {
 	start := startDate.Format("2006-01-02")
 	end := endDate.Format("2006-01-02")
 	url := fmt.Sprintf(

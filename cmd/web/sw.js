@@ -1,5 +1,5 @@
-const SHELL_CACHE = "forecast-shell-v2";
-const DATA_CACHE  = "forecast-data-v2";
+const SHELL_CACHE = "forecast-shell-v3";
+const DATA_CACHE  = "forecast-data-v3";
 const SHELL = ["/static/styles.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -21,8 +21,9 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // Network-first for the page and API; fall back to last good response.
-  if (url.pathname === "/" || url.pathname.startsWith("/api/")) {
+  // Network-first for page navigations (/, /hourly, /forecast, /today,
+  // /scout) and the API; fall back to the last good response when offline.
+  if (req.mode === "navigate" || url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(req)
         .then((res) => {
