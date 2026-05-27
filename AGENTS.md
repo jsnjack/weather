@@ -9,10 +9,17 @@
 
 `weather` is a Go CLI for short-range rain forecasting and bike-trip planning,
 optimised for the Netherlands. The root command prints a 2-hour rain chart
-(Buienalarm + Buienradar) for your current location. Subcommands cover
-shorter-term ride planning (`today`), multi-day backpacking trip search
-(`scout`), and an HTTP/PWA front-end (`serve`) that exposes the same forecasts
-in a browser.
+(Buienalarm + Buienradar) for your current location. Subcommands cover an
+hour-by-hour day forecast (`hourly`), a multi-day daily outlook (`forecast`,
+up to 16 days), shorter-term ride planning (`today`), multi-day backpacking
+trip search (`scout`), and an HTTP/PWA front-end (`serve`) that exposes the
+same forecasts in a browser.
+
+**Keep every surface in sync.** A forecast view should exist on all three
+surfaces: the CLI (`cmd_*.go`, termplt), the web/PWA (`serve` handler +
+`web/*_head`/`_body` templates), and — when it belongs on the home screen —
+the Android widget. `hourly`/`forecast` share their data layer between CLI and
+web; only the rendering differs.
 
 ---
 
@@ -22,7 +29,10 @@ in a browser.
 main.go                          Thin entry point — delegates to cmd.Execute()
 cmd/
   cmd_root.go                    Root cobra command — 2h rain chart, persistent flags
+  cmd_hourly.go                  `hourly` command — by-hour temp/precip charts + table
+  cmd_forecast.go                `forecast` command — multi-day table + hi/lo chart
   logger.go                      slog wiring for --debug / --trace
+  cache.go                       Process-wide TTL cache wrapping the upstream fetchers
   forecast.go                    Shared Forecast / ForecastType / ForecastDataPoint types
   forecast_buinealarm.go         Buienalarm nowcast client (imn-rust-lb.infoplaza.io)
   forecast_buineradar.go         Buienradar nowcast client (gpsgadget.buienradar.nl)
@@ -38,6 +48,8 @@ cmd/
   scout_heatmap.go               Spatial heatmap rendering (alternative scout mode)
   scout_score.go                 Per-day weather scoring
   serve.go                       HTTP server: HTML pages + JSON API + embedded PWA assets
+  serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
+  serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
   svgchart.go                    Inline SVG chart for the HTML pages
   today.go                       Short ride-window heatmap command
   web/                           Embedded HTML templates, manifest, service worker, icon, CSS
@@ -115,6 +127,12 @@ make build          # multi-arch binaries in bin/
 - **Beam search, not exhaustive.** Scout is bounded by `--beam-width` rather
   than enumerating every bearing sequence; otherwise a 7-day search blows
   out the Open-Meteo request budget.
+- **Upstream fetches are cached, not the rendered pages.** `cache.go` wraps the
+  four upstream fetchers (Open-Meteo hourly/daily, Buienalarm, Buienradar) with
+  a process-wide TTL cache so flipping between web views doesn't re-issue the
+  same requests — the scout/today fan-outs (100+ calls) are the expensive case.
+  Cached values are shared pointers/slices: **treat them as read-only.** The CLI
+  gets a fresh cache per process, so it only dedupes within one run.
 
 ---
 
