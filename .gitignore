@@ -1,5 +1,5 @@
 bin/
-weather
+/weather
 .monova*
 .DS_Store
 *.log

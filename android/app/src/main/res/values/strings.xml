@@ -29,6 +29,7 @@
     <string name="state_bad_response">Bad response</string>
     <string name="state_no_data">No nowcast data</string>
     <string name="state_no_location">No location</string>
+    <string name="no_location_cached_at">No location · Cached: %1$s</string>
     <string name="updated_at">Updated: %1$s</string>
     <string name="cached_at">Cached: %1$s</string>
     <string name="updating">Refreshing…</string>
