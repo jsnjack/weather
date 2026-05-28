@@ -15,7 +15,6 @@
     <string name="cfg_name_hint">Amsterdam</string>
     <string name="cfg_lat_hint">52.37</string>
     <string name="cfg_lon_hint">4.90</string>
-    <string name="cfg_refresh_label">Refresh every</string>
     <string name="cfg_save">Add widget</string>
     <string name="cfg_invalid_url">Invalid URL — must start with http:// or https://</string>
     <string name="cfg_invalid_coords">Lat/lon must be numbers</string>
@@ -33,17 +32,4 @@
     <string name="updated_at">Updated: %1$s</string>
     <string name="cached_at">Cached: %1$s</string>
     <string name="updating">Refreshing…</string>
-
-    <string-array name="refresh_intervals_labels">
-        <item>15 min</item>
-        <item>30 min</item>
-        <item>60 min</item>
-        <item>120 min</item>
-    </string-array>
-    <integer-array name="refresh_intervals_values">
-        <item>15</item>
-        <item>30</item>
-        <item>60</item>
-        <item>120</item>
-    </integer-array>
 </resources>

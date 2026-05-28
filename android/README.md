@@ -134,7 +134,7 @@ so reinstalling already forces a refresh. Manual refresh now lives on a
 trigger it — which also means the old
 `am broadcast … ACTION_MANUAL_REFRESH` command no longer reaches it from the
 adb shell. To force a refetch without reinstalling, lock/unlock the phone
-(the `USER_PRESENT` receiver, throttled to 15 min) or tap the timestamp pill.
+(the `USER_PRESENT` receiver) or tap the timestamp pill.
 
 ## Visual iteration via screenshots
 
@@ -160,7 +160,7 @@ fact instead:
 adb logcat -d | grep -E 'AndroidRuntime|RainWidget|surfly\.weather'
 ```
 
-WorkManager state (next periodic tick, recent failures):
+WorkManager state (queued refresh work, recent failures):
 
 ```bash
 adb shell dumpsys jobscheduler | grep -A 20 surfly.weather
@@ -175,7 +175,7 @@ When the widget is dropped on the home screen, a small dialog opens:
   widget instance.
 - **Location** —
   - *Auto* — a current coarse fix each refresh, re-requested whenever the
-    last-known fix is stale (>10 min) or inaccurate (>5 km). Needs location
+    last-known fix is stale (>30 min) or inaccurate (>5 km). Needs location
     permission, plus **Allow all the time** (background) for fresh fixes
     while the screen is off or you're travelling. When no trustworthy fix is
     available it shows **No location** rather than silently using the
@@ -184,9 +184,6 @@ When the widget is dropped on the home screen, a small dialog opens:
   - *Fixed coords* — explicit lat/lon.
   - *Server IP* — let the server's MaxMind fallback decide; least
     accurate on cellular, no permissions.
-- **Refresh interval** — 15 / 30 / 60 / 120 min. Global across all
-  widget instances; WorkManager honours one cadence per unique
-  periodic-work name (most recent change wins).
 
 Tap the chart to open the PWA in the browser. Tap the small refresh
 icon (top-right) to force an immediate fetch.

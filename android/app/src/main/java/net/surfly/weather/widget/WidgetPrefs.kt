@@ -17,17 +17,13 @@ object WidgetPrefs {
     private const val WIDGET_PREFIX = "widget_"
 
     private const val DEFAULT_URL = "https://weather.yauhen.cc"
-    const val DEFAULT_REFRESH_MIN = 15
-    const val UNLOCK_THROTTLE_MS = 15L * 60_000L
 
     private const val K_URL = "server_url"
     private const val K_MODE = "location_mode"
     private const val K_NAME = "location_name"
     private const val K_LAT = "location_lat"
     private const val K_LON = "location_lon"
-    private const val K_REFRESH = "refresh_minutes"
     private const val K_LAST_URL = "last_url"
-    private const val K_LAST_REFRESH_MS = "last_refresh_ms"
     private const val K_LAST_FIX_LAT = "last_fix_lat"
     private const val K_LAST_FIX_LON = "last_fix_lon"
 
@@ -63,27 +59,9 @@ object WidgetPrefs {
             .edit().clear().apply()
     }
 
-    fun refreshMinutes(context: Context): Int =
-        context.getSharedPreferences(SHARED, Context.MODE_PRIVATE)
-            .getInt(K_REFRESH, DEFAULT_REFRESH_MIN)
-
-    fun setRefreshMinutes(context: Context, minutes: Int) {
-        context.getSharedPreferences(SHARED, Context.MODE_PRIVATE)
-            .edit().putInt(K_REFRESH, minutes).apply()
-    }
-
     fun defaultUrl(context: Context): String =
         context.getSharedPreferences(SHARED, Context.MODE_PRIVATE)
             .getString(K_LAST_URL, DEFAULT_URL) ?: DEFAULT_URL
-
-    fun lastRefreshMs(context: Context): Long =
-        context.getSharedPreferences(SHARED, Context.MODE_PRIVATE)
-            .getLong(K_LAST_REFRESH_MS, 0L)
-
-    fun markRefreshed(context: Context) {
-        context.getSharedPreferences(SHARED, Context.MODE_PRIVATE)
-            .edit().putLong(K_LAST_REFRESH_MS, System.currentTimeMillis()).apply()
-    }
 
     /** Persists the last successfully-resolved lat/lon so [LocationProvider]
      *  can use it as an ultimate fallback when both lastLocation and

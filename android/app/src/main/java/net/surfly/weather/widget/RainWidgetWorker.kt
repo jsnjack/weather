@@ -86,7 +86,6 @@ class RainWidgetWorker(
         when (result) {
             is FetchResult.Ok -> {
                 cacheJson(ctx, id, result.rawJson)
-                WidgetPrefs.markRefreshed(ctx)
                 response = result.response
                 cachedAtMs = 0L
             }

@@ -101,18 +101,6 @@
                 android:autofillHints="" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/cfg_refresh_label" />
-
-        <Spinner
-            android:id="@+id/refresh_spinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/refresh_intervals_labels" />
-
         <Button
             android:id="@+id/save"
             android:layout_width="match_parent"

@@ -14,7 +14,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioGroup
-import android.widget.Spinner
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 
@@ -33,7 +32,6 @@ class ConfigureActivity : Activity() {
     private lateinit var coordsRow: LinearLayout
     private lateinit var latField: EditText
     private lateinit var lonField: EditText
-    private lateinit var refreshSpinner: Spinner
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,7 +51,6 @@ class ConfigureActivity : Activity() {
         coordsRow = findViewById(R.id.coords_row)
         latField = findViewById(R.id.location_lat)
         lonField = findViewById(R.id.location_lon)
-        refreshSpinner = findViewById(R.id.refresh_spinner)
 
         val current = WidgetPrefs.load(this, appWidgetId)
         urlField.setText(if (current.serverUrl.isBlank()) WidgetPrefs.defaultUrl(this) else current.serverUrl)
@@ -69,8 +66,6 @@ class ConfigureActivity : Activity() {
         modeGroup.setOnCheckedChangeListener { _, checkedId -> updateModeUI(checkedId) }
         updateModeUI(modeGroup.checkedRadioButtonId)
 
-        refreshSpinner.setSelection(indexOfRefresh(WidgetPrefs.refreshMinutes(this)))
-
         findViewById<Button>(R.id.save).setOnClickListener { onSave() }
     }
 
@@ -83,7 +78,7 @@ class ConfigureActivity : Activity() {
     }
 
     /**
-     * Auto mode wants a *current* fix during background WorkManager refreshes,
+     * Auto mode wants a *current* fix during background WorkManager one-shots,
      * which on Android 11+ requires ACCESS_BACKGROUND_LOCATION — and only after
      * foreground location is already granted.
      *
@@ -145,12 +140,6 @@ class ConfigureActivity : Activity() {
         }
     }
 
-    private fun indexOfRefresh(min: Int): Int {
-        val values = resources.getIntArray(R.array.refresh_intervals_values)
-        val i = values.indexOf(min)
-        return if (i >= 0) i else 0 // default to 15 min
-    }
-
     private fun onSave() {
         val url = urlField.text.toString().trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -182,11 +171,8 @@ class ConfigureActivity : Activity() {
                 lon = lon,
             )
         )
-        val refreshValues = resources.getIntArray(R.array.refresh_intervals_values)
-        val refreshMinutes = refreshValues[refreshSpinner.selectedItemPosition]
-        WidgetPrefs.setRefreshMinutes(this, refreshMinutes)
 
-        RainWidgetScheduler.enqueuePeriodic(this)
+        RainWidgetScheduler.cancelPeriodic(this)
         RainWidgetScheduler.enqueueOneShot(this, appWidgetId)
 
         val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
