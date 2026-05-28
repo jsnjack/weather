@@ -11,6 +11,8 @@ import android.widget.RemoteViews
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import net.surfly.weather.widget.location.LocationProvider
@@ -32,6 +34,7 @@ class RainWidgetWorker(
     companion object {
         const val KEY_WIDGET_ID = "appWidgetId"
         private const val CACHE_PREFIX = "last_glance_"
+        private const val MOVED_THRESHOLD_M = 500.0
         private val updatedFmt = DateTimeFormatter.ofPattern("HH:mm")
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     }
@@ -55,31 +58,82 @@ class RainWidgetWorker(
 
     private suspend fun refreshOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
         val cfg = WidgetPrefs.load(ctx, id)
-        val loc = resolveLocation(ctx, cfg)
 
-        // In Auto mode with no trustworthy fix, render an explicit "No location"
-        // state instead of fetching with no coordinates — that would make the
-        // server fall back to its own IP geolocation, the source of the bogus
-        // "Amsterdam" forecast while travelling.
-        if (loc is ResolvedLocation.Unavailable) {
-            renderNoLocation(ctx, mgr, id, cfg)
-            return
-        }
-        val lat: Double?
-        val lon: Double?
-        val nameQ: String?
-        when (loc) {
-            is ResolvedLocation.Coords -> { lat = loc.lat; lon = loc.lon; nameQ = null }
-            is ResolvedLocation.Named -> { lat = null; lon = null; nameQ = loc.name }
-            ResolvedLocation.ServerIp -> { lat = null; lon = null; nameQ = null }
-            ResolvedLocation.Unavailable -> return
-        }
-
-        // Flip the timestamp pill to "Refreshing…" while the fetch is in flight
-        // so the user gets immediate feedback after tapping refresh. The chart
-        // and other views stay as-is via partiallyUpdateAppWidget.
+        // Flip the timestamp pill to "Refreshing…" right away so the user gets
+        // feedback before any GPS or network work begins. In Auto mode that
+        // gap was up to ~11 s of lastLocation + getCurrentLocation timeouts.
         showRefreshing(ctx, mgr, id)
 
+        when (cfg.mode) {
+            LocationMode.AUTO -> refreshAuto(ctx, mgr, id, cfg)
+            LocationMode.NAME -> {
+                val name = cfg.name.ifBlank { null }
+                if (name == null) renderNoLocation(ctx, mgr, id, cfg)
+                else fetchAndRender(ctx, mgr, id, cfg, lat = null, lon = null, nameQ = name)
+            }
+            LocationMode.COORDS -> fetchAndRender(ctx, mgr, id, cfg, lat = cfg.lat, lon = cfg.lon, nameQ = null)
+            LocationMode.IP -> fetchAndRender(ctx, mgr, id, cfg, lat = null, lon = null, nameQ = null)
+        }
+    }
+
+    /**
+     * Two-pass refresh for Auto mode so the chart updates in ~1 s instead of
+     * waiting up to ~11 s for GPS to warm up:
+     *
+     *   1. **Stored coords pass** — render with the last fix we successfully
+     *      used. The user sees an updated chart almost immediately. If they're
+     *      travelling this may briefly show the old city's forecast, but that
+     *      is strictly better than a frozen 2-hour-old chart while GPS resolves.
+     *   2. **Fresh fix pass** — kicked off in parallel; once it returns, we
+     *      re-fetch only when the new coords are far enough from the stored
+     *      coords to matter for a nowcast.
+     *
+     * Falls back to `renderNoLocation` only when no stored fix exists and the
+     * fresh resolution also fails — the only true "we have no idea where you
+     * are" state.
+     */
+    private suspend fun refreshAuto(
+        ctx: Context,
+        mgr: AppWidgetManager,
+        id: Int,
+        cfg: WidgetConfig,
+    ) = coroutineScope {
+        val provider = LocationProvider(ctx)
+        val stored = provider.lastSavedFix()
+
+        // Kick off the fresh fix in parallel with the cached-coords fetch.
+        // Typical case on unlock: the network fetch returns in ~1 s while
+        // getCurrentLocation takes the full ~8 s — so the first render appears
+        // long before pass 2 even has data to evaluate.
+        val freshDeferred = async { provider.freshFix() }
+
+        if (stored != null) {
+            fetchAndRender(ctx, mgr, id, cfg, lat = stored.first, lon = stored.second, nameQ = null)
+        }
+
+        val fresh = freshDeferred.await()
+        if (fresh == null) {
+            if (stored == null) renderNoLocation(ctx, mgr, id, cfg)
+            return@coroutineScope
+        }
+        if (stored == null || hasMoved(stored.first, stored.second, fresh.lat, fresh.lon)) {
+            // Flip the pill back to "Refreshing…" so the second-pass fetch is
+            // visible — otherwise it looks like nothing is happening between
+            // pass 1's "Updated HH:mm" and pass 2's "Updated HH:mm".
+            showRefreshing(ctx, mgr, id)
+            fetchAndRender(ctx, mgr, id, cfg, lat = fresh.lat, lon = fresh.lon, nameQ = null)
+        }
+    }
+
+    private suspend fun fetchAndRender(
+        ctx: Context,
+        mgr: AppWidgetManager,
+        id: Int,
+        cfg: WidgetConfig,
+        lat: Double?,
+        lon: Double?,
+        nameQ: String?,
+    ) {
         val result = GlanceApi.fetch(cfg.serverUrl, lat, lon, nameQ)
         val response: GlanceResponse?
         val cachedAtMs: Long
@@ -388,29 +442,20 @@ class RainWidgetWorker(
         mgr.partiallyUpdateAppWidget(id, views)
     }
 
-    /** Where the widget should be pointed this refresh. Auto mode collapses to
-     *  [Unavailable] when no trustworthy fix exists, so the worker can show
-     *  "No location" rather than silently using the server's IP. */
-    private sealed interface ResolvedLocation {
-        data class Coords(val lat: Double, val lon: Double) : ResolvedLocation
-        data class Named(val name: String) : ResolvedLocation
-        data object ServerIp : ResolvedLocation
-        data object Unavailable : ResolvedLocation
+    /** Haversine — true when the two points are far enough apart that the rain
+     *  nowcast cell would likely differ. The radar/alarm services serve cells
+     *  on the order of ~1 km, so 500 m is a comfortable threshold that doesn't
+     *  re-fetch on every GPS jitter. */
+    private fun hasMoved(lat0: Double, lon0: Double, lat1: Double, lon1: Double): Boolean {
+        val rEarthM = 6_371_000.0
+        val dLat = Math.toRadians(lat1 - lat0)
+        val dLon = Math.toRadians(lon1 - lon0)
+        val a = Math.sin(dLat / 2).let { it * it } +
+            Math.cos(Math.toRadians(lat0)) * Math.cos(Math.toRadians(lat1)) *
+            Math.sin(dLon / 2).let { it * it }
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return rEarthM * c > MOVED_THRESHOLD_M
     }
-
-    private suspend fun resolveLocation(ctx: Context, cfg: WidgetConfig): ResolvedLocation =
-        when (cfg.mode) {
-            LocationMode.AUTO -> {
-                val fix = LocationProvider(ctx).current()
-                if (fix != null) ResolvedLocation.Coords(fix.lat, fix.lon)
-                else ResolvedLocation.Unavailable
-            }
-            LocationMode.NAME ->
-                cfg.name.ifBlank { null }?.let { ResolvedLocation.Named(it) }
-                    ?: ResolvedLocation.Unavailable
-            LocationMode.COORDS -> ResolvedLocation.Coords(cfg.lat, cfg.lon)
-            LocationMode.IP -> ResolvedLocation.ServerIp
-        }
 
     private fun cacheJson(ctx: Context, id: Int, body: String) {
         File(ctx.cacheDir, CACHE_PREFIX + id + ".json").writeText(body)

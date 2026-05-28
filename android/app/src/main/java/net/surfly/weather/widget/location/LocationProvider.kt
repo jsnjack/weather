@@ -16,12 +16,15 @@ import net.surfly.weather.widget.WidgetPrefs
 
 /**
  * Resolves the device location for the widget with explicit freshness and
- * accuracy gates. The old implementation returned `client.lastLocation`
- * unconditionally, so a stale fix — e.g. your home-city location still cached
- * while you're travelling — was reused indefinitely. Here a last-known fix is
- * only accepted when it is recent and accurate enough; otherwise we actively
- * request a current fix, and if that fails too we return null so the caller
- * can show an honest "No location" state instead of silently drifting.
+ * accuracy gates. Exposes two paths so the worker can keep the UI responsive:
+ *
+ *   - [lastSavedFix] — the last coords successfully used for a fetch, read
+ *     synchronously from prefs. Used for the first render after unlock so the
+ *     chart updates within a second, instead of waiting for GPS to warm up.
+ *   - [freshFix] — actively resolves a current fix (lastLocation + balanced
+ *     getCurrentLocation). May take up to ~11 s and returns null when no
+ *     trustworthy fix is available; the caller must NOT silently fall back to
+ *     server-side IP in Auto mode.
  */
 class LocationProvider(private val context: Context) {
 
@@ -41,17 +44,26 @@ class LocationProvider(private val context: Context) {
         context, Manifest.permission.ACCESS_COARSE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
 
+    /** The last coords previously persisted by a successful [freshFix], or null
+     *  if no fix has ever been recorded for this install. Instant — no I/O. */
+    fun lastSavedFix(): Pair<Double, Double>? = WidgetPrefs.lastFix(context)
+
     /**
-     * Returns a usable fix, or null when none can be trusted. Order:
-     *   1. The cached last-known fix, but only if it is fresh ([MAX_LAST_AGE_MS])
-     *      and accurate enough ([MAX_ACCURACY_M]) — the cheap, no-power path.
+     * Actively resolves a current fix. Order:
+     *   1. The cached last-known fix from the fused provider, but only if it is
+     *      fresh ([MAX_LAST_AGE_MS]) and accurate ([MAX_ACCURACY_M]) — the cheap,
+     *      no-power path.
      *   2. Otherwise an active [Priority.PRIORITY_BALANCED_POWER_ACCURACY]
-     *      current-location request.
-     *   3. Null if both fail — the caller must NOT fall back to server-side IP
-     *      in Auto mode; it should render "No location".
+     *      current-location request (~8 s budget).
+     *
+     * On success, persists the coords via [WidgetPrefs.saveLastFix] so a future
+     * [lastSavedFix] call can use them.
+     *
+     * Returns null when both paths fail. The caller decides whether to keep
+     * showing a previous render or fall back to "No location".
      */
     @SuppressLint("MissingPermission")
-    suspend fun current(): Fix? {
+    suspend fun freshFix(): Fix? {
         if (!hasPermission()) return null
 
         val last = runCatching {
@@ -77,15 +89,6 @@ class LocationProvider(private val context: Context) {
             val fix = Fix(fresh.latitude, fresh.longitude, ageMs(fresh), fresh.accuracy, current = true)
             WidgetPrefs.saveLastFix(context, fix.lat, fix.lon)
             return fix
-        }
-
-        // Both paths failed — background location not granted, GPS cold, or
-        // fused provider timed out. Fall back to the last coords we successfully
-        // used for a widget refresh so the widget doesn't blank out just because
-        // GPS is temporarily unavailable (e.g. right after unlock).
-        val stored = WidgetPrefs.lastFix(context)
-        if (stored != null) {
-            return Fix(stored.first, stored.second, Long.MAX_VALUE, Float.MAX_VALUE, current = false)
         }
 
         return null

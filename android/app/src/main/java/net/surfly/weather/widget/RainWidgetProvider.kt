@@ -12,12 +12,12 @@ class RainWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        RainWidgetScheduler.cancelPeriodic(context)
+        RainWidgetScheduler.enqueuePeriodic(context)
         appWidgetIds.forEach { RainWidgetScheduler.enqueueOneShot(context, it) }
     }
 
     override fun onEnabled(context: Context) {
-        RainWidgetScheduler.cancelPeriodic(context)
+        RainWidgetScheduler.enqueuePeriodic(context)
     }
 
     override fun onDisabled(context: Context) {

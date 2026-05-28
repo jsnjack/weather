@@ -172,7 +172,7 @@ class ConfigureActivity : Activity() {
             )
         )
 
-        RainWidgetScheduler.cancelPeriodic(this)
+        RainWidgetScheduler.enqueuePeriodic(this)
         RainWidgetScheduler.enqueueOneShot(this, appWidgetId)
 
         val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

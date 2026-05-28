@@ -111,6 +111,11 @@ make build          # multi-arch binaries in bin/
   data-derived x extents, and `MinYHi=1` floor are all ported in
   `android/app/src/main/java/net/surfly/weather/widget/render/ChartRenderer.kt`
   so the home-screen widget looks like the PWA. Change both together.
+- **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
+  broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
+  one-shots while the process is alive; keep the 15-minute WorkManager periodic
+  refresh armed from widget enable/update/save so automatic updates still work
+  after Android kills the process.
 - **Both nowcast providers, same chart.** Buienalarm and Buienradar disagree
   often enough that showing both lines is more useful than picking one. The
   shorter Buienalarm horizon caps the x-axis to keep them comparable.
