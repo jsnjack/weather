@@ -7,7 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.RemoteViews
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
@@ -157,47 +159,10 @@ class RainWidgetWorker(
         val views = RemoteViews(ctx.packageName, R.layout.widget_rain)
 
         if (response != null) {
-            views.setImageViewResource(R.id.condition, conditionDrawable(response.condition))
             views.setTextViewText(R.id.location, response.location.description.ifBlank {
                 ctx.getString(R.string.widget_label)
             })
-            val alarmData = response.buienalarm?.data ?: emptyList()
-            val radarData = response.buienradar?.data ?: emptyList()
-            // Prefer Buienalarm's nowcast message ("Light rain starts at HH:mm",
-            // "It will stay dry for now") — authoritative + human-readable.
-            // The dry hero uses it as its big headline; the rainy chart shows
-            // it in the small peak TextView. If the provider is silent the
-            // rainy state falls back to a peak summary, and the dry state to
-            // a generic "Dry for the next 2 hours".
-            val alarmMessage = response.buienalarm?.desc?.takeIf { it.isNotBlank() && it != "Buienalarm" }
-            val hasNowcast = ChartRenderer.hasNowcast(alarmData, radarData)
-            val dryWindow = hasNowcast && ChartRenderer.isDryWindow(alarmData, radarData)
-            val data = ChartRenderer.Data(
-                buienalarm = alarmData,
-                buienradar = radarData,
-                tempNow = response.temperature.now,
-                tempEnd = response.temperature.end,
-                conditionLabel = conditionHuman(response.condition),
-                microNow = ChartRenderer.Micro(
-                    feels = response.feelsLike.now,
-                    windArrow = windArrow(response.wind.now.directionDeg),
-                    windKmh = response.wind.now.speedKmh,
-                    uv = response.uvIndex.now,
-                ),
-                microEnd = ChartRenderer.Micro(
-                    feels = response.feelsLike.end,
-                    windArrow = windArrow(response.wind.end.directionDeg),
-                    windKmh = response.wind.end.speedKmh,
-                    uv = response.uvIndex.end,
-                ),
-                sunEvents = response.sun.mapNotNull { ev ->
-                    runCatching {
-                        ChartRenderer.SunEvent(ev.kind, java.time.OffsetDateTime.parse(ev.time).toInstant())
-                    }.getOrNull()
-                },
-                dryHeadline = alarmMessage,
-            )
-            views.setImageViewBitmap(R.id.chart, ChartRenderer.render(ctx, widthPx, heightPx, data))
+            val body = applyBody(ctx, views, widthPx, heightPx, response)
             // A failed refresh falls back to cached JSON — label it "Cached: HH:mm"
             // using the cache file's own timestamp, not the current time, so an
             // old forecast can't masquerade as a fresh one.
@@ -207,17 +172,7 @@ class RainWidgetWorker(
                 ctx.getString(R.string.updated_at, formatClock(System.currentTimeMillis()))
             }
             views.setTextViewText(R.id.updated, "↻  $label")
-            // Peak line: tell "no nowcast data" apart from a genuinely dry
-            // window. In dry weather the hero already carries the message, so
-            // the peak would just repeat it — blank it out.
-            views.setTextViewText(
-                R.id.peak,
-                when {
-                    !hasNowcast -> ctx.getString(R.string.state_no_data)
-                    dryWindow -> ""
-                    else -> alarmMessage ?: peakLabel(alarmData, radarData)
-                },
-            )
+            views.setTextViewText(R.id.peak, peakText(ctx, body))
         } else {
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
             views.setImageViewBitmap(
@@ -260,54 +215,16 @@ class RainWidgetWorker(
         if (response != null) {
             // GPS isn't available right now but we have a recent forecast — show
             // it so the widget doesn't go blank, and label the timestamp clearly.
-            views.setImageViewResource(R.id.condition, conditionDrawable(response.condition))
             views.setTextViewText(
                 R.id.location,
                 response.location.description.ifBlank { ctx.getString(R.string.state_no_location) },
             )
-            val alarmData = response.buienalarm?.data ?: emptyList()
-            val radarData = response.buienradar?.data ?: emptyList()
-            val alarmMessage = response.buienalarm?.desc?.takeIf { it.isNotBlank() && it != "Buienalarm" }
-            val hasNowcast = ChartRenderer.hasNowcast(alarmData, radarData)
-            val dryWindow = hasNowcast && ChartRenderer.isDryWindow(alarmData, radarData)
-            val data = ChartRenderer.Data(
-                buienalarm = alarmData,
-                buienradar = radarData,
-                tempNow = response.temperature.now,
-                tempEnd = response.temperature.end,
-                conditionLabel = conditionHuman(response.condition),
-                microNow = ChartRenderer.Micro(
-                    feels = response.feelsLike.now,
-                    windArrow = windArrow(response.wind.now.directionDeg),
-                    windKmh = response.wind.now.speedKmh,
-                    uv = response.uvIndex.now,
-                ),
-                microEnd = ChartRenderer.Micro(
-                    feels = response.feelsLike.end,
-                    windArrow = windArrow(response.wind.end.directionDeg),
-                    windKmh = response.wind.end.speedKmh,
-                    uv = response.uvIndex.end,
-                ),
-                sunEvents = response.sun.mapNotNull { ev ->
-                    runCatching {
-                        ChartRenderer.SunEvent(ev.kind, java.time.OffsetDateTime.parse(ev.time).toInstant())
-                    }.getOrNull()
-                },
-                dryHeadline = alarmMessage,
-            )
-            views.setImageViewBitmap(R.id.chart, ChartRenderer.render(ctx, widthPx, heightPx, data))
+            val body = applyBody(ctx, views, widthPx, heightPx, response)
             views.setTextViewText(
                 R.id.updated,
                 "↻  " + ctx.getString(R.string.no_location_cached_at, formatClock(cachedAtMs)),
             )
-            views.setTextViewText(
-                R.id.peak,
-                when {
-                    !hasNowcast -> ctx.getString(R.string.state_no_data)
-                    dryWindow -> ""
-                    else -> alarmMessage ?: peakLabel(alarmData, radarData)
-                },
-            )
+            views.setTextViewText(R.id.peak, peakText(ctx, body))
         } else {
             // No cached data — show an honest empty state.
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
@@ -370,12 +287,159 @@ class RainWidgetWorker(
         return b.build()
     }
 
+    /** What the body renderer decided, so the caller can label the peak line. */
+    private data class BodyResult(
+        val dryWindow: Boolean,
+        val hasNowcast: Boolean,
+        val alarmMessage: String?,
+        val alarmData: List<net.surfly.weather.widget.net.PointDto>,
+        val radarData: List<net.surfly.weather.widget.net.PointDto>,
+    )
+
     /**
-     * Per-corner micro stats: a single short line carrying feels-like,
-     * wind, UV, and rain probability. Compact format so two of these
-     * (now + +2h) sit at the bottom corners next to the temp numbers
-     * without clashing in a 4x2 widget.
+     * Fills the widget body from `response`, choosing between two surfaces:
+     * the **rainy** state draws the dual-provider chart into the [R.id.chart]
+     * bitmap; the **dry** state hides the chart and shows the native Material
+     * [R.id.dry_body] panel (crisp text, no fitXY bitmap squish). Returns the
+     * decision so the caller can set the timestamp/peak line.
      */
+    private fun applyBody(
+        ctx: Context,
+        views: RemoteViews,
+        widthPx: Int,
+        heightPx: Int,
+        response: GlanceResponse,
+    ): BodyResult {
+        views.setImageViewResource(R.id.condition, conditionDrawable(response.condition))
+        val alarmData = response.buienalarm?.data ?: emptyList()
+        val radarData = response.buienradar?.data ?: emptyList()
+        // Prefer Buienalarm's nowcast message ("It will stay dry for now") —
+        // authoritative and human-readable.
+        val alarmMessage = response.buienalarm?.desc?.takeIf { it.isNotBlank() && it != "Buienalarm" }
+        val hasNowcast = ChartRenderer.hasNowcast(alarmData, radarData)
+        val dryWindow = hasNowcast && ChartRenderer.isDryWindow(alarmData, radarData)
+
+        if (dryWindow) {
+            views.setViewVisibility(R.id.chart, View.GONE)
+            views.setViewVisibility(R.id.dry_body, View.VISIBLE)
+            populateDryBody(ctx, views, response, alarmMessage)
+        } else {
+            views.setViewVisibility(R.id.dry_body, View.GONE)
+            views.setViewVisibility(R.id.chart, View.VISIBLE)
+            views.setImageViewBitmap(
+                R.id.chart,
+                ChartRenderer.render(ctx, widthPx, heightPx, buildChartData(response, alarmMessage)),
+            )
+        }
+        return BodyResult(dryWindow, hasNowcast, alarmMessage, alarmData, radarData)
+    }
+
+    /** Populates the native dry-state Material panel: hero NOW temperature,
+     *  small warm +2H, and a NOW/+2H stats table (feels / wind / UV) with
+     *  caution colouring on wind and UV. */
+    private fun populateDryBody(
+        ctx: Context,
+        views: RemoteViews,
+        response: GlanceResponse,
+        alarmMessage: String?,
+    ) {
+        views.setTextViewText(R.id.dry_headline, alarmMessage ?: ctx.getString(R.string.dry_fallback))
+        views.setImageViewResource(R.id.dry_condition, conditionDrawable(response.condition))
+        // Tint the hero condition icon warm to match the +2H accent — a small
+        // pop of Material colour against the neutral surface.
+        views.setInt(R.id.dry_condition, "setColorFilter", ContextCompat.getColor(ctx, R.color.chart_temp))
+        views.setTextViewText(R.id.dry_temp_now, "${response.temperature.now}°")
+        views.setTextViewText(R.id.dry_temp_end, "${response.temperature.end}°")
+
+        views.setTextViewText(R.id.dry_feels_now, "${response.feelsLike.now}°")
+        views.setTextViewText(R.id.dry_feels_end, "${response.feelsLike.end}°")
+
+        views.setTextViewText(
+            R.id.dry_wind_now,
+            "${windArrow(response.wind.now.directionDeg)}${response.wind.now.speedKmh}",
+        )
+        views.setTextViewText(
+            R.id.dry_wind_end,
+            "${windArrow(response.wind.end.directionDeg)}${response.wind.end.speedKmh}",
+        )
+        views.setTextColor(R.id.dry_wind_now, windColor(ctx, response.wind.now.speedKmh, primary = true))
+        views.setTextColor(R.id.dry_wind_end, windColor(ctx, response.wind.end.speedKmh, primary = false))
+
+        views.setTextViewText(R.id.dry_uv_now, "${response.uvIndex.now}")
+        views.setTextViewText(R.id.dry_uv_end, "${response.uvIndex.end}")
+        views.setTextColor(R.id.dry_uv_now, uvColor(ctx, response.uvIndex.now, primary = true))
+        views.setTextColor(R.id.dry_uv_end, uvColor(ctx, response.uvIndex.end, primary = false))
+
+        // Sunset fills the otherwise-empty lower-left; hide the row if the
+        // server didn't send a time so we never show a blank label.
+        val sunset = response.sunset?.let { iso ->
+            runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+        }
+        if (sunset != null) {
+            views.setViewVisibility(R.id.dry_sunset_row, View.VISIBLE)
+            views.setTextViewText(R.id.dry_sunset_time, formatClock(sunset.toEpochMilli()))
+        } else {
+            views.setViewVisibility(R.id.dry_sunset_row, View.GONE)
+        }
+    }
+
+    /** Builds the chart [ChartRenderer.Data] for the rainy state. */
+    private fun buildChartData(response: GlanceResponse, alarmMessage: String?): ChartRenderer.Data =
+        ChartRenderer.Data(
+            buienalarm = response.buienalarm?.data ?: emptyList(),
+            buienradar = response.buienradar?.data ?: emptyList(),
+            tempNow = response.temperature.now,
+            tempEnd = response.temperature.end,
+            conditionLabel = conditionHuman(response.condition),
+            microNow = ChartRenderer.Micro(
+                feels = response.feelsLike.now,
+                windArrow = windArrow(response.wind.now.directionDeg),
+                windKmh = response.wind.now.speedKmh,
+                uv = response.uvIndex.now,
+            ),
+            microEnd = ChartRenderer.Micro(
+                feels = response.feelsLike.end,
+                windArrow = windArrow(response.wind.end.directionDeg),
+                windKmh = response.wind.end.speedKmh,
+                uv = response.uvIndex.end,
+            ),
+            sunEvents = response.sun.mapNotNull { ev ->
+                runCatching {
+                    ChartRenderer.SunEvent(ev.kind, java.time.OffsetDateTime.parse(ev.time).toInstant())
+                }.getOrNull()
+            },
+            dryHeadline = alarmMessage,
+        )
+
+    /** Peak line: "no nowcast data" vs a dry window (blank — the dry panel
+     *  already carries the headline) vs a rainy peak summary. */
+    private fun peakText(ctx: Context, body: BodyResult): String = when {
+        !body.hasNowcast -> ctx.getString(R.string.state_no_data)
+        // Dry: the headline is its own full-width line inside the panel
+        // (R.id.dry_headline), so the peak line stays blank here.
+        body.dryWindow -> ""
+        else -> body.alarmMessage ?: peakLabel(body.alarmData, body.radarData)
+    }
+
+    // Caution thresholds — mirror ChartRenderer / serve_glance.go.
+    private fun windColor(ctx: Context, kmh: Int, primary: Boolean): Int = when {
+        kmh >= 50 -> ContextCompat.getColor(ctx, R.color.chart_critical)
+        kmh >= 28 -> ContextCompat.getColor(ctx, R.color.chart_caution)
+        else -> statColor(ctx, primary)
+    }
+
+    private fun uvColor(ctx: Context, uv: Int, primary: Boolean): Int = when {
+        uv >= 8 -> ContextCompat.getColor(ctx, R.color.chart_critical)
+        uv >= 3 -> ContextCompat.getColor(ctx, R.color.chart_caution)
+        else -> statColor(ctx, primary)
+    }
+
+    /** Default stat colour: NOW column is foreground, +2H column is muted. */
+    private fun statColor(ctx: Context, primary: Boolean): Int = ContextCompat.getColor(
+        ctx,
+        if (primary) R.color.widget_text else R.color.widget_subtle,
+    )
+
     /** "max 1.4 mm/h · heavy" — peak rain across the chart window with a
      *  descriptor. Empty when both providers are below the dry threshold. */
     private fun peakLabel(

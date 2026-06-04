@@ -111,6 +111,29 @@ make build          # multi-arch binaries in bin/
   data-derived x extents, and `MinYHi=1` floor are all ported in
   `android/app/src/main/java/net/surfly/weather/widget/render/ChartRenderer.kt`
   so the home-screen widget looks like the PWA. Change both together.
+- **Dry widget state is native Material views, not a bitmap.** Rainy renders
+  the dual-provider chart into the `R.id.chart` bitmap (`ChartRenderer`). Dry
+  hides that and shows `R.id.dry_body` — a **native RemoteViews** Material 3
+  layout in `widget_rain.xml` (`RainWidgetWorker.applyBody` toggles visibility
+  and `populateDryBody` fills it). Native text is crisp; the bitmap is `fitXY`
+  and visibly **squishes** everything (the reason every bitmap-drawn dry hero
+  looked soft/cheap and got rejected). Layout: left = warm-tinted sun/condition
+  icon + a big centered light-weight NOW temp + small warm +2H; right = rounded
+  tonal `surfaceContainer` (`@drawable/dry_panel_background`,
+  `@color/widget_container`) with a **NOW / +2H column header** over a
+  feels/wind/UV table — the header is what makes "which number is which"
+  unambiguous (two unlabelled columns read as gibberish). The Buienalarm
+  headline (`R.id.dry_headline`) is a small full-width caption line at the top
+  of `dry_body` (up to 2 lines) so a long nowcast message isn't cropped; the
+  shared `R.id.peak` line stays blank in the dry state. Today's sunset
+  (`glanceAPIResponse.Sunset` → `R.id.dry_sunset_row`) fills the lower-left; the
+  row hides itself when the server doesn't send the field (older deploys), so
+  redeploy `weather serve` for it to appear. Wind/UV values get
+  caution/critical colouring (`windColor`/`uvColor`, thresholds mirror
+  `serve_glance.go`). Hard rules learned by rejection: **no bottom data strip**
+  (flat dry data reads as a fake progress bar) and **no provider names** in the
+  dry state. `ChartRenderer.drawHero` remains only as a defensive fallback if
+  `render()` is ever reached with a dry window.
 - **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
   broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
   one-shots while the process is alive; keep the 15-minute WorkManager periodic

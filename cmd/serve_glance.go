@@ -40,7 +40,8 @@ type glanceAPIResponse struct {
 	Wind        glanceWindPair `json:"wind"`        // km/h + degrees-from-N
 	UVIndex     glancePair     `json:"uv_index"`    // integer 0..11+
 	Condition   string         `json:"condition"`
-	Sun         []sunEvent     `json:"sun"` // events within [now, now+2h], empty if none
+	Sun         []sunEvent     `json:"sun"`    // events within [now, now+2h], empty if none
+	Sunset      string         `json:"sunset"` // next sunset, RFC3339 local; "" if unknown
 }
 
 type sunEvent struct {
@@ -149,8 +150,28 @@ func buildGlanceResponse(ctx context.Context, loc Location, prog Progress) (*gla
 		}
 		resp.Condition = wmoCondition(weatherCodeAt(meteo.Hourly, now))
 		resp.Sun = sunEventsInWindow(meteo.Daily, now, end)
+		resp.Sunset = nextSunset(meteo.Daily, now)
 	}
 	return resp, nil
+}
+
+// nextSunset returns the first sunset at or after `now` (RFC3339, local zone),
+// falling back to the earliest known sunset so the widget always has a time to
+// show. Empty when no daily data carries a sunset.
+func nextSunset(daily []DailyForecast, now time.Time) string {
+	fallback := ""
+	for _, d := range daily {
+		if d.Sunset.IsZero() {
+			continue
+		}
+		if fallback == "" {
+			fallback = d.Sunset.Format(time.RFC3339)
+		}
+		if d.Sunset.After(now) {
+			return d.Sunset.Format(time.RFC3339)
+		}
+	}
+	return fallback
 }
 
 // IsDry returns true when both providers stay below the dry threshold across

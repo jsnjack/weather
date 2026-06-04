@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
 import android.util.TypedValue
 import androidx.core.content.ContextCompat
 import net.surfly.weather.widget.R
@@ -18,9 +19,9 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
 /**
- * Renders the v4 widget chart: rainy state (two thin polylines with
- * framing temperature numbers), or a quiet hero for the dry state.
- * Mirrors the visual language of `/tmp/mockups/v4_*.png`.
+ * Renders the widget chart: rainy state (two provider lines with framing
+ * temperature numbers), or a quiet dry state with the same provider horizon
+ * compressed into a minimal strip.
  */
 object ChartRenderer {
 
@@ -128,7 +129,7 @@ object ChartRenderer {
         // whole timestamp clear of the chart's left edge.
         val padLeft = dp(22f, density)
         val padRight = dp(22f, density)
-        val padTop = dp(6f, density)
+        val padTop = dp(8f, density)
         // Bottom area carries two stacked rows per corner:
         // row 1: time HH:mm   row 2: big temp + inline micro stats.
         val padBottom = dp(36f, density)
@@ -158,6 +159,16 @@ object ChartRenderer {
         val yHi = max(0.5, maxRain * 1.15)
         fun yOf(v: Double): Float =
             plotB - (v / yHi).toFloat().coerceIn(0f, 1f) * plotH
+
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ContextCompat.getColor(context, R.color.chart_baseline)
+            alpha = 70
+            strokeWidth = dp(0.7f, density)
+        }
+        for (frac in listOf(0.33f, 0.66f)) {
+            val y = plotB - plotH * frac
+            canvas.drawLine(plotL, y, plotR, y, gridPaint)
+        }
 
         // Baseline hairline along the bottom of the plot.
         val baselinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -345,12 +356,13 @@ object ChartRenderer {
     }
 
 
-    // ─────────────── dry hero state ───────────────
-    // V2 layout: bold headline up top (Buienalarm desc when present, else
-    // a generic "Dry for the next 2 hours"), then two side-by-side
-    // columns (NOW / +2H) each with a big temperature and a
-    // feels·wind·UV sub-line. The whole stack is vertically centered so
-    // tall widgets don't leave dead space at the bottom.
+    // ─────────────── dry hero state (Material 3) ───────────────
+    // Mirrors Google's Material 3 weather-widget style: a big current
+    // temperature with the headline on the left, and a rounded tonal
+    // "surfaceContainer" panel on the right listing the secondary stats
+    // (feels / wind / UV) as label → now · +2h rows. NOW is the hero; +2H is
+    // smaller and warm so the eye lands on the present value first. No provider
+    // strip (flat dry data reads as a fake progress bar) and no provider labels.
     private fun drawHero(
         context: Context,
         canvas: Canvas,
@@ -362,157 +374,132 @@ object ChartRenderer {
         val fg = ContextCompat.getColor(context, R.color.widget_text)
         val muted = ContextCompat.getColor(context, R.color.widget_subtle)
         val warm = ContextCompat.getColor(context, R.color.chart_temp)
-        val caution = ContextCompat.getColor(context, R.color.chart_caution)
-        val critical = ContextCompat.getColor(context, R.color.chart_critical)
-        val divider = ContextCompat.getColor(context, R.color.chart_baseline)
+        val container = ContextCompat.getColor(context, R.color.widget_container)
+        val scale = (h / dp(150f, density)).coerceIn(0.82f, 1.08f)
+
+        val sidePad = dp(16f, density)
+
+        // Right-hand tonal stats panel — the Material "surfaceContainer".
+        val panelW = ((w - sidePad * 2f) * 0.42f).coerceAtLeast(dp(132f, density))
+        val panelLeft = w - sidePad - panelW
+        val panelTop = dp(8f, density)
+        val panelBottom = h - dp(8f, density)
+        val panelRadius = dp(20f, density)
+        canvas.drawRoundRect(
+            RectF(panelLeft, panelTop, w - sidePad, panelBottom),
+            panelRadius, panelRadius,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = container; style = Paint.Style.FILL },
+        )
+
+        val leftW = panelLeft - dp(14f, density) - sidePad
 
         val headlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = fg
-            textSize = sp(26f, context)
+            textSize = sp(15f * scale, context)
             isAntiAlias = true
-            typeface = android.graphics.Typeface.DEFAULT
+            typeface = weight(500)
         }
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = muted
-            textSize = sp(13f, context)
+            textSize = sp(10.5f * scale, context)
             isAntiAlias = true
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.12f
+            typeface = weight(700)
+            letterSpacing = 0.16f
         }
-        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Light, oversized numerals read as modern and calm where chunky bold
+        // reads as a cheap default.
+        val nowTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = fg
-            textSize = sp(60f, context)
+            textSize = sp(52f * scale, context)
             isAntiAlias = true
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = weight(350)
         }
-        val subPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val endTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = warm
+            textSize = sp(18f * scale, context)
+            isAntiAlias = true
+            typeface = weight(500)
+        }
+        val rowLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = muted
-            textSize = sp(17f, context)
+            textSize = sp(11f * scale, context)
             isAntiAlias = true
+            typeface = weight(600)
+            letterSpacing = 0.06f
+        }
+        val rowValPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = sp(15f * scale, context)
+            isAntiAlias = true
+            typeface = weight(600)
         }
 
-        val gapHeadlineToLabel = dp(18f, density)
-        val gapLabelToTemp = dp(8f, density)
-        val gapTempToSub = dp(10f, density)
-
-        // Compute each row's vertical extent from its Paint metrics so the
-        // stack is honestly centered against the canvas height.
-        fun lineH(p: Paint) = p.fontMetrics.let { it.descent - it.ascent }
-        val totalH = lineH(headlinePaint) + gapHeadlineToLabel +
-                lineH(labelPaint) + gapLabelToTemp +
-                lineH(tempPaint) + gapTempToSub +
-                lineH(subPaint)
-        val topY = (h - totalH) / 2f
-
-        // Each *Baseline is the y coordinate to pass to canvas.drawText.
-        val headlineBaseline = topY - headlinePaint.fontMetrics.ascent
-        val labelBaseline = headlineBaseline + headlinePaint.fontMetrics.descent +
-                gapHeadlineToLabel - labelPaint.fontMetrics.ascent
-        val tempBaseline = labelBaseline + labelPaint.fontMetrics.descent +
-                gapLabelToTemp - tempPaint.fontMetrics.ascent
-        val subBaseline = tempBaseline + tempPaint.fontMetrics.descent +
-                gapTempToSub - subPaint.fontMetrics.ascent
-
+        // ── Left column: headline (top), big NOW temp + small warm +2H. ──
+        val headlineBaseline = dp(11f, density) - headlinePaint.fontMetrics.ascent
         val headline = data.dryHeadline?.takeIf { it.isNotBlank() }
             ?: "Dry for the next 2 hours"
-        val hlw = headlinePaint.measureText(headline)
-        canvas.drawText(headline, (w - hlw) / 2f, headlineBaseline, headlinePaint)
+        fitText(headlinePaint, headline, leftW, sp(12f, context))
+        canvas.drawText(headline, sidePad, headlineBaseline, headlinePaint)
 
-        // Divider runs between NOW and +2H columns, vertically aligned
-        // with the temperature row.
-        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = divider
-            strokeWidth = dp(1f, density)
+        // Center the temperature block in the space below the headline.
+        fun lineH(p: Paint) = p.fontMetrics.let { it.descent - it.ascent }
+        val contentTop = headlineBaseline + headlinePaint.fontMetrics.descent + dp(6f, density)
+        val contentBottom = h - dp(12f, density)
+        val gapTempToEnd = dp(3f, density)
+        val blockH = lineH(nowTempPaint) + gapTempToEnd + lineH(endTempPaint)
+        val blockTop = (contentTop + ((contentBottom - contentTop) - blockH) / 2f)
+            .coerceAtLeast(contentTop)
+        val tempBaseline = blockTop - nowTempPaint.fontMetrics.ascent
+        canvas.drawText("${data.tempNow}°", sidePad, tempBaseline, nowTempPaint)
+
+        // "+2H 21°" — label in muted small caps, value warm.
+        val endBaseline = tempBaseline + nowTempPaint.fontMetrics.descent +
+                gapTempToEnd - endTempPaint.fontMetrics.ascent
+        canvas.drawText("+2H", sidePad, endBaseline, labelPaint)
+        val endLabelW = labelPaint.measureText("+2H") + dp(7f, density)
+        canvas.drawText("${data.tempEnd}°", sidePad + endLabelW, endBaseline, endTempPaint)
+
+        // ── Right panel: FEELS / WIND / UV, each as now (fg) · +2h (muted). ──
+        val innerL = panelLeft + dp(14f, density)
+        val innerR = w - sidePad - dp(14f, density)
+        val innerTop = panelTop + dp(13f, density)
+        val innerBottom = panelBottom - dp(13f, density)
+        val rows = buildList {
+            data.microNow?.let { n ->
+                val e = data.microEnd
+                add(Triple("FEELS", "${n.feels}°", e?.let { "${it.feels}°" }))
+                add(Triple("WIND", "${n.windArrow}${n.windKmh}", e?.let { "${it.windArrow}${it.windKmh}" }))
+                add(Triple("UV", "${n.uv}", e?.let { "${it.uv}" }))
+            }
         }
-        canvas.drawLine(
-            w / 2f, labelBaseline + labelPaint.fontMetrics.descent,
-            w / 2f, subBaseline - subPaint.fontMetrics.ascent,
-            dividerPaint,
-        )
-
-        drawColumn(
-            canvas, w / 4f,
-            label = "NOW", labelPaint = labelPaint, labelBaseline = labelBaseline,
-            temp = data.tempNow, tempColor = fg, tempPaint = tempPaint, tempBaseline = tempBaseline,
-            micro = data.microNow, subPaint = subPaint, muted = muted,
-            caution = caution, critical = critical, subBaseline = subBaseline,
-        )
-        drawColumn(
-            canvas, w * 3f / 4f,
-            label = "+2H", labelPaint = labelPaint, labelBaseline = labelBaseline,
-            temp = data.tempEnd, tempColor = warm, tempPaint = tempPaint, tempBaseline = tempBaseline,
-            micro = data.microEnd, subPaint = subPaint, muted = muted,
-            caution = caution, critical = critical, subBaseline = subBaseline,
-        )
-    }
-
-    private fun drawColumn(
-        canvas: Canvas,
-        cx: Float,
-        label: String,
-        labelPaint: Paint,
-        labelBaseline: Float,
-        temp: Int,
-        tempColor: Int,
-        tempPaint: Paint,
-        tempBaseline: Float,
-        micro: Micro?,
-        subPaint: Paint,
-        muted: Int,
-        caution: Int,
-        critical: Int,
-        subBaseline: Float,
-    ) {
-        // Label (NOW / +2H), small caps, muted.
-        val lw = labelPaint.measureText(label)
-        canvas.drawText(label, cx - lw / 2f, labelBaseline, labelPaint)
-
-        // Big temperature.
-        val tempText = "${temp}°"
-        tempPaint.color = tempColor
-        val tw = tempPaint.measureText(tempText)
-        canvas.drawText(tempText, cx - tw / 2f, tempBaseline, tempPaint)
-
-        // Sub-line: feels · wind · UV with caution/critical colouring per
-        // metric. Compact format (matches the rainy chart's corner micros)
-        // so a larger font still fits in the column's half-width.
-        if (micro != null) {
-            val sep = "   "
-            val feels = "≈${micro.feels}°"
-            val wind = "${micro.windArrow}${micro.windKmh}"
-            val uv = "UV ${micro.uv}"
-            val windColor = when {
-                micro.windKmh >= WIND_CRITICAL_KMH -> critical
-                micro.windKmh >= WIND_CAUTION_KMH -> caution
-                else -> muted
-            }
-            val uvColor = when {
-                micro.uv >= UV_CRITICAL -> critical
-                micro.uv >= UV_CAUTION -> caution
-                else -> muted
-            }
-            val segments = listOf(
-                feels to muted,
-                sep to muted,
-                wind to windColor,
-                sep to muted,
-                uv to uvColor,
-            )
-            val totalW = segments.sumOf { subPaint.measureText(it.first).toDouble() }.toFloat()
-            var x = cx - totalW / 2f
-            for ((text, color) in segments) {
-                subPaint.color = color
-                canvas.drawText(text, x, subBaseline, subPaint)
-                x += subPaint.measureText(text)
+        if (rows.isNotEmpty()) {
+            val slot = (innerBottom - innerTop) / rows.size
+            val mid = -(rowValPaint.fontMetrics.ascent + rowValPaint.fontMetrics.descent) / 2f
+            for ((i, row) in rows.withIndex()) {
+                val (label, nowVal, endVal) = row
+                val baseline = innerTop + slot * i + slot / 2f + mid
+                rowLabelPaint.color = muted
+                canvas.drawText(label, innerL, baseline, rowLabelPaint)
+                var x = innerR
+                if (endVal != null) {
+                    rowValPaint.color = muted
+                    x -= rowValPaint.measureText(endVal)
+                    canvas.drawText(endVal, x, baseline, rowValPaint)
+                    x -= dp(8f, density)
+                }
+                rowValPaint.color = fg
+                canvas.drawText(nowVal, x - rowValPaint.measureText(nowVal), baseline, rowValPaint)
             }
         }
     }
+
+    private fun weight(w: Int): android.graphics.Typeface =
+        android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, w, false)
 
     // ─────────────── helpers ───────────────
     private fun strokePaintColor(colorInt: Int, density: Float): Paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = colorInt
-            strokeWidth = dp(2f, density)
+            strokeWidth = dp(1.7f, density)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
@@ -521,7 +508,7 @@ object ChartRenderer {
     private fun fillPaint(colorInt: Int): Paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = colorInt
-            alpha = 56 // ~22% opacity — visible weight without overpowering the line
+            alpha = 38 // visible weight without overpowering the line
             style = Paint.Style.FILL
         }
 
@@ -582,6 +569,12 @@ object ChartRenderer {
             TextAnchor.RIGHT -> -tw
         }
         canvas.drawText(text, x + dx, y, paint)
+    }
+
+    private fun fitText(paint: Paint, text: String, maxWidth: Float, minTextSize: Float) {
+        while (paint.measureText(text) > maxWidth && paint.textSize > minTextSize) {
+            paint.textSize *= 0.94f
+        }
     }
 
     private fun dp(v: Float, density: Float): Float = v * density

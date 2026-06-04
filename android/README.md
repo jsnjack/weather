@@ -153,6 +153,14 @@ The lock screen can't be bypassed via adb — the human has to unlock
 the phone manually before the home screen is visible. After that, the
 agent can `Read /tmp/phone.png` directly to view it.
 
+> **Stale-frame gotcha.** Right after `adb install -r`, the One UI launcher
+> can show a *composited/stale* widget frame for several seconds — old and new
+> content superimposed (e.g. a doubled headline, overlapping panels), made
+> worse by the Auto-mode two-pass refresh applying two full updates ~2 s apart.
+> It is not a layout bug. Force a clean redraw before trusting a screenshot:
+> `adb shell input swipe 900 1200 100 1200 200 && adb shell input swipe 100 1200 900 1200 200`
+> (swipe to the next home page and back), then re-`screencap`.
+
 ## Runtime debugging
 
 Logcat — widgets only briefly host a process during refresh, so live

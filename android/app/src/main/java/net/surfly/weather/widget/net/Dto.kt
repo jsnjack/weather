@@ -65,5 +65,6 @@ data class GlanceResponse(
     val wind: WindPairDto = WindPairDto(),
     @SerialName("uv_index") val uvIndex: TemperatureDto = TemperatureDto(),
     val sun: List<SunEventDto> = emptyList(),
+    val sunset: String? = null,
     val condition: String = "clear",
 )

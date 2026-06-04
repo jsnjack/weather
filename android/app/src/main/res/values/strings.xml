@@ -32,4 +32,11 @@
     <string name="updated_at">Updated: %1$s</string>
     <string name="cached_at">Cached: %1$s</string>
     <string name="updating">Refreshing…</string>
+    <string name="now_label">NOW</string>
+    <string name="plus2h_label">+2H</string>
+    <string name="stat_feels">Feels</string>
+    <string name="stat_wind">Wind</string>
+    <string name="stat_uv">UV</string>
+    <string name="dry_fallback">Dry for the next 2 hours</string>
+    <string name="sunset_label">SUNSET</string>
 </resources>

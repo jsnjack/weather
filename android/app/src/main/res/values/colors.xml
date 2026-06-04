@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_bg">#F8F6F3</color>
-    <color name="widget_text">#1A1A1A</color>
-    <color name="widget_subtle">#6E6E6E</color>
-    <color name="chart_baseline">#1C000000</color>
+    <color name="widget_bg">#F7F5EF</color>
+    <color name="widget_text">#202421</color>
+    <color name="widget_subtle">#737A74</color>
+    <!-- Material tonal "surfaceContainer" — a slightly lifted tint of the card
+         used for the dry-state stats panel. -->
+    <color name="widget_container">#ECE6D8</color>
+    <color name="chart_baseline">#24202421</color>
     <color name="chart_buienalarm">#06B6D4</color>
     <color name="chart_buienradar">#A855F7</color>
-    <color name="chart_temp">#EA580C</color>
-    <color name="chart_caution">#CA8A04</color>
-    <color name="chart_critical">#DC2626</color>
+    <color name="chart_temp">#C96A43</color>
+    <color name="chart_caution">#A5792A</color>
+    <color name="chart_critical">#C24F3D</color>
 </resources>
