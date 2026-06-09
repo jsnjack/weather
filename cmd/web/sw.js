@@ -1,5 +1,5 @@
-const SHELL_CACHE = "forecast-shell-v3";
-const DATA_CACHE  = "forecast-data-v3";
+const SHELL_CACHE = "forecast-shell-v4";
+const DATA_CACHE  = "forecast-data-v4";
 const SHELL = ["/static/styles.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -38,14 +38,22 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for the static shell.
+  // Stale-while-revalidate for the static shell: serve the cached copy for
+  // speed but always refetch in the background, so the next load is fresh.
+  // Cache-first once pinned an old styles.css forever — new HTML rendered
+  // by months-old CSS (vanished legend swatches, wrong background).
   event.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res && res.ok) {
-        const copy = res.clone();
-        caches.open(SHELL_CACHE).then((c) => c.put(req, copy));
+    caches.open(SHELL_CACHE).then(async (c) => {
+      const hit = await c.match(req);
+      const refresh = fetch(req).then((res) => {
+        if (res && res.ok) c.put(req, res.clone());
+        return res;
+      });
+      if (hit) {
+        event.waitUntil(refresh.catch(() => {}));
+        return hit;
       }
-      return res;
-    }))
+      return refresh;
+    })
   );
 });
