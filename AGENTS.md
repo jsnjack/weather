@@ -116,7 +116,11 @@ make build          # multi-arch binaries in bin/
   neutral island tile — but its temps and feels/wind/UV micros live in the
   **native** `R.id.rain_stats` row under the island (`populateRainStats`),
   corner-anchored beneath the bitmap's time labels; only axis text stays in
-  the bitmap. Dry hides that and shows `R.id.dry_body` — **native
+  the bitmap, and the bitmap is rendered at the island's **estimated
+  on-screen size** (`chartSizePx` — chrome constants mirror
+  `widget_rain.xml`) so `fitXY` has nothing to stretch — a bitmap drawn at
+  the raw `MAX_WIDTH×MAX_HEIGHT` option size displays at ~half height and
+  flattens every label. Dry hides that and shows `R.id.dry_body` — **native
   RemoteViews** Material 3 island cells in `widget_rain.xml`
   (`RainWidgetWorker.applyBody` toggles visibility, `populateDryBody` fills
   them). Native text is crisp; the bitmap is `fitXY` and visibly **squishes**
@@ -126,10 +130,11 @@ make build          # multi-arch binaries in bin/
   row; right = neutral island (`@drawable/island_neutral`) with a
   **NOW / +2H column header** over a feels/wind/UV table — the header is what
   makes "which number is which" unambiguous (two unlabelled columns read as
-  gibberish). The nowcast message lives in `R.id.headline`, a full-width chip
-  below the islands **shared by both states** (rainy puts the Buienalarm
-  message or peak summary there) so it is never cropped into a corner; the
-  worker collapses the chip when there is no text. Islands use 16dp radii
+  gibberish). The nowcast message lives in `R.id.headline`, a full-width
+  **quiet caption** below the islands (11sp, muted, centred, no box — it is
+  commentary, not content) **shared by both states** so it is never cropped
+  into a corner; the worker collapses it when there is no text. Islands use
+  16dp radii
   (outer 28dp minus 12dp padding) with 8dp gutters. Today's sunset
   (`glanceAPIResponse.Sunset` → `R.id.dry_sunset_row`) hides itself when the
   server doesn't send the field (older deploys), so redeploy `weather serve`

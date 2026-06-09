@@ -156,8 +156,6 @@ class RainWidgetWorker(
         }
 
         val options: Bundle = mgr.getAppWidgetOptions(id)
-        val widthPx = sizePx(ctx, options, AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 350)
-        val heightPx = sizePx(ctx, options, AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 160)
 
         val views = RemoteViews(ctx.packageName, R.layout.widget_rain)
 
@@ -165,7 +163,7 @@ class RainWidgetWorker(
             views.setTextViewText(R.id.location, response.location.description.ifBlank {
                 ctx.getString(R.string.widget_label)
             })
-            val body = applyBody(ctx, views, widthPx, heightPx, response)
+            val caption = applyBody(ctx, views, options, response)
             // A failed refresh falls back to cached JSON — label it "Cached: HH:mm"
             // using the cache file's own timestamp, not the current time, so an
             // old forecast can't masquerade as a fresh one.
@@ -175,9 +173,10 @@ class RainWidgetWorker(
                 ctx.getString(R.string.updated_at, formatClock(System.currentTimeMillis()))
             }
             views.setTextViewText(R.id.updated, "↻  $label")
-            setHeadline(views, headlineText(ctx, body))
+            setHeadline(views, caption)
         } else {
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
+            val (widthPx, heightPx) = chartSizePx(ctx, options, statsRow = false, captionLines = 0)
             views.setImageViewBitmap(
                 R.id.chart,
                 ChartRenderer.renderMessage(ctx, widthPx, heightPx, errorLabel(ctx, result)),
@@ -207,8 +206,6 @@ class RainWidgetWorker(
      */
     private fun renderNoLocation(ctx: Context, mgr: AppWidgetManager, id: Int, cfg: WidgetConfig) {
         val options: Bundle = mgr.getAppWidgetOptions(id)
-        val widthPx = sizePx(ctx, options, AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 350)
-        val heightPx = sizePx(ctx, options, AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 160)
         val views = RemoteViews(ctx.packageName, R.layout.widget_rain)
 
         val cached = readCached(ctx, id)
@@ -222,16 +219,17 @@ class RainWidgetWorker(
                 R.id.location,
                 response.location.description.ifBlank { ctx.getString(R.string.state_no_location) },
             )
-            val body = applyBody(ctx, views, widthPx, heightPx, response)
+            val caption = applyBody(ctx, views, options, response)
             views.setTextViewText(
                 R.id.updated,
                 "↻  " + ctx.getString(R.string.no_location_cached_at, formatClock(cachedAtMs)),
             )
-            setHeadline(views, headlineText(ctx, body))
+            setHeadline(views, caption)
         } else {
             // No cached data — show an honest empty state.
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
             views.setTextViewText(R.id.location, ctx.getString(R.string.state_no_location))
+            val (widthPx, heightPx) = chartSizePx(ctx, options, statsRow = false, captionLines = 0)
             views.setImageViewBitmap(
                 R.id.chart,
                 ChartRenderer.renderMessage(ctx, widthPx, heightPx, ctx.getString(R.string.state_no_location)),
@@ -290,30 +288,21 @@ class RainWidgetWorker(
         return b.build()
     }
 
-    /** What the body renderer decided, so the caller can fill the headline chip. */
-    private data class BodyResult(
-        val dryWindow: Boolean,
-        val hasNowcast: Boolean,
-        val alarmMessage: String?,
-        val alarmData: List<net.surfly.weather.widget.net.PointDto>,
-        val radarData: List<net.surfly.weather.widget.net.PointDto>,
-    )
-
     /**
      * Fills the widget body from `response`, choosing between two surfaces:
      * the **rainy** state draws the dual-provider chart into the [R.id.chart]
      * bitmap; the **dry** state hides the chart and shows the native Material
      * [R.id.dry_body] island cells (crisp text, no fitXY bitmap squish).
-     * Returns the decision so the caller can set the timestamp pill and the
-     * shared headline chip.
+     * Returns the caption for the shared headline line: the Buienalarm
+     * nowcast message when present, else the dry fallback or a rainy peak
+     * summary; "no nowcast data" when neither provider returned points.
      */
     private fun applyBody(
         ctx: Context,
         views: RemoteViews,
-        widthPx: Int,
-        heightPx: Int,
+        options: Bundle,
         response: GlanceResponse,
-    ): BodyResult {
+    ): String {
         views.setImageViewResource(R.id.condition, conditionDrawable(response.condition))
         val alarmData = response.buienalarm?.data ?: emptyList()
         val radarData = response.buienradar?.data ?: emptyList()
@@ -328,17 +317,30 @@ class RainWidgetWorker(
             views.setViewVisibility(R.id.rain_stats, View.GONE)
             views.setViewVisibility(R.id.dry_body, View.VISIBLE)
             populateDryBody(ctx, views, response)
-        } else {
-            views.setViewVisibility(R.id.dry_body, View.GONE)
-            views.setViewVisibility(R.id.chart, View.VISIBLE)
-            views.setViewVisibility(R.id.rain_stats, View.VISIBLE)
-            populateRainStats(ctx, views, response)
-            views.setImageViewBitmap(
-                R.id.chart,
-                ChartRenderer.render(ctx, widthPx, heightPx, buildChartData(response, alarmMessage)),
-            )
+            return alarmMessage ?: ctx.getString(R.string.dry_fallback)
         }
-        return BodyResult(dryWindow, hasNowcast, alarmMessage, alarmData, radarData)
+
+        val caption = when {
+            !hasNowcast -> ctx.getString(R.string.state_no_data)
+            else -> alarmMessage ?: peakLabel(alarmData, radarData)
+        }
+        views.setViewVisibility(R.id.dry_body, View.GONE)
+        views.setViewVisibility(R.id.chart, View.VISIBLE)
+        views.setViewVisibility(R.id.rain_stats, View.VISIBLE)
+        populateRainStats(ctx, views, response)
+        // Render at the chart island's estimated on-screen size: a bitmap
+        // drawn at one aspect and displayed at another is what squished the
+        // axis text.
+        val (widthPx, heightPx) = chartSizePx(
+            ctx, options,
+            statsRow = true,
+            captionLines = captionLines(ctx, options, caption),
+        )
+        views.setImageViewBitmap(
+            R.id.chart,
+            ChartRenderer.render(ctx, widthPx, heightPx, buildChartData(response, alarmMessage)),
+        )
+        return caption
     }
 
     /** Populates the native dry-state island cells: hero NOW temperature with
@@ -464,17 +466,8 @@ class RainWidgetWorker(
             dryHeadline = alarmMessage,
         )
 
-    /** Headline chip text, shared by both states: the Buienalarm nowcast
-     *  message when present, else the dry fallback or a rainy peak summary;
-     *  "no nowcast data" when neither provider returned points. */
-    private fun headlineText(ctx: Context, body: BodyResult): String = when {
-        !body.hasNowcast -> ctx.getString(R.string.state_no_data)
-        body.dryWindow -> body.alarmMessage ?: ctx.getString(R.string.dry_fallback)
-        else -> body.alarmMessage ?: peakLabel(body.alarmData, body.radarData)
-    }
-
-    /** Fills the headline chip, collapsing it entirely when there is no text
-     *  so the islands above reclaim the row. */
+    /** Fills the headline caption, collapsing it entirely when there is no
+     *  text so the islands above reclaim the row. */
     private fun setHeadline(views: RemoteViews, text: String) {
         if (text.isBlank()) {
             views.setViewVisibility(R.id.headline, View.GONE)
@@ -612,9 +605,39 @@ class RainWidgetWorker(
         }
     }
 
-    private fun sizePx(ctx: Context, opts: Bundle, key: String, fallbackDp: Int): Int {
-        val dp = opts.getInt(key, fallbackDp).takeIf { it > 0 } ?: fallbackDp
-        val px = (dp * ctx.resources.displayMetrics.density).toInt()
-        return px.coerceIn(64, 1024)
+    /**
+     * Estimates the chart island's on-screen size so the bitmap is rendered
+     * ~1:1 and fitXY has nothing to stretch. The widget host shows portrait
+     * as OPTION_APPWIDGET_MIN_WIDTH × OPTION_APPWIDGET_MAX_HEIGHT; the chrome
+     * constants mirror widget_rain.xml (root padding, header row, island
+     * margins, the native stats row and the 1–2 line caption).
+     */
+    private fun chartSizePx(
+        ctx: Context,
+        opts: Bundle,
+        statsRow: Boolean,
+        captionLines: Int,
+    ): Pair<Int, Int> {
+        val density = ctx.resources.displayMetrics.density
+        val widgetW = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+            .takeIf { it > 0 } ?: 350
+        val widgetH = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+            .takeIf { it > 0 } ?: 160
+        var chrome = 24 + 22 + 8 // root padding + header row + chart top margin
+        if (statsRow) chrome += 29 // native temps/micros row + its margin
+        if (captionLines > 0) chrome += 6 + 15 * captionLines
+        val w = ((widgetW - 24) * density).toInt().coerceIn(64, 2048)
+        val h = ((widgetH - chrome).coerceAtLeast(56) * density).toInt().coerceIn(64, 2048)
+        return w to h
+    }
+
+    /** Rough 11sp line count of the caption at the widget's width — only used
+     *  to budget the chart height, so close-enough beats exact. */
+    private fun captionLines(ctx: Context, opts: Bundle, caption: String): Int {
+        if (caption.isBlank()) return 0
+        val widgetW = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+            .takeIf { it > 0 } ?: 350
+        val charsPerLine = ((widgetW - 32) / 5.2f).coerceAtLeast(20f)
+        return if (caption.length > charsPerLine) 2 else 1
     }
 }

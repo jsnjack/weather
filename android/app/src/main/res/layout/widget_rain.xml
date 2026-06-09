@@ -401,24 +401,23 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Shared headline chip: the Buienalarm nowcast message (dry), a peak
-         summary (rainy), or a data-state note. Full width in both states so
-         it is never cropped; hidden by the worker when there is no text. -->
+    <!-- Shared headline caption: the Buienalarm nowcast message (dry), a peak
+         summary (rainy), or a data-state note. A quiet footnote, not a boxed
+         island — the data above is the content, this is commentary. Full
+         width in both states so it is never cropped; hidden by the worker
+         when there is no text. -->
     <TextView
         android:id="@+id/headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/island_neutral"
+        android:layout_marginTop="6dp"
         android:textColor="@color/widget_subtle"
-        android:textSize="12sp"
-        android:textFontWeight="500"
+        android:textSize="11sp"
+        android:gravity="center_horizontal"
         android:maxLines="2"
         android:ellipsize="end"
         android:lineSpacingMultiplier="0.98"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
         android:text="" />
 </LinearLayout>
