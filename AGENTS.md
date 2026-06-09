@@ -133,7 +133,12 @@ make build          # multi-arch binaries in bin/
   `serve_glance.go`). Hard rules learned by rejection: **no bottom data strip**
   (flat dry data reads as a fake progress bar) and **no provider names** in the
   dry state. `ChartRenderer.drawHero` remains only as a defensive fallback if
-  `render()` is ever reached with a dry window.
+  `render()` is ever reached with a dry window. **Dry vs rainy is decided once,
+  on the capped chart window** (`chartWindow` in `ChartRenderer.kt`):
+  `isDryWindow` and `render` must judge identical data. Radar rain beyond the
+  Buienalarm horizon once split the two — `applyBody` dressed the widget in
+  rainy chrome (headline duplicated into `R.id.peak`, native panel hidden)
+  around the `drawHero` fallback bitmap.
 - **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
   broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
   one-shots while the process is alive; keep the 15-minute WorkManager periodic

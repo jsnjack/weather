@@ -61,15 +61,35 @@ object ChartRenderer {
     private const val UV_CRITICAL = 8         // very-high / extreme
 
     /** True when both providers stay under the dry threshold across the
-     *  whole window — i.e. the hero (not the chart) will be rendered.
-     *  Exposed so callers can swap surrounding UI accordingly (e.g.
-     *  blank the peak TextView so it doesn't duplicate the hero text). */
+     *  visible chart window — i.e. the dry surface (not the chart) will be
+     *  rendered. Exposed so callers can swap surrounding UI accordingly
+     *  (e.g. blank the peak TextView so it doesn't duplicate the dry
+     *  headline). Must judge the same capped window as [render]: radar rain
+     *  beyond the Buienalarm horizon is invisible on the chart, so counting
+     *  it here would split the two decisions — the caller would show the
+     *  rainy chrome around a hero bitmap. */
     fun isDryWindow(alarm: List<PointDto>, radar: List<PointDto>): Boolean {
+        val (alarmParsed, radarCapped) = chartWindow(alarm, radar)
         val peak = maxOf(
-            alarm.maxOfOrNull { it.value } ?: 0.0,
-            radar.maxOfOrNull { it.value } ?: 0.0,
+            alarmParsed.maxOfOrNull { it.second } ?: 0.0,
+            radarCapped.maxOfOrNull { it.second } ?: 0.0,
         )
         return peak < DRY_THRESHOLD
+    }
+
+    /** Parses both series and caps radar to Buienalarm's horizon — the
+     *  window the chart actually shows. Buienalarm is the shorter (and
+     *  authoritative) nowcast window. Shared by [isDryWindow] and [render]
+     *  so the dry/rainy decision is made on identical data. */
+    private fun chartWindow(
+        alarmDto: List<PointDto>,
+        radarDto: List<PointDto>,
+    ): Pair<List<Pair<Instant, Double>>, List<Pair<Instant, Double>>> {
+        val alarm = parse(alarmDto)
+        val radarRaw = parse(radarDto)
+        val alarmLast = alarm.lastOrNull()?.first
+        val radar = if (alarmLast != null) radarRaw.filter { !it.first.isAfter(alarmLast) } else radarRaw
+        return alarm to radar
     }
 
     /** True when at least one provider returned points. Lets callers tell a
@@ -83,19 +103,16 @@ object ChartRenderer {
         val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        val alarm = parse(data.buienalarm)
-        val radarRaw = parse(data.buienradar)
+        val (alarm, radar) = chartWindow(data.buienalarm, data.buienradar)
         // No points from either provider is a distinct state from "dry": show
         // an explicit message rather than the dry hero, which would imply we
-        // know it's dry when we actually have no nowcast at all.
-        if (alarm.isEmpty() && radarRaw.isEmpty()) {
+        // know it's dry when we actually have no nowcast at all. (When alarm
+        // is empty, chartWindow leaves radar uncapped, so this check still
+        // sees every radar point.)
+        if (alarm.isEmpty() && radar.isEmpty()) {
             drawMessage(context, canvas, widthPx, heightPx, context.getString(R.string.state_no_data))
             return bmp
         }
-        // Cap radar to Buienalarm's horizon so both lines share the same x range.
-        // Buienalarm is the shorter (and authoritative) nowcast window.
-        val alarmLast = alarm.lastOrNull()?.first
-        val radar = if (alarmLast != null) radarRaw.filter { !it.first.isAfter(alarmLast) } else radarRaw
 
         val maxRain = max(
             alarm.maxOfOrNull { it.second } ?: 0.0,
