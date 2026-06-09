@@ -128,6 +128,12 @@ The standard dev loop, from `android/`:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+`make release` (repo root) builds the same debug-signed APK and uploads it
+to the GitHub release as `weather-widget.apk`, so a phone can sideload it
+straight from the release page. Debug-signed is deliberate: it matches dev
+installs, so it updates an existing widget in place; a differently-signed
+APK would require uninstalling first.
+
 `adb install -r` redelivers `APPWIDGET_UPDATE` to existing widget instances,
 so reinstalling already forces a refresh and re-arms the 15-minute periodic
 WorkManager refresh. Manual refresh now lives on a
