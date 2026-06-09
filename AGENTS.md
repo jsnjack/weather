@@ -113,7 +113,10 @@ make build          # multi-arch binaries in bin/
   so the home-screen widget looks like the PWA. Change both together.
 - **Dry widget state is native Material views, not a bitmap.** Rainy renders
   the dual-provider chart into the `R.id.chart` bitmap (`ChartRenderer`) on a
-  neutral island tile. Dry hides that and shows `R.id.dry_body` — **native
+  neutral island tile — but its temps and feels/wind/UV micros live in the
+  **native** `R.id.rain_stats` row under the island (`populateRainStats`),
+  corner-anchored beneath the bitmap's time labels; only axis text stays in
+  the bitmap. Dry hides that and shows `R.id.dry_body` — **native
   RemoteViews** Material 3 island cells in `widget_rain.xml`
   (`RainWidgetWorker.applyBody` toggles visibility, `populateDryBody` fills
   them). Native text is crisp; the bitmap is `fitXY` and visibly **squishes**

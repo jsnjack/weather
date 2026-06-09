@@ -69,6 +69,66 @@
         android:background="@drawable/island_neutral"
         android:contentDescription="@string/widget_label" />
 
+    <!-- Rainy stats row: native temps + micro stats under the chart island,
+         anchored to the corners like the time labels above them (the time
+         row inside the bitmap is what labels each cluster as now / end).
+         Native because bitmap text goes soft under fitXY. -->
+    <LinearLayout
+        android:id="@+id/rain_stats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/rain_temp_now"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="7dp"
+            android:textColor="@color/widget_text"
+            android:textSize="17sp"
+            android:textFontWeight="700"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/rain_micro_now"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_subtle"
+            android:textSize="12.5sp"
+            android:singleLine="true"
+            android:text="" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/rain_micro_end"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="7dp"
+            android:textColor="@color/widget_subtle"
+            android:textSize="12.5sp"
+            android:singleLine="true"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/rain_temp_end"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/chart_temp"
+            android:textSize="17sp"
+            android:textFontWeight="700"
+            android:text="" />
+    </LinearLayout>
+
     <!-- Dry islands: accent NOW cell + neutral stats cell. -->
     <LinearLayout
         android:id="@+id/dry_body"

@@ -7,6 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -322,11 +325,14 @@ class RainWidgetWorker(
 
         if (dryWindow) {
             views.setViewVisibility(R.id.chart, View.GONE)
+            views.setViewVisibility(R.id.rain_stats, View.GONE)
             views.setViewVisibility(R.id.dry_body, View.VISIBLE)
             populateDryBody(ctx, views, response)
         } else {
             views.setViewVisibility(R.id.dry_body, View.GONE)
             views.setViewVisibility(R.id.chart, View.VISIBLE)
+            views.setViewVisibility(R.id.rain_stats, View.VISIBLE)
+            populateRainStats(ctx, views, response)
             views.setImageViewBitmap(
                 R.id.chart,
                 ChartRenderer.render(ctx, widthPx, heightPx, buildChartData(response, alarmMessage)),
@@ -381,6 +387,53 @@ class RainWidgetWorker(
         } else {
             views.setViewVisibility(R.id.dry_sunset_row, View.GONE)
         }
+    }
+
+    /** Fills the native stats row under the chart island: corner-anchored NOW
+     *  and end-of-window temps plus feels/wind/UV micros — the crisp twin of
+     *  the cluster the chart bitmap used to draw (and squish under fitXY).
+     *  The bitmap's corner time labels sit directly above each cluster and
+     *  are what label them as now vs end of window. */
+    private fun populateRainStats(ctx: Context, views: RemoteViews, response: GlanceResponse) {
+        views.setTextViewText(R.id.rain_temp_now, "${response.temperature.now}°")
+        views.setTextViewText(R.id.rain_temp_end, "${response.temperature.end}°")
+        views.setTextViewText(
+            R.id.rain_micro_now,
+            microLine(
+                ctx,
+                response.feelsLike.now,
+                response.wind.now.directionDeg,
+                response.wind.now.speedKmh,
+                response.uvIndex.now,
+            ),
+        )
+        views.setTextViewText(
+            R.id.rain_micro_end,
+            microLine(
+                ctx,
+                response.feelsLike.end,
+                response.wind.end.directionDeg,
+                response.wind.end.speedKmh,
+                response.uvIndex.end,
+            ),
+        )
+    }
+
+    /** "≈12° · →22 · UV 2" with caution/critical colouring on the wind and
+     *  UV segments. */
+    private fun microLine(ctx: Context, feels: Int, windDeg: Int, windKmh: Int, uv: Int): CharSequence {
+        val sb = SpannableStringBuilder()
+        sb.append("≈${feels}° · ")
+        sb.appendColored("${windArrow(windDeg)}$windKmh", windColor(ctx, windKmh, primary = false))
+        sb.append(" · ")
+        sb.appendColored("UV $uv", uvColor(ctx, uv, primary = false))
+        return sb
+    }
+
+    private fun SpannableStringBuilder.appendColored(text: String, color: Int) {
+        val start = length
+        append(text)
+        setSpan(ForegroundColorSpan(color), start, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
     /** Builds the chart [ChartRenderer.Data] for the rainy state. */

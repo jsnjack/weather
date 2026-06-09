@@ -54,12 +54,6 @@ object ChartRenderer {
 
     data class SunEvent(val kind: String, val time: Instant)
 
-    // Caution thresholds — pick colours per metric.
-    private const val WIND_CAUTION_KMH = 28   // Beaufort 5+ (fresh breeze)
-    private const val WIND_CRITICAL_KMH = 50  // Beaufort 7+ (near gale)
-    private const val UV_CAUTION = 3          // sunscreen recommended
-    private const val UV_CRITICAL = 8         // very-high / extreme
-
     /** True when both providers stay under the dry threshold across the
      *  visible chart window — i.e. the dry surface (not the chart) will be
      *  rendered. Exposed so callers can swap surrounding UI accordingly
@@ -147,9 +141,10 @@ object ChartRenderer {
         val padLeft = dp(22f, density)
         val padRight = dp(22f, density)
         val padTop = dp(8f, density)
-        // Bottom area carries two stacked rows per corner:
-        // row 1: time HH:mm   row 2: big temp + inline micro stats.
-        val padBottom = dp(36f, density)
+        // Bottom area carries only the HH:mm time row — temps and micro
+        // stats are native TextViews below the chart island (bitmap text
+        // goes soft under fitXY; the same reason the dry state is native).
+        val padBottom = dp(20f, density)
 
         val plotL = padLeft
         val plotR = w - padRight
@@ -222,27 +217,9 @@ object ChartRenderer {
             textSize = sp(11f, context)
             isAntiAlias = true
         }
-        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = ContextCompat.getColor(context, R.color.chart_temp)
-            textSize = sp(20f, context)
-            isAntiAlias = true
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        val microSize = sp(13f, context)
-        val microMuted = ContextCompat.getColor(context, R.color.widget_subtle)
-        val microCaution = ContextCompat.getColor(context, R.color.chart_caution)
-        val microCritical = ContextCompat.getColor(context, R.color.chart_critical)
-        val microPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = microMuted
-            textSize = microSize
-            isAntiAlias = true
-        }
 
-        // Vertical y-positions for two rows below the plot. The combined
-        // row uses the temp baseline; micros sit on the same baseline so
-        // their visual top aligns with the temp number's mid-height.
+        // Baseline of the single time row below the plot.
         val yTimeRow = plotB + dp(13f, density)
-        val yCombined = plotB + dp(31f, density)
 
         val zone = ZoneId.systemDefault()
 
@@ -254,8 +231,10 @@ object ChartRenderer {
             strokeWidth = dp(1f, density)
             style = Paint.Style.STROKE
         }
-        val sunGlyphPaint = Paint(microPaint).apply {
+        val sunGlyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ContextCompat.getColor(context, R.color.chart_temp)
+            textSize = sp(13f, context)
+            isAntiAlias = true
         }
         for (ev in data.sunEvents) {
             if (ev.time.isBefore(tMin) || ev.time.isAfter(tMax)) continue
@@ -281,7 +260,7 @@ object ChartRenderer {
             offsetMin += interiorStepMin
         }
 
-        // Per-corner stacks. Each stack is anchored to the chart edge.
+        // Edge time labels anchored to the chart corners.
         val xNow = xOf(nowInstant)
         val xEnd = xOf(tMax)
         val nowTime = ZonedDateTime.ofInstant(nowInstant, zone).format(hhmm)
@@ -289,27 +268,6 @@ object ChartRenderer {
 
         drawCenteredText(canvas, nowTime, xNow, yTimeRow, tickPaint, anchor = TextAnchor.LEFT)
         drawCenteredText(canvas, endTime, xEnd, yTimeRow, tickPaint, anchor = TextAnchor.RIGHT)
-
-        // Left corner: big temp anchored LEFT at xNow, micros flow right.
-        val tempNowText = "${data.tempNow}°"
-        val tempNowWidth = tempPaint.measureText(tempNowText)
-        canvas.drawText(tempNowText, xNow, yCombined, tempPaint)
-        data.microNow?.let { m ->
-            val segments = microSegments(m, microMuted, microCaution, microCritical)
-            drawSegments(canvas, segments, xNow + tempNowWidth + dp(6f, density), yCombined, microPaint)
-        }
-
-        // Right corner: big temp anchored RIGHT at xEnd, micros sit just
-        // to its left, right-edge-aligned so they hug the temp.
-        val tempEndText = "${data.tempEnd}°"
-        val tempEndWidth = tempPaint.measureText(tempEndText)
-        canvas.drawText(tempEndText, xEnd - tempEndWidth, yCombined, tempPaint)
-        data.microEnd?.let { m ->
-            val segments = microSegments(m, microMuted, microCaution, microCritical)
-            val totalWidth = segments.sumOf { microPaint.measureText(it.first).toDouble() }.toFloat()
-            val startX = xEnd - tempEndWidth - dp(6f, density) - totalWidth
-            drawSegments(canvas, segments, startX, yCombined, microPaint)
-        }
 
         // Right-edge intensity reference: up to two faint numeric labels
         // at "nice" mm/h levels that fall within the visible y range.
@@ -331,50 +289,6 @@ object ChartRenderer {
 
     private fun formatMm(v: Double): String =
         if (v < 1.0) "%.1f".format(v) else "%.0f".format(v)
-
-    /** Break a Micro into (text, colour) segments so wind and UV can be
-     *  highlighted when they cross caution/critical thresholds. */
-    private fun microSegments(
-        m: Micro,
-        muted: Int,
-        caution: Int,
-        critical: Int,
-    ): List<Pair<String, Int>> {
-        val windColour = when {
-            m.windKmh >= WIND_CRITICAL_KMH -> critical
-            m.windKmh >= WIND_CAUTION_KMH -> caution
-            else -> muted
-        }
-        val uvColour = when {
-            m.uv >= UV_CRITICAL -> critical
-            m.uv >= UV_CAUTION -> caution
-            else -> muted
-        }
-        return listOf(
-            "≈${m.feels}°"                to muted,
-            " · "                          to muted,
-            "${m.windArrow}${m.windKmh}"   to windColour,
-            " · "                          to muted,
-            "UV ${m.uv}"                   to uvColour,
-        )
-    }
-
-    /** Draw (text, colour) segments left-to-right starting at startX. */
-    private fun drawSegments(
-        canvas: Canvas,
-        segments: List<Pair<String, Int>>,
-        startX: Float,
-        baseline: Float,
-        paint: Paint,
-    ) {
-        var x = startX
-        for ((text, color) in segments) {
-            paint.color = color
-            canvas.drawText(text, x, baseline, paint)
-            x += paint.measureText(text)
-        }
-    }
-
 
     // ─────────────── dry hero state (Material 3) ───────────────
     // Mirrors Google's Material 3 weather-widget style: a big current
