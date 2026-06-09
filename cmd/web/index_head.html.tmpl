@@ -20,14 +20,11 @@
     <a href="/scout{{if .Q}}?{{.Q}}{{end}}">Scout</a>
   </nav>
   <header>
-    <div>
-      <h1>{{.Location.Description}}</h1>
-      <p class="sub">Next 2 hours
+    <h1>{{.Location.Description}}</h1>
+    <p class="sub">Next 2 hours
         <span class="key-item"><span class="dot" style="background:{{.BuienalarmColor}}"></span>Buienalarm</span>
         <span class="key-item"><span class="dot" style="background:{{.BuineradarColor}}"></span>Buienradar</span>
       </p>
-    </div>
-    <a class="pill" href="">↻ refresh</a>
   </header>
 
   <details class="opts"><summary>Location &amp; options</summary>

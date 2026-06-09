@@ -675,7 +675,7 @@ func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
 		return GridCell{Color: todayBandHex(rainTimingBand(c.DryHours, windowHours), c.NoData), Symbol: "●", SymbolColor: sc, Border: "#fff"}
 	}
 	if c.NoData {
-		return GridCell{Color: "#46463f", Symbol: ""}
+		return GridCell{Color: "#3f3f46", Symbol: ""}
 	}
 	band := rainTimingBand(c.DryHours, windowHours)
 	bg := todayBandHex(band, false)
@@ -704,17 +704,17 @@ func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
 
 func todayBandHex(band int, noData bool) string {
 	if noData {
-		return "#46463f"
+		return "#3f3f46"
 	}
 	switch band {
 	case 0:
-		return "#9fd6a4" // bright green — dry full window
+		return "#86efac" // bright green — dry full window
 	case 1:
-		return "#6cbf78" // green — rain late
+		return "#4ade80" // green — rain late
 	case 2:
-		return "#e0b94f" // yellow — rain middle
+		return "#facc15" // yellow — rain middle
 	default:
-		return "#d05c49" // red — raining now
+		return "#ef4444" // red — raining now
 	}
 }
 
@@ -983,10 +983,10 @@ func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTr
 		switch {
 		case ds.TailwindAvg > tailHeadSwitchKmh:
 			row.Wind = fmt.Sprintf("T%.0f", ds.TailwindAvg)
-			row.WindColor = "#3f9e52"
+			row.WindColor = "#4ade80"
 		case ds.TailwindAvg < -tailHeadSwitchKmh:
 			row.Wind = fmt.Sprintf("H%.0f", -ds.TailwindAvg)
-			row.WindColor = "#c2452f"
+			row.WindColor = "#ef4444"
 		default:
 			row.Wind = "·"
 			row.WindColor = "var(--muted)"
@@ -1062,7 +1062,7 @@ func heatmapCellToGrid(c cellStatus, isStart bool) GridCell {
 	sc := "#111"
 	switch {
 	case c.NoData:
-		bg = "#46463f"
+		bg = "#3f3f46"
 	case c.Sea:
 		bg = "#0e7490"
 		sym = "~"
@@ -1072,7 +1072,7 @@ func heatmapCellToGrid(c cellStatus, isStart bool) GridCell {
 		sym = "·"
 		sc = "#0a0a0a"
 	case c.Gust:
-		bg = "#d05c49"
+		bg = "#ef4444"
 		sym = "✗"
 		sc = "#fff"
 	default:
@@ -1094,12 +1094,12 @@ func heatmapCellToGrid(c cellStatus, isStart bool) GridCell {
 func heatmapBandHex(c cellStatus) string {
 	switch c.TempBand {
 	case 3:
-		return "#9fd6a4"
+		return "#86efac"
 	case 2:
-		return "#6cbf78"
+		return "#4ade80"
 	case 1:
-		return "#e0b94f"
+		return "#facc15"
 	default:
-		return "#5c5b52"
+		return "#52525b"
 	}
 }

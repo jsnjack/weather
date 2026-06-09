@@ -158,7 +158,12 @@ make build          # multi-arch binaries in bin/
   line colours and caution/critical states are identical everywhere. The
   today/scout heatmap semaphore palette lives in `serve.go` **and** is
   duplicated in the legend swatches of `today_body`/`scout_body` — change
-  both together. Legends are content, never strip them.
+  both together. Legends are content, never strip them. The semaphore is
+  **deliberately saturated** (#86efac/#4ade80/#facc15/#ef4444 on square
+  cells): a "tasteful" warm retune was rejected — softened hues blur the
+  green/yellow/red identities the legend names, and rounded gap tiles read
+  worse than the solid grid. No refresh buttons in headers — the browser
+  has one.
 - **Widget colours are Material You dynamic tokens.** `values/colors.xml` maps
   every neutral and the warm accent to `@android:color/system_*` roles
   (wallpaper-derived, API 31+); `values-night/colors.xml` uses the same token

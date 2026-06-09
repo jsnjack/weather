@@ -20,11 +20,8 @@
     <a href="/scout{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Scout</a>
   </nav>
   <header>
-    <div>
-      <h1>{{.Location.Description}}</h1>
-      <p class="sub">{{.Cfg.Days}} days × {{printf "%.0f" .Cfg.KmPerDay}} km/day · {{.StartLabel}} → {{.EndLabel}}{{if .Cfg.RoundTrip}} · round-trip{{end}}{{if .IsHeatmap}} · heatmap{{end}}</p>
-    </div>
-    <a class="pill" href="">↻ refresh</a>
+    <h1>{{.Location.Description}}</h1>
+    <p class="sub">{{.Cfg.Days}} days × {{printf "%.0f" .Cfg.KmPerDay}} km/day · {{.StartLabel}} → {{.EndLabel}}{{if .Cfg.RoundTrip}} · round-trip{{end}}{{if .IsHeatmap}} · heatmap{{end}}</p>
   </header>
 
   <details class="opts"><summary>Location &amp; options</summary>

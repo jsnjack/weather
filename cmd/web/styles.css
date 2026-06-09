@@ -42,12 +42,8 @@ h2 { font-size: 1rem; margin: .1rem 0 .35rem; }
 .nav a:hover { color: var(--ink); }
 .nav a[aria-current="page"] { color: var(--ink); font-weight: 600; background: var(--island); }
 
-/* header — one-line location + refresh pill; location is context, not content */
-header { display: flex; align-items: baseline; gap: .75rem; }
-header > div { min-width: 0; flex: 1; }
+/* header — one-line location; it is context, not content */
 header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pill { flex: none; background: var(--island); color: var(--muted); text-decoration: none; font-size: .8rem; padding: .3rem .75rem; border-radius: 999px; }
-.pill:hover { color: var(--ink); }
 .sub { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 
 /* islands — the one container language for every content block */
@@ -107,7 +103,7 @@ td.muted, span.muted { color: var(--muted); }
 .g-mi-caution, td.g-mi-caution, .evolution td.g-mi-caution { color: var(--caution); }
 .g-mi-critical, td.g-mi-critical, .evolution td.g-mi-critical { color: var(--critical); font-weight: 600; }
 .water, .evolution td.water, .evolution th.water { color: var(--water); }
-.cold { color: var(--caution); }
+.cold { color: #eab308; } /* matches the scout legend's below-min-temp star */
 
 /* today / scout */
 .recommendation { background: var(--island-accent); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
