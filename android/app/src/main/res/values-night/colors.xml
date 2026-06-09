@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material You dark roles — same token families as values/colors.xml, one
+  tonal step apart, so dark mode comes from the palette rather than a
+  hand-mixed second theme. Provider and caution colors stay fixed but
+  brighter, tuned for dark surfaces.
+-->
 <resources>
-    <color name="widget_bg">#111311</color>
-    <color name="widget_text">#F3F0E8</color>
-    <color name="widget_subtle">#AAB2AA</color>
-    <!-- Material tonal "surfaceContainer" — a slightly lifted tint of the card
-         used for the dry-state stats panel. -->
-    <color name="widget_container">#20251E</color>
-    <color name="chart_baseline">#33F3F0E8</color>
+    <color name="widget_bg">@android:color/system_neutral1_900</color>
+    <color name="widget_text">@android:color/system_neutral1_50</color>
+    <color name="widget_subtle">@android:color/system_neutral2_300</color>
+    <!-- Material tonal "surfaceContainer" — the neutral island tile used for
+         the stats cell, the chart tile and the headline chip. -->
+    <color name="widget_container">@android:color/system_neutral2_800</color>
+    <!-- Soft accent-tinted island for the dry-state NOW cell. -->
+    <color name="widget_container_accent">@android:color/system_accent2_800</color>
+    <!-- Hairline alpha is applied in ChartRenderer — system colors carry none. -->
+    <color name="chart_baseline">@android:color/system_neutral1_50</color>
     <color name="chart_buienalarm">#22D3EE</color>
     <color name="chart_buienradar">#C084FC</color>
-    <color name="chart_temp">#D88962</color>
+    <color name="chart_temp">@android:color/system_accent1_200</color>
     <color name="chart_caution">#D7B75C</color>
     <color name="chart_critical">#E37862</color>
 </resources>

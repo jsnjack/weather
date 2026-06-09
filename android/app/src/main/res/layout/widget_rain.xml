@@ -1,20 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  M3 Expressive island cluster: a header row, then one island per concern —
+  the chart tile (rainy) or an accent NOW cell + neutral stats cell (dry),
+  and a full-width headline chip shared by both states so the nowcast
+  message always has the same uncropped home. Islands use 16dp radii
+  (outer 28dp minus the 12dp card padding) with 8dp gutters.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_background"
-    android:paddingStart="14dp"
-    android:paddingEnd="10dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingStart="2dp">
 
         <ImageView
             android:id="@+id/condition"
@@ -36,135 +41,90 @@
             android:ellipsize="end"
             android:text="@string/loading" />
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="end"
-            android:paddingStart="6dp"
-            android:paddingEnd="0dp">
-
-            <TextView
-                android:id="@+id/updated"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/widget_subtle"
-                android:textSize="12sp"
-                android:singleLine="true"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="3dp"
-                android:paddingBottom="3dp"
-                android:background="@drawable/updated_pill_background"
-                android:text="" />
-
-            <TextView
-                android:id="@+id/peak"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/widget_subtle"
-                android:textSize="11sp"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:gravity="end"
-                android:maxWidth="150dp"
-                android:paddingTop="2dp"
-                android:text="" />
-        </LinearLayout>
+            android:layout_marginStart="6dp"
+            android:textColor="@color/widget_subtle"
+            android:textSize="12sp"
+            android:singleLine="true"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:background="@drawable/updated_pill_background"
+            android:text="" />
     </LinearLayout>
 
-    <!-- Rainy state: the dual-provider chart bitmap. -->
+    <!-- Rainy island: the dual-provider chart bitmap on its own tonal tile. -->
     <ImageView
         android:id="@+id/chart"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:layout_marginTop="8dp"
         android:scaleType="fitXY"
         android:adjustViewBounds="false"
+        android:background="@drawable/island_neutral"
         android:contentDescription="@string/widget_label" />
 
-    <!-- Dry state: native Material 3 layout (crisp text, no bitmap squish). -->
+    <!-- Dry islands: accent NOW cell + neutral stats cell. -->
     <LinearLayout
         android:id="@+id/dry_body"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:visibility="gone"
-        android:paddingTop="2dp">
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
 
-        <!-- Headline: the Buienalarm nowcast message, full width so it isn't
-             cropped. Small and muted so the temperature stays the focus. -->
-        <TextView
-            android:id="@+id/dry_headline"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/widget_subtle"
-            android:textSize="12.5sp"
-            android:textFontWeight="500"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:lineSpacingMultiplier="0.96"
-            android:paddingStart="2dp"
-            android:paddingEnd="6dp"
-            android:paddingBottom="4dp"
-            android:text="" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal">
-
-        <!-- Left: hero NOW temperature + small warm +2H, centered. -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1.05"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="2dp"
-            android:paddingEnd="10dp">
+            android:background="@drawable/island_accent"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/widget_subtle"
+                android:textSize="10sp"
+                android:textFontWeight="700"
+                android:letterSpacing="0.16"
+                android:text="@string/now_label" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:paddingTop="2dp">
 
                 <ImageView
                     android:id="@+id/dry_condition"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
                     android:src="@drawable/ic_cond_clear"
                     android:contentDescription="@string/widget_label" />
 
-                <LinearLayout
+                <TextView
+                    android:id="@+id/dry_temp_now"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/widget_subtle"
-                        android:textSize="10sp"
-                        android:textFontWeight="700"
-                        android:letterSpacing="0.16"
-                        android:text="@string/now_label" />
-
-                    <TextView
-                        android:id="@+id/dry_temp_now"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/widget_text"
-                        android:textSize="66sp"
-                        android:textFontWeight="300"
-                        android:includeFontPadding="false"
-                        android:text="" />
-                </LinearLayout>
+                    android:textColor="@color/widget_text"
+                    android:textSize="54sp"
+                    android:textFontWeight="300"
+                    android:includeFontPadding="false"
+                    android:text="" />
             </LinearLayout>
 
             <LinearLayout
@@ -172,7 +132,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingTop="8dp">
+                android:paddingTop="4dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -189,7 +149,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/chart_temp"
-                    android:textSize="18sp"
+                    android:textSize="17sp"
                     android:textFontWeight="600"
                     android:text="" />
             </LinearLayout>
@@ -200,7 +160,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingTop="9dp">
+                android:paddingTop="5dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -217,30 +177,29 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/widget_text"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textFontWeight="600"
                     android:text="" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Right: rounded tonal stats panel with NOW / +2H columns. -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center_vertical"
-            android:background="@drawable/dry_panel_background"
+            android:background="@drawable/island_neutral"
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp">
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingBottom="7dp">
+                android:paddingBottom="5dp">
 
                 <TextView
                     android:layout_width="0dp"
@@ -273,8 +232,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
                     android:layout_width="0dp"
@@ -310,8 +269,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
                     android:layout_width="0dp"
@@ -347,8 +306,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
                     android:layout_width="0dp"
@@ -380,6 +339,26 @@
                     android:text="" />
             </LinearLayout>
         </LinearLayout>
-        </LinearLayout>
     </LinearLayout>
+
+    <!-- Shared headline chip: the Buienalarm nowcast message (dry), a peak
+         summary (rainy), or a data-state note. Full width in both states so
+         it is never cropped; hidden by the worker when there is no text. -->
+    <TextView
+        android:id="@+id/headline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/island_neutral"
+        android:textColor="@color/widget_subtle"
+        android:textSize="12sp"
+        android:textFontWeight="500"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:lineSpacingMultiplier="0.98"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:text="" />
 </LinearLayout>

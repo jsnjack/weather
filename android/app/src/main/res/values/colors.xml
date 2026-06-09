@@ -1,15 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material You: neutrals and the warm accent come from the system dynamic
+  palette (wallpaper-derived, API 31+), so the widget recolors itself with
+  the user's theme. Only the two provider line colors and the caution /
+  critical states stay fixed — they are semantic, shared with svgchart.go
+  on the web, and must not drift with the wallpaper.
+-->
 <resources>
-    <color name="widget_bg">#F7F5EF</color>
-    <color name="widget_text">#202421</color>
-    <color name="widget_subtle">#737A74</color>
-    <!-- Material tonal "surfaceContainer" — a slightly lifted tint of the card
-         used for the dry-state stats panel. -->
-    <color name="widget_container">#ECE6D8</color>
-    <color name="chart_baseline">#24202421</color>
+    <color name="widget_bg">@android:color/system_neutral1_10</color>
+    <color name="widget_text">@android:color/system_neutral1_900</color>
+    <color name="widget_subtle">@android:color/system_neutral2_600</color>
+    <!-- Material tonal "surfaceContainer" — the neutral island tile used for
+         the stats cell, the chart tile and the headline chip. -->
+    <color name="widget_container">@android:color/system_neutral2_100</color>
+    <!-- Soft accent-tinted island for the dry-state NOW cell. -->
+    <color name="widget_container_accent">@android:color/system_accent2_100</color>
+    <!-- Hairline alpha is applied in ChartRenderer — system colors carry none. -->
+    <color name="chart_baseline">@android:color/system_neutral1_900</color>
     <color name="chart_buienalarm">#06B6D4</color>
     <color name="chart_buienradar">#A855F7</color>
-    <color name="chart_temp">#C96A43</color>
+    <color name="chart_temp">@android:color/system_accent1_600</color>
     <color name="chart_caution">#A5792A</color>
     <color name="chart_critical">#C24F3D</color>
 </resources>

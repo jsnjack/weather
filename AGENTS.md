@@ -112,25 +112,27 @@ make build          # multi-arch binaries in bin/
   `android/app/src/main/java/net/surfly/weather/widget/render/ChartRenderer.kt`
   so the home-screen widget looks like the PWA. Change both together.
 - **Dry widget state is native Material views, not a bitmap.** Rainy renders
-  the dual-provider chart into the `R.id.chart` bitmap (`ChartRenderer`). Dry
-  hides that and shows `R.id.dry_body` — a **native RemoteViews** Material 3
-  layout in `widget_rain.xml` (`RainWidgetWorker.applyBody` toggles visibility
-  and `populateDryBody` fills it). Native text is crisp; the bitmap is `fitXY`
-  and visibly **squishes** everything (the reason every bitmap-drawn dry hero
-  looked soft/cheap and got rejected). Layout: left = warm-tinted sun/condition
-  icon + a big centered light-weight NOW temp + small warm +2H; right = rounded
-  tonal `surfaceContainer` (`@drawable/dry_panel_background`,
-  `@color/widget_container`) with a **NOW / +2H column header** over a
-  feels/wind/UV table — the header is what makes "which number is which"
-  unambiguous (two unlabelled columns read as gibberish). The Buienalarm
-  headline (`R.id.dry_headline`) is a small full-width caption line at the top
-  of `dry_body` (up to 2 lines) so a long nowcast message isn't cropped; the
-  shared `R.id.peak` line stays blank in the dry state. Today's sunset
-  (`glanceAPIResponse.Sunset` → `R.id.dry_sunset_row`) fills the lower-left; the
-  row hides itself when the server doesn't send the field (older deploys), so
-  redeploy `weather serve` for it to appear. Wind/UV values get
-  caution/critical colouring (`windColor`/`uvColor`, thresholds mirror
-  `serve_glance.go`). Hard rules learned by rejection: **no bottom data strip**
+  the dual-provider chart into the `R.id.chart` bitmap (`ChartRenderer`) on a
+  neutral island tile. Dry hides that and shows `R.id.dry_body` — **native
+  RemoteViews** Material 3 island cells in `widget_rain.xml`
+  (`RainWidgetWorker.applyBody` toggles visibility, `populateDryBody` fills
+  them). Native text is crisp; the bitmap is `fitXY` and visibly **squishes**
+  everything (the reason every bitmap-drawn dry hero looked soft/cheap and got
+  rejected). Layout: left = accent island (`@drawable/island_accent`) with the
+  condition icon, a big light-weight NOW temp, small warm +2H and the sunset
+  row; right = neutral island (`@drawable/island_neutral`) with a
+  **NOW / +2H column header** over a feels/wind/UV table — the header is what
+  makes "which number is which" unambiguous (two unlabelled columns read as
+  gibberish). The nowcast message lives in `R.id.headline`, a full-width chip
+  below the islands **shared by both states** (rainy puts the Buienalarm
+  message or peak summary there) so it is never cropped into a corner; the
+  worker collapses the chip when there is no text. Islands use 16dp radii
+  (outer 28dp minus 12dp padding) with 8dp gutters. Today's sunset
+  (`glanceAPIResponse.Sunset` → `R.id.dry_sunset_row`) hides itself when the
+  server doesn't send the field (older deploys), so redeploy `weather serve`
+  for it to appear. Wind/UV values get caution/critical colouring
+  (`windColor`/`uvColor`, thresholds mirror `serve_glance.go`). Hard rules
+  learned by rejection: **no bottom data strip**
   (flat dry data reads as a fake progress bar) and **no provider names** in the
   dry state. `ChartRenderer.drawHero` remains only as a defensive fallback if
   `render()` is ever reached with a dry window. **Dry vs rainy is decided once,
@@ -139,6 +141,15 @@ make build          # multi-arch binaries in bin/
   Buienalarm horizon once split the two — `applyBody` dressed the widget in
   rainy chrome (headline duplicated into `R.id.peak`, native panel hidden)
   around the `drawHero` fallback bitmap.
+- **Widget colours are Material You dynamic tokens.** `values/colors.xml` maps
+  every neutral and the warm accent to `@android:color/system_*` roles
+  (wallpaper-derived, API 31+); `values-night/colors.xml` uses the same token
+  families a tonal step apart, so dark mode comes from the palette, not a
+  hand-mixed second theme. Only the provider lines (`#06b6d4`/`#a855f7`,
+  shared with `svgchart.go`) and the caution/critical states stay fixed —
+  they are semantic and must not drift with the wallpaper. System colors
+  carry no baked alpha: hairlines (e.g. the chart baseline) apply alpha in
+  `ChartRenderer` code instead of in the colour resource.
 - **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
   broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
   one-shots while the process is alive; keep the 15-minute WorkManager periodic

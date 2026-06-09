@@ -187,9 +187,12 @@ object ChartRenderer {
             canvas.drawLine(plotL, y, plotR, y, gridPaint)
         }
 
-        // Baseline hairline along the bottom of the plot.
+        // Baseline hairline along the bottom of the plot. chart_baseline is a
+        // dynamic system color with no baked alpha, so the hairline weight is
+        // applied here.
         val baselinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ContextCompat.getColor(context, R.color.chart_baseline)
+            alpha = 36
             strokeWidth = dp(1f, density)
         }
         canvas.drawLine(plotL, plotB, plotR, plotB, baselinePaint)

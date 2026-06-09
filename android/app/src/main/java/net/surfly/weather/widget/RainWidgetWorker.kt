@@ -172,7 +172,7 @@ class RainWidgetWorker(
                 ctx.getString(R.string.updated_at, formatClock(System.currentTimeMillis()))
             }
             views.setTextViewText(R.id.updated, "↻  $label")
-            views.setTextViewText(R.id.peak, peakText(ctx, body))
+            setHeadline(views, headlineText(ctx, body))
         } else {
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
             views.setImageViewBitmap(
@@ -181,7 +181,7 @@ class RainWidgetWorker(
             )
             views.setTextViewText(R.id.location, "—")
             views.setTextViewText(R.id.updated, errorLabel(ctx, result))
-            views.setTextViewText(R.id.peak, "")
+            setHeadline(views, "")
         }
 
         wireClicks(ctx, views, id, cfg.serverUrl, lat, lon, nameQ)
@@ -224,7 +224,7 @@ class RainWidgetWorker(
                 R.id.updated,
                 "↻  " + ctx.getString(R.string.no_location_cached_at, formatClock(cachedAtMs)),
             )
-            views.setTextViewText(R.id.peak, peakText(ctx, body))
+            setHeadline(views, headlineText(ctx, body))
         } else {
             // No cached data — show an honest empty state.
             views.setImageViewResource(R.id.condition, R.drawable.ic_cond_clear)
@@ -234,7 +234,7 @@ class RainWidgetWorker(
                 ChartRenderer.renderMessage(ctx, widthPx, heightPx, ctx.getString(R.string.state_no_location)),
             )
             views.setTextViewText(R.id.updated, "↻  " + ctx.getString(R.string.state_no_location))
-            views.setTextViewText(R.id.peak, "")
+            setHeadline(views, "")
         }
 
         wireClicks(ctx, views, id, cfg.serverUrl, null, null, null)
@@ -287,7 +287,7 @@ class RainWidgetWorker(
         return b.build()
     }
 
-    /** What the body renderer decided, so the caller can label the peak line. */
+    /** What the body renderer decided, so the caller can fill the headline chip. */
     private data class BodyResult(
         val dryWindow: Boolean,
         val hasNowcast: Boolean,
@@ -300,8 +300,9 @@ class RainWidgetWorker(
      * Fills the widget body from `response`, choosing between two surfaces:
      * the **rainy** state draws the dual-provider chart into the [R.id.chart]
      * bitmap; the **dry** state hides the chart and shows the native Material
-     * [R.id.dry_body] panel (crisp text, no fitXY bitmap squish). Returns the
-     * decision so the caller can set the timestamp/peak line.
+     * [R.id.dry_body] island cells (crisp text, no fitXY bitmap squish).
+     * Returns the decision so the caller can set the timestamp pill and the
+     * shared headline chip.
      */
     private fun applyBody(
         ctx: Context,
@@ -322,7 +323,7 @@ class RainWidgetWorker(
         if (dryWindow) {
             views.setViewVisibility(R.id.chart, View.GONE)
             views.setViewVisibility(R.id.dry_body, View.VISIBLE)
-            populateDryBody(ctx, views, response, alarmMessage)
+            populateDryBody(ctx, views, response)
         } else {
             views.setViewVisibility(R.id.dry_body, View.GONE)
             views.setViewVisibility(R.id.chart, View.VISIBLE)
@@ -334,16 +335,15 @@ class RainWidgetWorker(
         return BodyResult(dryWindow, hasNowcast, alarmMessage, alarmData, radarData)
     }
 
-    /** Populates the native dry-state Material panel: hero NOW temperature,
-     *  small warm +2H, and a NOW/+2H stats table (feels / wind / UV) with
-     *  caution colouring on wind and UV. */
+    /** Populates the native dry-state island cells: hero NOW temperature with
+     *  small warm +2H in the accent cell, and a NOW/+2H stats table
+     *  (feels / wind / UV) with caution colouring in the neutral cell. The
+     *  nowcast message itself lives in the shared headline chip. */
     private fun populateDryBody(
         ctx: Context,
         views: RemoteViews,
         response: GlanceResponse,
-        alarmMessage: String?,
     ) {
-        views.setTextViewText(R.id.dry_headline, alarmMessage ?: ctx.getString(R.string.dry_fallback))
         views.setImageViewResource(R.id.dry_condition, conditionDrawable(response.condition))
         // Tint the hero condition icon warm to match the +2H accent — a small
         // pop of Material colour against the neutral surface.
@@ -411,14 +411,24 @@ class RainWidgetWorker(
             dryHeadline = alarmMessage,
         )
 
-    /** Peak line: "no nowcast data" vs a dry window (blank — the dry panel
-     *  already carries the headline) vs a rainy peak summary. */
-    private fun peakText(ctx: Context, body: BodyResult): String = when {
+    /** Headline chip text, shared by both states: the Buienalarm nowcast
+     *  message when present, else the dry fallback or a rainy peak summary;
+     *  "no nowcast data" when neither provider returned points. */
+    private fun headlineText(ctx: Context, body: BodyResult): String = when {
         !body.hasNowcast -> ctx.getString(R.string.state_no_data)
-        // Dry: the headline is its own full-width line inside the panel
-        // (R.id.dry_headline), so the peak line stays blank here.
-        body.dryWindow -> ""
+        body.dryWindow -> body.alarmMessage ?: ctx.getString(R.string.dry_fallback)
         else -> body.alarmMessage ?: peakLabel(body.alarmData, body.radarData)
+    }
+
+    /** Fills the headline chip, collapsing it entirely when there is no text
+     *  so the islands above reclaim the row. */
+    private fun setHeadline(views: RemoteViews, text: String) {
+        if (text.isBlank()) {
+            views.setViewVisibility(R.id.headline, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.headline, View.VISIBLE)
+            views.setTextViewText(R.id.headline, text)
+        }
     }
 
     // Caution thresholds — mirror ChartRenderer / serve_glance.go.
