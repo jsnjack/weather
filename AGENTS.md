@@ -185,9 +185,15 @@ make build          # multi-arch binaries in bin/
   `Elevation == 0` because the model clamps surface water (sea, IJsselmeer)
   to NAP zero while polders return negative values. Don't broaden this to
   `<= 0` — polders will be flagged as sea.
-- **Times in local zone.** Open-Meteo is requested with `timezone=auto` and
-  parsed via `ParseInLocation(..., time.Local)`. All hour-of-day comparisons
-  assume the user and the queried point share a timezone (true for NL use).
+- **Times in the location's zone, never the server's.** Open-Meteo is
+  requested with `timezone=auto` and its wall-clock strings are parsed in the
+  zone the response names (`openMeteoZone` in `scout_fetch.go`; `time/tzdata`
+  is embedded via `main.go` so IANA lookups work on tzdata-less hosts), so
+  every parsed time is a correct instant on any server. A UTC production
+  server once stamped Amsterdam's 22:00 sunset as `22:00Z` — the widget
+  (which renders instants in the phone's zone) showed midnight. When
+  formatting for display, keep the zone the time already carries (the
+  location's wall clock); `.In(time.Local)` reintroduces the server's zone.
 - **Streaming HTML.** `serve` flushes a `_head` template before doing any
   upstream work, then the `_body` after, so first paint is independent of
   upstream latency.

@@ -3,7 +3,11 @@ Copyright © 2025 YAUHEN SHULITSKI
 */
 package main
 
-import "weather/cmd"
+import (
+	_ "time/tzdata" // IANA zones for Open-Meteo timezone=auto parsing on tzdata-less hosts
+
+	"weather/cmd"
+)
 
 func main() {
 	cmd.Execute()

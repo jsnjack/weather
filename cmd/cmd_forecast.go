@@ -65,9 +65,9 @@ func renderForecastTempChart(daily []DailyAggregate) {
 	hi := make([]float64, len(daily))
 	lo := make([]float64, len(daily))
 	for i, d := range daily {
-		// Anchor each day's point at local noon so the line reads as one
-		// sample per day, matching the web chart.
-		noon := time.Date(d.Date.Year(), d.Date.Month(), d.Date.Day(), 12, 0, 0, 0, time.Local)
+		// Anchor each day's point at the location's noon so the line reads
+		// as one sample per day, matching the web chart.
+		noon := time.Date(d.Date.Year(), d.Date.Month(), d.Date.Day(), 12, 0, 0, 0, d.Date.Location())
 		x[i] = float64(noon.Unix())
 		hi[i] = d.TempMax
 		lo[i] = d.TempMin

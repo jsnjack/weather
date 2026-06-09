@@ -42,7 +42,9 @@ type DailyAggregate struct {
 }
 
 type openMeteoDailyResponse struct {
-	Daily struct {
+	Timezone  string `json:"timezone"` // IANA zone of the wall-clock strings (timezone=auto)
+	UTCOffset int    `json:"utc_offset_seconds"`
+	Daily     struct {
 		Time            []string  `json:"time"`
 		WeatherCode     []int     `json:"weather_code"`
 		TempMax         []float64 `json:"temperature_2m_max"`
@@ -136,9 +138,15 @@ func getOpenMeteoDailyRangeUncached(lat, lon float64, days int) ([]DailyAggregat
 		return nil, fmt.Errorf("open-meteo returned inconsistent daily array lengths")
 	}
 
+	// Parse wall-clock strings in the zone Open-Meteo reports for the
+	// location, so the times are correct instants on any server (see
+	// openMeteoZone in scout_fetch.go).
+	zone := openMeteoZone(parsed.Timezone, parsed.UTCOffset)
+	rememberZone(lat, lon, zone)
+
 	out := make([]DailyAggregate, 0, n)
 	for i, ds := range d.Time {
-		day, err := time.ParseInLocation("2006-01-02", ds, time.Local)
+		day, err := time.ParseInLocation("2006-01-02", ds, zone)
 		if err != nil {
 			slog.Debug("open-meteo daily: skipping unparseable date", "date", ds, "err", err)
 			continue
@@ -148,8 +156,8 @@ func getOpenMeteoDailyRangeUncached(lat, lon float64, days int) ([]DailyAggregat
 			prob = *d.PrecipProbMax[i]
 		}
 		// Sun times are optional — parse best-effort.
-		sr, _ := time.ParseInLocation("2006-01-02T15:04", d.Sunrise[i], time.Local)
-		ss, _ := time.ParseInLocation("2006-01-02T15:04", d.Sunset[i], time.Local)
+		sr, _ := time.ParseInLocation("2006-01-02T15:04", d.Sunrise[i], zone)
+		ss, _ := time.ParseInLocation("2006-01-02T15:04", d.Sunset[i], zone)
 		out = append(out, DailyAggregate{
 			Date:            day,
 			WeatherCode:     d.WeatherCode[i],
@@ -245,7 +253,10 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hours := parseHoursParam(r)
-	now := time.Now()
+	// Label the window in the location's wall clock (best-known zone; the
+	// head streams before any fetch, so a first visit falls back to the
+	// server zone).
+	now := time.Now().In(locationZone(loc.Latitude, loc.Longitude))
 	start := now.Truncate(time.Hour)
 	end := start.Add(time.Duration(hours) * time.Hour)
 

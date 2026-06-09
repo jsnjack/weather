@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -100,3 +101,28 @@ var (
 	openMeteoRangeCache = newTTLCache[*OpenMeteoData](10*time.Minute, 4096)
 	openMeteoDailyCache = newTTLCache[[]DailyAggregate](30*time.Minute, 512)
 )
+
+// locationZones remembers the timezone Open-Meteo reported per rounded
+// coordinate, so pre-fetch UI — streamed page heads and HH:MM clock inputs —
+// can use the location's wall clock instead of the server's. The streaming
+// design flushes headers before any upstream call, so the first visit for an
+// area can only guess (server zone); every later view is exact.
+var locationZones sync.Map // "lat|lon" (1 decimal ≈ 11 km) -> *time.Location
+
+func zoneKey(lat, lon float64) string { return fmt.Sprintf("%.1f|%.1f", lat, lon) }
+
+func rememberZone(lat, lon float64, zone *time.Location) {
+	if zone != time.Local {
+		locationZones.Store(zoneKey(lat, lon), zone)
+	}
+}
+
+// locationZone returns the best-known timezone for the coordinates: the one
+// Open-Meteo reported for a nearby point earlier in this process, else the
+// server's own zone.
+func locationZone(lat, lon float64) *time.Location {
+	if z, ok := locationZones.Load(zoneKey(lat, lon)); ok {
+		return z.(*time.Location)
+	}
+	return time.Local
+}

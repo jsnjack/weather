@@ -26,6 +26,8 @@ type HourlyForecast struct {
 
 type openMeteoRangeResponse struct {
 	Elevation float64 `json:"elevation"` // metres; 0 for ocean cells in the model grid
+	Timezone  string  `json:"timezone"`  // IANA zone of the wall-clock strings (timezone=auto)
+	UTCOffset int     `json:"utc_offset_seconds"`
 	Hourly    struct {
 		Time             []string  `json:"time"`
 		Temperature2m    []float64 `json:"temperature_2m"`
@@ -148,12 +150,16 @@ func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (
 		return nil, fmt.Errorf("open-meteo returned inconsistent hourly array lengths")
 	}
 
+	// Open-Meteo returns wall-clock strings in the grid cell's own timezone
+	// (timezone=auto) and names that zone in the response. Parse with it so
+	// every time is a correct instant regardless of the server's zone — a
+	// UTC server once shifted Amsterdam's sunset by two hours everywhere.
+	zone := openMeteoZone(parsed.Timezone, parsed.UTCOffset)
+	rememberZone(lat, lon, zone)
+
 	hourly := make([]HourlyForecast, 0, n)
 	for i, t := range parsed.Hourly.Time {
-		// Open-Meteo returns times in the grid cell's local timezone
-		// (timezone=auto). Parse them as local-time, not UTC, so instant
-		// comparisons work for short-range planning within a single TZ.
-		parsedTime, err := time.ParseInLocation("2006-01-02T15:04", t, time.Local)
+		parsedTime, err := time.ParseInLocation("2006-01-02T15:04", t, zone)
 		if err != nil {
 			slog.Debug("open-meteo: skipping unparseable time", "time", t, "err", err)
 			continue
@@ -178,9 +184,9 @@ func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (
 	daily := make([]DailyForecast, 0, len(parsed.Daily.Time))
 	if len(parsed.Daily.Time) == len(parsed.Daily.Sunrise) && len(parsed.Daily.Time) == len(parsed.Daily.Sunset) {
 		for i, ds := range parsed.Daily.Time {
-			d, dErr := time.ParseInLocation("2006-01-02", ds, time.Local)
-			sr, srErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunrise[i], time.Local)
-			ss, ssErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunset[i], time.Local)
+			d, dErr := time.ParseInLocation("2006-01-02", ds, zone)
+			sr, srErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunrise[i], zone)
+			ss, ssErr := time.ParseInLocation("2006-01-02T15:04", parsed.Daily.Sunset[i], zone)
 			if dErr != nil || srErr != nil || ssErr != nil {
 				continue
 			}
@@ -188,4 +194,18 @@ func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (
 		}
 	}
 	return &OpenMeteoData{Hourly: hourly, Daily: daily, Elevation: parsed.Elevation}, nil
+}
+
+// openMeteoZone resolves the timezone Open-Meteo used for a response's
+// wall-clock strings. Falls back to a fixed zone built from the reported
+// offset when the IANA name can't be loaded, and to the process zone when
+// the response carries no timezone at all.
+func openMeteoZone(name string, offsetSec int) *time.Location {
+	if name == "" {
+		return time.Local
+	}
+	if loc, err := time.LoadLocation(name); err == nil {
+		return loc
+	}
+	return time.FixedZone(name, offsetSec)
 }

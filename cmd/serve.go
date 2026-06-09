@@ -336,7 +336,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		data.SunEvents = append(data.SunEvents, sunEventView{
 			Kind:  ev.Kind,
 			Glyph: glyph,
-			Time:  t.In(time.Local).Format("15:04"),
+			// Format in the offset zone the timestamp carries — the
+			// location's wall clock, not the server's.
+			Time: t.Format("15:04"),
 		})
 	}
 
@@ -497,7 +499,10 @@ func locQuery(loc Location) template.URL {
 
 // ---------- /today ----------
 
-func parseTodayParams(r *http.Request) (hours int, start time.Time, radius float64, grid int, startInput string) {
+// parseTodayParams interprets the ?start=HH:MM ride-window input as the
+// location's wall clock (zone), not the server's — on a UTC server an
+// Amsterdam "09:00" otherwise becomes an 11:00 ride window.
+func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start time.Time, radius float64, grid int, startInput string) {
 	q := r.URL.Query()
 	hours = 6
 	if v, err := strconv.Atoi(q.Get("hours")); err == nil && v >= 1 && v <= 24 {
@@ -512,7 +517,7 @@ func parseTodayParams(r *http.Request) (hours int, start time.Time, radius float
 		grid = v
 	}
 	startInput = q.Get("start")
-	now := time.Now()
+	now := time.Now().In(zone)
 	if startInput == "" {
 		t := now.Add(30 * time.Minute).Truncate(time.Hour).Add(time.Hour)
 		start = t
@@ -537,7 +542,7 @@ func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	hours, start, radius, grid, _ := parseTodayParams(r)
+	hours, start, radius, grid, _ := parseTodayParams(r, locationZone(loc.Latitude, loc.Longitude))
 	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius, NoProgress)
 	rec := RecommendToday(result)
 	w.Header().Set("Content-Type", "application/json")
@@ -586,7 +591,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	hours, start, radius, grid, startInput := parseTodayParams(r)
+	hours, start, radius, grid, startInput := parseTodayParams(r, locationZone(loc.Latitude, loc.Longitude))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

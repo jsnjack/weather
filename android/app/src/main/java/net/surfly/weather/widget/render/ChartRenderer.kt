@@ -134,13 +134,25 @@ object ChartRenderer {
     ) {
         val density = context.resources.displayMetrics.density
 
+        // X range first — top padding depends on whether a sun marker is
+        // visible. Earliest data point → alarm's last forecast point; radar
+        // is already clipped to the alarm horizon in render().
+        val allPoints = alarm + radar
+        val tMin = allPoints.minOf { it.first }
+        val tMax = alarm.lastOrNull()?.first ?: allPoints.maxOf { it.first }
+        val hasSunMarker = data.sunEvents.any {
+            !it.time.isBefore(tMin) && !it.time.isAfter(tMax)
+        }
+
         // padLeft needs to fit the leftmost HH:mm time label, which is
         // anchored LEFT at xNow == plotL. 12dp left only the left half of
         // the leading digit visible after fitXY stretching; 22dp puts the
         // whole timestamp clear of the chart's left edge.
         val padLeft = dp(22f, density)
         val padRight = dp(22f, density)
-        val padTop = dp(8f, density)
+        // The sun glyph row ("↓ 21:59") draws above the plot — reserve
+        // headroom for it or it crops at the bitmap's top edge.
+        val padTop = if (hasSunMarker) dp(24f, density) else dp(8f, density)
         // Bottom area carries only the HH:mm time row — temps and micro
         // stats are native TextViews below the chart island (bitmap text
         // goes soft under fitXY; the same reason the dry state is native).
@@ -152,12 +164,6 @@ object ChartRenderer {
         val plotB = h - padBottom
         val plotW = (plotR - plotL).coerceAtLeast(1f)
         val plotH = (plotB - plotT).coerceAtLeast(1f)
-
-        // X range: earliest data point → alarm's last forecast point.
-        // Radar is already clipped to alarm horizon in render().
-        val allPoints = alarm + radar
-        val tMin = allPoints.minOf { it.first }
-        val tMax = alarm.lastOrNull()?.first ?: allPoints.maxOf { it.first }
 
         val nowInstant = Instant.now()
         val xMinMs = tMin.toEpochMilli().toDouble()
