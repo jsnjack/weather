@@ -1,98 +1,155 @@
+/* Warm paper — the web's fixed identity. The Android widget shares the
+   structure (islands on a card, labelled now/+2h stats, a quiet caption for
+   commentary) but takes its colours from Material You; these are the
+   hand-tuned values the widget used before going dynamic. Provider colours
+   (#06b6d4 Buienalarm, #a855f7 Buienradar) and the caution/critical states
+   are semantic and never restyled. */
 :root {
   color-scheme: light dark;
-  --bg: #fafafa;
-  --fg: #111;
-  --muted: #555;
-  --accent: #06b6d4;
+  --surface: #F7F5EF;
+  --ink: #202421;
+  --muted: #737A74;
+  --island: #ECE6D8;
+  --island-accent: #F0E2D2;
+  --accent: #C96A43;   /* warm accent: temps, sun, actions */
+  --caution: #A5792A;
+  --critical: #C24F3D;
+  --water: #0E7490;    /* readable water text; chart lines stay #06b6d4 */
+  --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0a0a0a;
-    --fg: #f1f1f1;
-    --muted: #9aa0a6;
+    --surface: #111311;
+    --ink: #F3F0E8;
+    --muted: #AAB2AA;
+    --island: #20251E;
+    --island-accent: #2A241D;
+    --accent: #D88962;
+    --caution: #D7B75C;
+    --critical: #E37862;
+    --water: #4FC3DD;
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
-body { font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 720px; margin: 0 auto; padding: 1rem 1rem 2rem; }
-.nav { display: flex; gap: .35rem; margin-bottom: .25rem; font-size: .7rem; line-height: 1; color: var(--muted); opacity: .8; }
-.nav a { color: var(--muted); text-decoration: none; }
-.nav a:hover { color: var(--fg); }
-.nav a[aria-current="page"] { color: var(--fg); font-weight: 600; }
-.nav a + a::before { content: "·"; margin-right: .35rem; color: var(--muted); opacity: .6; }
-header h1 { margin: 0 0 .25rem; font-size: 1.5rem; }
-.sub { margin: 0; color: var(--muted); font-size: .9rem; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
-.desc { margin: .5rem 0 0; color: var(--muted); font-size: .9rem; }
-.legend { display: inline-flex; align-items: center; gap: .35rem; }
-.dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }
-.chart { margin: 1rem 0; }
-table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
-th, td { padding: .25rem .5rem; text-align: right; border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+html, body { margin: 0; padding: 0; background: var(--surface); color: var(--ink); }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: .9rem 1rem 2rem; }
+h2 { font-size: 1rem; margin: .1rem 0 .35rem; }
+
+/* nav — segmented pill tabs */
+.nav { display: flex; gap: .25rem; margin: 0 0 .9rem; font-size: .8rem; line-height: 1; flex-wrap: wrap; }
+.nav a { color: var(--muted); text-decoration: none; padding: .4rem .7rem; border-radius: 999px; }
+.nav a:hover { color: var(--ink); }
+.nav a[aria-current="page"] { color: var(--ink); font-weight: 600; background: var(--island); }
+
+/* header — one-line location + refresh pill; location is context, not content */
+header { display: flex; align-items: baseline; gap: .75rem; }
+header > div { min-width: 0; flex: 1; }
+header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { flex: none; background: var(--island); color: var(--muted); text-decoration: none; font-size: .8rem; padding: .3rem .75rem; border-radius: 999px; }
+.pill:hover { color: var(--ink); }
+.sub { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+
+/* islands — the one container language for every content block */
+.island { background: var(--island); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
+.island-accent { background: var(--island-accent); border-radius: 14px; }
+
+/* quiet caption — commentary, not content */
+.caption { text-align: center; color: var(--muted); font-size: .85rem; margin: .65rem 0; }
+
+/* charts sit on island tiles; keys are quiet captions, not boxes */
+.chart svg { display: block; width: 100%; height: auto; }
+.chart-key { margin: 0 0 .4rem; color: var(--muted); font-size: .78rem; display: flex; gap: .9rem; align-items: center; flex-wrap: wrap; }
+.key-item { display: inline-flex; align-items: center; gap: .35rem; }
+.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }
+
+/* controls — collapsed by default; the data leads, the knobs follow */
+.opts { margin: .65rem 0; }
+.opts summary { cursor: pointer; color: var(--muted); font-size: .8rem; list-style: none; display: inline-block; padding: .3rem .75rem; border-radius: 999px; background: var(--island); user-select: none; }
+.opts summary::-webkit-details-marker { display: none; }
+.opts[open] summary { color: var(--ink); }
+form.controls { display: flex; gap: .6rem; flex-wrap: wrap; margin: .5rem 0 0; font-size: .85rem; background: var(--island); border-radius: 14px; padding: .75rem .9rem; }
+form.controls label { display: flex; flex-direction: column; gap: .2rem; color: var(--muted); }
+form.controls label.check { flex-direction: row; align-items: center; gap: .35rem; align-self: flex-end; padding-bottom: .4rem; }
+form.controls input, form.controls select { padding: .3rem .45rem; background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; min-width: 4rem; font: inherit; }
+form.controls .loc-name input { min-width: 9rem; }
+form.controls button { padding: .35rem .9rem; align-self: flex-end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; cursor: pointer; font: inherit; }
+
+/* glance cells (rain 2h) — the widget's dry islands, verbatim */
+.glance-cells { display: flex; gap: .6rem; margin: .75rem 0; }
+.glance-cells > div { margin: 0; }
+.cell-now { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; padding: 1rem .75rem; }
+.microlabel { color: var(--muted); font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.cell-temp { font-size: 2.9rem; font-weight: 300; line-height: 1.05; }
+.cell-cond { color: var(--muted); font-size: .8rem; }
+.cell-plus { color: var(--accent); font-weight: 600; font-size: 1.05rem; display: inline-flex; align-items: baseline; gap: .4rem; margin-top: .2rem; }
+.cell-sun { color: var(--muted); font-size: .8rem; margin-top: .35rem; display: flex; gap: .75rem; }
+.cell-stats { flex: 1.25; display: flex; align-items: center; padding: .8rem 1rem; }
+.hero .cell-temp { font-size: 3.4rem; }
+table.stats { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+table.stats th { text-align: left; color: var(--muted); font-weight: 600; padding: .28rem 0; border: 0; }
+table.stats td { text-align: right; padding: .28rem 0 .28rem .75rem; border: 0; }
+table.stats thead th { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; text-align: right; padding-left: .75rem; }
+table.stats td.end { color: var(--muted); }
+
+/* tables */
+table { width: 100%; border-collapse: collapse; margin-top: .25rem; font-size: .88rem; font-variant-numeric: tabular-nums; }
+th, td { padding: .3rem .5rem; text-align: right; border-bottom: 1px solid var(--hairline); }
 th:first-child, td:first-child { text-align: left; }
-footer { margin-top: 2rem; color: var(--muted); font-size: .8rem; }
+thead th { color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td.muted, span.muted { color: var(--muted); }
+.evolution { overflow-x: auto; }
+.evolution table { min-width: 100%; }
+.evolution tr.newday th, .evolution tr.newday td { border-top: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+
+/* semantic states — shared with the widget and the CLI */
+.g-mi-caution, td.g-mi-caution, .evolution td.g-mi-caution { color: var(--caution); }
+.g-mi-critical, td.g-mi-critical, .evolution td.g-mi-critical { color: var(--critical); font-weight: 600; }
+.water, .evolution td.water, .evolution th.water { color: var(--water); }
+.cold { color: var(--caution); }
 
 /* today / scout */
-.recommendation { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: .75rem 1rem; border-radius: .5rem; margin: 1rem 0; }
+.recommendation { background: var(--island-accent); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
 .recommendation strong { color: var(--accent); }
-.evolution { overflow-x: auto; margin: 1rem 0; }
-.evolution table { min-width: 100%; }
-.evolution td.water, .evolution th.water { color: var(--accent); }
-.heatmaps { display: flex; flex-direction: column; gap: 1rem; }
-.heatmap-day h3 { margin: 0 0 .25rem; font-size: 1rem; }
-.trip { border: 1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius: .5rem; padding: .75rem 1rem; margin: 1rem 0; }
-.trip h3 { margin: 0 0 .25rem; font-size: 1rem; }
-.trip .path { color: var(--muted); font-size: .9rem; margin-bottom: .5rem; }
-.trip table { width: 100%; }
+.gridwrap svg { display: block; width: 100%; height: auto; }
+.heatmaps { display: flex; flex-direction: column; gap: .75rem; }
+.heatmap-day { background: var(--island); border-radius: 14px; padding: .8rem .9rem; }
+.heatmap-day h3 { margin: 0 0 .25rem; font-size: .95rem; }
+.heatmap-day svg { display: block; width: 100%; height: auto; }
+.trip { background: var(--island); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
+.trip h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.trip .path { color: var(--muted); font-size: .85rem; margin: 0 0 .4rem; }
 .trip th, .trip td { white-space: nowrap; }
-.empty { padding: 1rem; color: var(--muted); }
-form.controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; font-size: .9rem; }
-form.controls label { display: flex; flex-direction: column; gap: .15rem; color: var(--muted); }
-form.controls input, form.controls select { padding: .25rem .35rem; background: var(--bg); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: .25rem; min-width: 4rem; }
-form.controls .loc-name input { min-width: 9rem; }
-form.controls button { padding: .25rem .75rem; align-self: flex-end; background: var(--accent); color: white; border: 0; border-radius: .25rem; cursor: pointer; }
+.empty { padding: .8rem .9rem; color: var(--muted); background: var(--island); border-radius: 14px; margin: .75rem 0; }
 
-/* legend */
-.legend { margin-top: 1.5rem; padding: .75rem 1rem; border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); border-radius: .5rem; }
-.legend h3 { margin: 0 0 .5rem; font-size: 1rem; }
-.legend h4 { margin: .75rem 0 .35rem; font-size: .85rem; color: var(--muted); font-weight: 600; }
-.legend-group { margin-bottom: .5rem; }
-.legend-item { display: inline-flex; align-items: center; gap: .4rem; margin: .15rem .9rem .15rem 0; font-size: .85rem; }
-.legend .swatch {
+/* legend cards — content, not chrome (never auto-strip these) */
+.legend-card { background: var(--island); border-radius: 14px; padding: .8rem .9rem; margin: .9rem 0; }
+.legend-card h3 { margin: 0 0 .4rem; font-size: .9rem; }
+.legend-card h4 { margin: .6rem 0 .3rem; font-size: .78rem; color: var(--muted); font-weight: 600; }
+.legend-group { margin-bottom: .4rem; }
+.legend-item { display: inline-flex; align-items: center; gap: .4rem; margin: .15rem .9rem .15rem 0; font-size: .82rem; }
+.legend-card .sub { font-size: .82rem; }
+.swatch {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 1.7rem; height: 1.1rem; padding: 0 .25rem;
-  border-radius: .2rem; font-size: .8rem; color: #111;
+  border-radius: .25rem; font-size: .8rem; color: #111;
   font-variant-numeric: tabular-nums;
 }
 
-/* glance — two compact lines (now / +2h) under the chart, matching the
-   Android widget's corner clusters. */
-.glance { margin: .5rem 0; font-variant-numeric: tabular-nums; }
-.g-row { margin: .15rem 0; display: flex; flex-wrap: wrap; gap: .75rem; align-items: baseline; font-size: .95rem; }
-.g-label { color: var(--muted); font-size: .8rem; min-width: 2.2rem; text-transform: uppercase; letter-spacing: .04em; }
-.g-temp { font-weight: 600; font-size: 1.05rem; }
-.g-mi { color: var(--muted); }
-.g-mi-caution { color: #d97706; }
-.g-mi-critical { color: #dc2626; font-weight: 600; }
-.g-sun { margin: .35rem 0 0; color: var(--muted); font-size: .85rem; display: flex; gap: .9rem; }
-
-/* hourly / 14-day forecast tables */
-td.muted, span.muted { color: var(--muted); }
-.evolution tr.newday th, .evolution tr.newday td { border-top: 2px solid color-mix(in srgb, var(--fg) 25%, transparent); }
-.evolution td.g-mi-caution { color: #d97706; }
-.evolution td.g-mi-critical { color: #dc2626; font-weight: 600; }
-/* temperature range bar in the 14-day table: a faint track with a warm
-   segment spanning that day's low→high within the fortnight's range. */
+/* 14-day temperature range bar: cold-blue → warm, matching the hi/lo chart */
 .trange-col { min-width: 5rem; }
 .trange { position: relative; display: block; width: 4.5rem; height: .5rem; border-radius: .25rem;
-  background: color-mix(in srgb, var(--fg) 10%, transparent); }
+  background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .trange-bar { position: absolute; top: 0; height: 100%; min-width: 3px; border-radius: .25rem;
   background: linear-gradient(90deg, #60a5fa, #f97316); }
+
+footer { margin-top: 1.25rem; color: var(--muted); font-size: .75rem; text-align: center; }
 
 /* progress / loading */
 .loading { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
 .loading progress { flex: 1; height: .5rem; max-width: 360px; }
-.loading progress::-webkit-progress-bar { background: color-mix(in srgb, var(--fg) 10%, transparent); border-radius: .25rem; }
+.loading progress::-webkit-progress-bar { background: color-mix(in srgb, var(--ink) 10%, transparent); border-radius: .25rem; }
 .loading progress::-webkit-progress-value { background: var(--accent); border-radius: .25rem; transition: width .15s linear; }
 .loading progress::-moz-progress-bar { background: var(--accent); border-radius: .25rem; }
 .loading .sub { font-variant-numeric: tabular-nums; }

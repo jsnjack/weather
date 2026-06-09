@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F5EF">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111311">
 <title>Today — {{.Location.Description}}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
@@ -19,10 +20,14 @@
     <a href="/scout{{if .Q}}?{{.Q}}{{end}}">Scout</a>
   </nav>
   <header>
-    <h1>{{.Location.Description}}</h1>
-    <p class="sub">{{.StartLabel}}–{{.EndLabel}} · {{printf "%.0f" .RadiusKm}} km radius</p>
+    <div>
+      <h1>{{.Location.Description}}</h1>
+      <p class="sub">{{.StartLabel}}–{{.EndLabel}} · {{printf "%.0f" .RadiusKm}} km radius</p>
+    </div>
+    <a class="pill" href="">↻ refresh</a>
   </header>
 
+  <details class="opts"><summary>Location &amp; options</summary>
   <form class="controls" method="get" onsubmit="if(this.elements['name'].value.trim()){this.elements['lat'].value='';this.elements['lon'].value=''}">
     <label class="loc-name">Name <input type="text" name="name" value="{{.NameInput}}" placeholder="e.g. Amsterdam"></label>
     <label>Lat <input type="number" step="0.0001" name="lat" value="{{printf "%.4f" .Location.Latitude}}"></label>
@@ -33,6 +38,7 @@
     <label>Grid <input type="number" name="grid" min="5" max="41" step="2" value="{{.Grid}}"></label>
     <button type="submit">Refresh</button>
   </form>
+  </details>
 
   <section class="loading" id="loading">
     <progress id="prog" max="1" value="0"></progress>

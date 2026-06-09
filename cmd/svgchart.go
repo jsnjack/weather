@@ -370,9 +370,11 @@ func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
 			cell := cells[r][c]
 			x := padL + c*opts.CellSize
 			y := padT + r*opts.CellSize
+			// CellSize-1 leaves a hairline gap so the rounded corners read
+			// as tiles instead of one solid bitmap.
 			fmt.Fprintf(&b,
-				`<rect x="%d" y="%d" width="%d" height="%d" fill="%s"`,
-				x, y, opts.CellSize, opts.CellSize, template.HTMLEscapeString(cell.Color))
+				`<rect x="%d" y="%d" width="%d" height="%d" rx="3" fill="%s"`,
+				x, y, opts.CellSize-1, opts.CellSize-1, template.HTMLEscapeString(cell.Color))
 			if cell.Border != "" {
 				fmt.Fprintf(&b, ` stroke="%s" stroke-width="2"`, template.HTMLEscapeString(cell.Border))
 			}

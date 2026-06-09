@@ -1,22 +1,22 @@
   {{if .Note}}<p class="empty">{{.Note}}</p>{{end}}
 
   {{if .TempChartSVG}}
-  <section class="chart">
-    <p class="sub"><span class="legend"><span class="dot" style="background:#f97316"></span>Temp</span>
-      <span class="legend"><span class="dot" style="background:#60a5fa"></span>Feels like</span></p>
+  <section class="chart island">
+    <p class="chart-key"><span class="key-item"><span class="dot" style="background:#f97316"></span>Temp</span>
+      <span class="key-item"><span class="dot" style="background:#60a5fa"></span>Feels like</span></p>
     {{.TempChartSVG}}
   </section>
   {{end}}
 
   {{if .PrecipChartSVG}}
-  <section class="chart">
-    <p class="sub"><span class="legend"><span class="dot" style="background:#06b6d4"></span>Precipitation (mm/h)</span></p>
+  <section class="chart island">
+    <p class="chart-key"><span class="key-item"><span class="dot" style="background:#06b6d4"></span>Precipitation (mm/h)</span></p>
     {{.PrecipChartSVG}}
   </section>
   {{end}}
 
   {{if .Rows}}
-  <section class="evolution">
+  <section class="evolution island">
     <h2>By hour</h2>
     <table>
       <thead>
@@ -41,7 +41,7 @@
     </table>
   </section>
 
-  <section class="legend">
+  <section class="legend-card">
     <h3>Legend</h3>
     <div class="legend-group">
       <span class="legend-item">Temp / Feels — °C</span>

@@ -149,6 +149,16 @@ make build          # multi-arch binaries in bin/
   Buienalarm horizon once split the two — `applyBody` dressed the widget in
   rainy chrome (headline duplicated into `R.id.peak`, native panel hidden)
   around the `drawHero` fallback bitmap.
+- **One design language, two colour sources.** Web and widget share the same
+  structure — islands on a card (14–16px radii), an accent island for the NOW
+  hero, labelled now/+2h stats, a quiet centred caption for the nowcast
+  message, pill-shaped meta controls. The **web is warm paper** (fixed
+  palette in `web/styles.css` tokens; the values the widget used before going
+  dynamic) while the **widget is Material You** (wallpaper tokens). Provider
+  line colours and caution/critical states are identical everywhere. The
+  today/scout heatmap semaphore palette lives in `serve.go` **and** is
+  duplicated in the legend swatches of `today_body`/`scout_body` — change
+  both together. Legends are content, never strip them.
 - **Widget colours are Material You dynamic tokens.** `values/colors.xml` maps
   every neutral and the warm accent to `@android:color/system_*` roles
   (wallpaper-derived, API 31+); `values-night/colors.xml` uses the same token

@@ -23,7 +23,7 @@
               <th>Day {{add $d 1}}</th>
               <td>{{$row.Dir}}</td>
               <td>~{{$row.Label}}</td>
-              <td{{if $row.Cold}} style="color:#eab308"{{end}}>{{$row.Temp}}{{if $row.Cold}}*{{end}}</td>
+              <td{{if $row.Cold}} class="cold"{{end}}>{{$row.Temp}}{{if $row.Cold}}*{{end}}</td>
               <td style="color:{{$row.WindColor}}">{{$row.Wind}}</td>
             </tr>
             {{end}}
@@ -37,41 +37,41 @@
   {{end}}
 
   {{if .IsHeatmap}}
-  <section class="legend">
+  <section class="legend-card">
     <h3>Legend</h3>
     <div class="legend-group">
       <h4>Temperature (cell background)</h4>
-      <span class="legend-item"><span class="swatch" style="background:#86efac"></span>ideal, ≥{{printf "%.0f" .Cfg.MinTempPlus5}}°C</span>
-      <span class="legend-item"><span class="swatch" style="background:#4ade80"></span>warm, {{printf "%.0f" .Cfg.MinTemp}}–{{printf "%.0f" .Cfg.MinTempPlus5}}°C</span>
-      <span class="legend-item"><span class="swatch" style="background:#facc15"></span>cool, {{printf "%.0f" .Cfg.MinTempMinus5}}–{{printf "%.0f" .Cfg.MinTemp}}°C</span>
-      <span class="legend-item"><span class="swatch" style="background:#52525b;color:#fff"></span>cold, below {{printf "%.0f" .Cfg.MinTempMinus5}}°C</span>
+      <span class="legend-item"><span class="swatch" style="background:#9fd6a4"></span>ideal, ≥{{printf "%.0f" .Cfg.MinTempPlus5}}°C</span>
+      <span class="legend-item"><span class="swatch" style="background:#6cbf78"></span>warm, {{printf "%.0f" .Cfg.MinTemp}}–{{printf "%.0f" .Cfg.MinTempPlus5}}°C</span>
+      <span class="legend-item"><span class="swatch" style="background:#e0b94f"></span>cool, {{printf "%.0f" .Cfg.MinTempMinus5}}–{{printf "%.0f" .Cfg.MinTemp}}°C</span>
+      <span class="legend-item"><span class="swatch" style="background:#5c5b52;color:#fff"></span>cold, below {{printf "%.0f" .Cfg.MinTempMinus5}}°C</span>
     </div>
     <div class="legend-group">
       <h4>Wind (cell symbol)</h4>
-      <span class="legend-item"><span class="swatch" style="background:#4ade80"> </span>calm ≤10 km/h</span>
-      <span class="legend-item"><span class="swatch" style="background:#4ade80">·</span>breezy 10–25</span>
-      <span class="legend-item"><span class="swatch" style="background:#4ade80">~</span>windy 25–40</span>
-      <span class="legend-item"><span class="swatch" style="background:#4ade80">≈</span>strong 40–60</span>
+      <span class="legend-item"><span class="swatch" style="background:#6cbf78"> </span>calm ≤10 km/h</span>
+      <span class="legend-item"><span class="swatch" style="background:#6cbf78">·</span>breezy 10–25</span>
+      <span class="legend-item"><span class="swatch" style="background:#6cbf78">~</span>windy 25–40</span>
+      <span class="legend-item"><span class="swatch" style="background:#6cbf78">≈</span>strong 40–60</span>
     </div>
     <div class="legend-group">
       <h4>Overrides</h4>
       <span class="legend-item"><span class="swatch" style="background:#3b82f6;color:#0a0a0a">·</span>daytime rain — skip this day</span>
-      <span class="legend-item"><span class="swatch" style="background:#ef4444;color:#fff">✗</span>gust ≥60 km/h — skip this day</span>
+      <span class="legend-item"><span class="swatch" style="background:#d05c49;color:#fff">✗</span>gust ≥60 km/h — skip this day</span>
       <span class="legend-item"><span class="swatch" style="background:#0e7490;color:#ecfeff">~</span>over water — not rideable</span>
-      <span class="legend-item"><span class="swatch" style="background:#86efac;color:#fff;border:2px solid #fff">●</span>starting point</span>
-      <span class="legend-item"><span class="swatch" style="background:#3f3f46"></span>no data from forecast provider</span>
+      <span class="legend-item"><span class="swatch" style="background:#9fd6a4;color:#fff;border:2px solid #fff">●</span>starting point</span>
+      <span class="legend-item"><span class="swatch" style="background:#46463f"></span>no data from forecast provider</span>
     </div>
   </section>
   {{else if .Trips}}
-  <section class="legend">
+  <section class="legend-card">
     <h3>Legend</h3>
     <div class="legend-group">
       <h4>Trip rows</h4>
       <p class="sub">Each day shows the bearing (compass arrow), endpoint locality, daytime max temp, and tail/head wind.</p>
-      <span class="legend-item"><span class="swatch" style="background:transparent;color:#4ade80">T8</span>tailwind ~8 km/h (good)</span>
-      <span class="legend-item"><span class="swatch" style="background:transparent;color:#ef4444">H8</span>headwind ~8 km/h (bad)</span>
+      <span class="legend-item"><span class="swatch" style="background:transparent;color:#3f9e52">T8</span>tailwind ~8 km/h (good)</span>
+      <span class="legend-item"><span class="swatch" style="background:transparent;color:#c2452f">H8</span>headwind ~8 km/h (bad)</span>
       <span class="legend-item"><span class="swatch" style="background:transparent">·</span>mostly crosswind</span>
-      <span class="legend-item"><span class="swatch" style="background:transparent;color:#eab308">19°*</span>below --min-temp ({{printf "%.0f" .Cfg.MinTemp}}°C)</span>
+      <span class="legend-item"><span class="swatch" style="background:transparent;color:#a5792a">19°*</span>below --min-temp ({{printf "%.0f" .Cfg.MinTemp}}°C)</span>
     </div>
     <p class="sub">Any daytime rain or gust ≥60 km/h disqualifies a day, so days like that never appear in a trip.</p>
   </section>

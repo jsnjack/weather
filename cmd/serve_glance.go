@@ -175,19 +175,30 @@ func nextSunset(daily []DailyForecast, now time.Time) string {
 }
 
 // IsDry returns true when both providers stay below the dry threshold across
-// every available data point. The chart is suppressed in this state and the
-// hero ("23° → 21° · clear") takes its place.
+// the visible chart window. Radar is capped to Buienalarm's horizon — the
+// window the chart actually shows — so this decision and the chart can never
+// disagree (radar rain beyond the horizon is invisible on the chart). The
+// Android widget applies the identical rule in ChartRenderer.chartWindow.
+// The chart is suppressed in the dry state and the hero takes its place.
 func (g *glanceAPIResponse) IsDry() bool {
 	if g == nil {
 		return true
 	}
 	peak := 0.0
-	for _, p := range forecastPoints(g.Buienalarm) {
+	alarmPts := forecastPoints(g.Buienalarm)
+	for _, p := range alarmPts {
 		if p.Value > peak {
 			peak = p.Value
 		}
 	}
+	var horizon time.Time
+	if n := len(alarmPts); n > 0 {
+		horizon = alarmPts[n-1].Time
+	}
 	for _, p := range forecastPoints(g.Buineradar) {
+		if !horizon.IsZero() && p.Time.After(horizon) {
+			continue
+		}
 		if p.Value > peak {
 			peak = p.Value
 		}
