@@ -38,6 +38,14 @@
 
   {{if .Description}}<p class="caption">{{.Description}}</p>{{end}}
 
+  <section class="radar island">
+    <div class="radar-head">
+      <span class="microlabel">Radar</span>
+      <span class="radar-src">rain + lightning · KNMI</span>
+    </div>
+    <img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" loading="lazy" width="425" height="445">
+  </section>
+
   <footer>refreshed {{.Now}}</footer>
 </main>
 <script>

@@ -59,6 +59,14 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 .key-item { display: inline-flex; align-items: center; gap: .35rem; }
 .dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }
 
+/* KNMI national radar loop — a baked-in GIF, so the tile frames it like a map
+   inset: labelled header to match the glance cells, hairline-seated image kept
+   near native size so KNMI's baked-in legend/timestamp stay crisp. */
+.radar { padding: .65rem .7rem .7rem; }
+.radar-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 .15rem .5rem; }
+.radar-src { color: var(--muted); font-size: .78rem; }
+.radar img { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 10px; border: 1px solid var(--hairline); }
+
 /* controls — collapsed by default; the data leads, the knobs follow */
 .opts { margin: .65rem 0; }
 .opts summary { cursor: pointer; color: var(--muted); font-size: .8rem; list-style: none; display: inline-block; padding: .3rem .75rem; border-radius: 999px; background: var(--island); user-select: none; }
