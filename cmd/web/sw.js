@@ -1,5 +1,5 @@
-const SHELL_CACHE = "forecast-shell-v4";
-const DATA_CACHE  = "forecast-data-v4";
+const SHELL_CACHE = "forecast-shell-v5";
+const DATA_CACHE  = "forecast-data-v5";
 const SHELL = ["/static/styles.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -22,8 +22,12 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
 
   // Network-first for page navigations (/, /hourly, /forecast, /today,
-  // /scout) and the API; fall back to the last good response when offline.
-  if (req.mode === "navigate" || url.pathname.startsWith("/api/")) {
+  // /scout), the API, and the live radar GIF; fall back to the last good
+  // response when offline. The radar loop refreshes upstream every few
+  // minutes, so it must never be served from the long-lived shell cache —
+  // stale-while-revalidate there pinned yesterday's frame and a manual
+  // refresh just re-served the same stale copy.
+  if (req.mode === "navigate" || url.pathname.startsWith("/api/") || url.pathname === "/radar.gif") {
     event.respondWith(
       fetch(req)
         .then((res) => {
