@@ -50,7 +50,7 @@ func hourlyCacheKey(lat, lon float64, date time.Time) string {
 // using a bounded worker pool. Errors on individual points are logged but
 // don't abort the batch — we just won't have data for that candidate.
 func (c *hourlyCache) prefetch(points []fetchPoint, prog Progress) {
-	sem := make(chan struct{}, scoutFetchWorkers)
+	sem := make(chan struct{}, multidayFetchWorkers)
 	var wg sync.WaitGroup
 	queued := 0
 	for _, p := range points {
@@ -75,7 +75,7 @@ func (c *hourlyCache) prefetch(points []fetchPoint, prog Progress) {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			if err != nil {
-				slog.Debug("scout: fetch failed", "lat", p.Lat, "lon", p.Lon, "date", p.Date.Format("2006-01-02"), "err", err)
+				slog.Debug("multiday: fetch failed", "lat", p.Lat, "lon", p.Lon, "date", p.Date.Format("2006-01-02"), "err", err)
 				delete(c.data, key) // leave as cache miss; get() returns error
 				return
 			}
@@ -116,8 +116,8 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 		uniq := map[string]fetchPoint{}
 		for _, node := range beam {
 			cur := node.Positions[len(node.Positions)-1]
-			for i := 0; i < scoutNumDirections; i++ {
-				bearing := float64(i) * (360.0 / scoutNumDirections)
+			for i := 0; i < multidayNumDirections; i++ {
+				bearing := float64(i) * (360.0 / multidayNumDirections)
 				midLat, midLon := DestinationPoint(cur.Lat, cur.Lon, bearing, cfg.KmPerDay/2)
 				key := hourlyCacheKey(midLat, midLon, date)
 				uniq[key] = fetchPoint{Lat: midLat, Lon: midLon, Date: date}
@@ -127,15 +127,15 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 		for _, p := range uniq {
 			points = append(points, p)
 		}
-		slog.Debug("scout: day pass", "day", day+1, "uniqueFetches", len(points), "beamNodes", len(beam))
+		slog.Debug("multiday: day pass", "day", day+1, "uniqueFetches", len(points), "beamNodes", len(beam))
 		cache.prefetch(points, prog)
 
 		// Phase 2: expand each beam node with 8 bearings; score the resulting leg.
-		candidates := make([]beamNode, 0, len(beam)*scoutNumDirections)
+		candidates := make([]beamNode, 0, len(beam)*multidayNumDirections)
 		for _, node := range beam {
 			cur := node.Positions[len(node.Positions)-1]
-			for i := 0; i < scoutNumDirections; i++ {
-				bearing := float64(i) * (360.0 / scoutNumDirections)
+			for i := 0; i < multidayNumDirections; i++ {
+				bearing := float64(i) * (360.0 / multidayNumDirections)
 				midLat, midLon := DestinationPoint(cur.Lat, cur.Lon, bearing, cfg.KmPerDay/2)
 				data, ok := cache.get(midLat, midLon, date)
 				if !ok {

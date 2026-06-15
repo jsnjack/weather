@@ -13,7 +13,7 @@ optimised for the Netherlands. The root command prints a 2-hour rain chart
 hour-by-hour day forecast (`hourly`), a multi-day daily outlook (`forecast`,
 up to 16 days), shorter-term ride planning (`today`), multi-day bike-trip
 planning (`multiday`, a spatial heatmap by default or ranked trip plans with
-`--heatmap=false`; implemented in `scout*.go`), and an HTTP/PWA front-end
+`--heatmap=false`; implemented in `multiday*.go`), and an HTTP/PWA front-end
 (`serve`) that exposes the same forecasts in a browser.
 
 **Keep every surface in sync.** A forecast view should exist on all three
@@ -42,12 +42,12 @@ cmd/
   location_name.go               Name → coordinates (open-meteo geocoding)
   lat_lon_to_location.go         Reverse-geocode coordinates → human description
   progress.go                    CLI progress bar
-  scout.go                       Multi-leg trip search command + result rendering
-  scout_beam.go                  Beam search over bearing sequences
-  scout_fetch.go                 Open-Meteo hourly data client with retry / back-off
-  scout_geo.go                   Distance / bearing helpers
-  scout_heatmap.go               Spatial heatmap rendering (alternative scout mode)
-  scout_score.go                 Per-day weather scoring
+  multiday.go                       Multi-leg trip search command + result rendering
+  multiday_beam.go                  Beam search over bearing sequences
+  multiday_fetch.go                 Open-Meteo hourly data client with retry / back-off
+  multiday_geo.go                   Distance / bearing helpers
+  multiday_heatmap.go               Spatial heatmap rendering (alternative multiday mode)
+  multiday_score.go                 Per-day weather scoring
   serve.go                       HTTP server: HTML pages + JSON API + embedded PWA assets
   serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -62,7 +62,7 @@ android/                         Native Android home-screen widget (Kotlin, sepa
 External APIs:
 - `imn-rust-lb.infoplaza.io` — Buienalarm 2-hour precipitation nowcast.
 - `gpsgadget.buienradar.nl` — Buienradar 2-hour precipitation history+forecast.
-- `api.open-meteo.com` — hourly temperature / precipitation / wind for scout & today.
+- `api.open-meteo.com` — hourly temperature / precipitation / wind for multiday & today.
 - `geoip.maxmind.com` — IP geolocation fallback.
 - `us1.api-bdc.net` — reverse-geocoding for human-readable location names.
 
@@ -75,7 +75,7 @@ External APIs:
    line chart, capped at the Buienalarm horizon.
 2. **`multiday`.** Beam search over bearing sequences from the start location.
    Each candidate fans out into ≤8 next-day bearings; per-day score from
-   `scout_score.go` combines daytime dry hours, wind, and temperature; pivot
+   `multiday_score.go` combines daytime dry hours, wind, and temperature; pivot
    and round-trip penalties prune the beam to `--beam-width`. Top-N plans
    rendered as a compass-direction table.
 3. **`today`.** Build an NxN lat/lon grid around the start, fetch each cell's
@@ -157,8 +157,8 @@ make build          # multi-arch binaries in bin/
   palette in `web/styles.css` tokens; the values the widget used before going
   dynamic) while the **widget is Material You** (wallpaper tokens). Provider
   line colours and caution/critical states are identical everywhere. The
-  today/scout heatmap semaphore palette lives in `serve.go` **and** is
-  duplicated in the legend swatches of `today_body`/`scout_body` — change
+  today/multiday heatmap semaphore palette lives in `serve.go` **and** is
+  duplicated in the legend swatches of `today_body`/`multiday_body` — change
   both together. Legends are content, never strip them. The semaphore is
   **deliberately saturated** (#86efac/#4ade80/#facc15/#ef4444 on square
   cells): a "tasteful" warm retune was rejected — softened hues blur the
@@ -188,7 +188,7 @@ make build          # multi-arch binaries in bin/
   `<= 0` — polders will be flagged as sea.
 - **Times in the location's zone, never the server's.** Open-Meteo is
   requested with `timezone=auto` and its wall-clock strings are parsed in the
-  zone the response names (`openMeteoZone` in `scout_fetch.go`; `time/tzdata`
+  zone the response names (`openMeteoZone` in `multiday_fetch.go`; `time/tzdata`
   is embedded via `main.go` so IANA lookups work on tzdata-less hosts), so
   every parsed time is a correct instant on any server. A UTC production
   server once stamped Amsterdam's 22:00 sunset as `22:00Z` — the widget
@@ -198,13 +198,13 @@ make build          # multi-arch binaries in bin/
 - **Streaming HTML.** `serve` flushes a `_head` template before doing any
   upstream work, then the `_body` after, so first paint is independent of
   upstream latency.
-- **Beam search, not exhaustive.** Scout is bounded by `--beam-width` rather
+- **Beam search, not exhaustive.** Multiday is bounded by `--beam-width` rather
   than enumerating every bearing sequence; otherwise a 7-day search blows
   out the Open-Meteo request budget.
 - **Upstream fetches are cached, not the rendered pages.** `cache.go` wraps the
   four upstream fetchers (Open-Meteo hourly/daily, Buienalarm, Buienradar) with
   a process-wide TTL cache so flipping between web views doesn't re-issue the
-  same requests — the scout/today fan-outs (100+ calls) are the expensive case.
+  same requests — the multiday/today fan-outs (100+ calls) are the expensive case.
   Cached values are shared pointers/slices: **treat them as read-only.** The CLI
   gets a fresh cache per process, so it only dedupes within one run.
 
@@ -214,6 +214,6 @@ make build          # multi-arch binaries in bin/
 
 - Open-Meteo returns inconsistent array lengths if a column is missing;
   `GetOpenMeteoRange` rejects the response rather than silently zero-filling.
-- `scout` and `today` issue 100+ parallel Open-Meteo requests. The retry loop
-  in `scout_fetch.go` exists because a single transient 5xx otherwise turns
+- `multiday` and `today` issue 100+ parallel Open-Meteo requests. The retry loop
+  in `multiday_fetch.go` exists because a single transient 5xx otherwise turns
   into a contiguous block of "no data" cells.

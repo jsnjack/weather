@@ -13,7 +13,7 @@ import (
 // heatmapGridSize returns the effective grid size: the flag value, forced odd
 // so the start sits on a cell center, and clamped to a sensible minimum.
 func heatmapGridSize() int {
-	n := FlagScoutHeatmapGrid
+	n := FlagMultidayHeatmapGrid
 	if n < 5 {
 		n = 5
 	}
@@ -92,7 +92,7 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 		Err      error
 	}
 	results := make([]cellData, len(cells))
-	sem := make(chan struct{}, scoutFetchWorkers)
+	sem := make(chan struct{}, multidayFetchWorkers)
 	var wg sync.WaitGroup
 	prog.AddTotal(len(cells))
 	for i, c := range cells {
@@ -278,7 +278,7 @@ func heatmapWindSymbol(c cellStatus) string {
 func renderHeatmapLegend() {
 	rst := termplt.ColorReset
 	sw := func(bg, body string) string { return bg + body + rst }
-	min := FlagScoutMinTemp
+	min := FlagMultidayMinTemp
 	b := termplt.ColorBold
 	fmt.Println(b + "Legend" + rst + " — background = temperature, symbol = wind:")
 	fmt.Println()

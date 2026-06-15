@@ -140,7 +140,7 @@ func getOpenMeteoDailyRangeUncached(lat, lon float64, days int) ([]DailyAggregat
 
 	// Parse wall-clock strings in the zone Open-Meteo reports for the
 	// location, so the times are correct instants on any server (see
-	// openMeteoZone in scout_fetch.go).
+	// openMeteoZone in multiday_fetch.go).
 	zone := openMeteoZone(parsed.Timezone, parsed.UTCOffset)
 	rememberZone(lat, lon, zone)
 

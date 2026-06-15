@@ -22,7 +22,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
 
   // Network-first for page navigations (/, /hourly, /forecast, /today,
-  // /scout), the API, and the live radar GIF; fall back to the last good
+  // /multiday), the API, and the live radar GIF; fall back to the last good
   // response when offline. The radar loop refreshes upstream every few
   // minutes, so it must never be served from the long-lived shell cache —
   // stale-while-revalidate there pinned yesterday's frame and a manual

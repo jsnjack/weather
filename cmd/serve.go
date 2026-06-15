@@ -39,12 +39,12 @@ var tmplFuncs = template.FuncMap{
 // starts (so the browser paints the shell + progress bar immediately) and a
 // "_body" template flushed after the work completes.
 var (
-	indexHeadTmpl = template.Must(template.New("index_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_head.html.tmpl"))
-	indexBodyTmpl = template.Must(template.New("index_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_body.html.tmpl"))
-	todayHeadTmpl = template.Must(template.New("today_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_head.html.tmpl"))
-	todayBodyTmpl = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
-	scoutHeadTmpl = template.Must(template.New("scout_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_head.html.tmpl"))
-	scoutBodyTmpl = template.Must(template.New("scout_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/scout_body.html.tmpl"))
+	indexHeadTmpl    = template.Must(template.New("index_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_head.html.tmpl"))
+	indexBodyTmpl    = template.Must(template.New("index_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_body.html.tmpl"))
+	todayHeadTmpl    = template.Must(template.New("today_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_head.html.tmpl"))
+	todayBodyTmpl    = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
+	multidayHeadTmpl = template.Must(template.New("multiday_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_head.html.tmpl"))
+	multidayBodyTmpl = template.Must(template.New("multiday_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_body.html.tmpl"))
 
 	hourlyHeadTmpl   = template.Must(template.New("hourly_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_head.html.tmpl"))
 	hourlyBodyTmpl   = template.Must(template.New("hourly_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_body.html.tmpl"))
@@ -68,11 +68,11 @@ installed on Android as a stand-in for a native widget.`,
 		mux.HandleFunc("GET /hourly", handleHourly)
 		mux.HandleFunc("GET /forecast", handleForecast)
 		mux.HandleFunc("GET /today", handleToday)
-		mux.HandleFunc("GET /multiday", handleScout)
+		mux.HandleFunc("GET /multiday", handleMultiday)
 		mux.HandleFunc("GET /api/v1/rain", handleRainJSON)
 		mux.HandleFunc("GET /api/v1/glance", handleGlanceJSON)
 		mux.HandleFunc("GET /api/v1/today", handleTodayJSON)
-		mux.HandleFunc("GET /api/v1/multiday", handleScoutJSON)
+		mux.HandleFunc("GET /api/v1/multiday", handleMultidayJSON)
 		mux.HandleFunc("GET /radar.gif", handleRadarMap)
 		mux.HandleFunc("GET /manifest.webmanifest", embedHandler("web/manifest.webmanifest", "application/manifest+json"))
 		mux.HandleFunc("GET /sw.js", embedHandler("web/sw.js", "application/javascript"))
@@ -722,9 +722,9 @@ func todayBandHex(band int, noData bool) string {
 	}
 }
 
-// ---------- /scout ----------
+// ---------- /multiday ----------
 
-type scoutQuery struct {
+type multidayQuery struct {
 	Days             int
 	KmPerDay         float64
 	MinTemp          float64
@@ -739,9 +739,9 @@ type scoutQuery struct {
 	HeatmapGrid      int
 }
 
-func parseScoutParams(r *http.Request) scoutQuery {
+func parseMultidayParams(r *http.Request) multidayQuery {
 	q := r.URL.Query()
-	out := scoutQuery{
+	out := multidayQuery{
 		Days: 5, KmPerDay: 100, MinTemp: 15,
 		BeamWidth: 16, PivotPenalty: 3,
 		RoundTripPenalty: 20, TopN: 3,
@@ -799,7 +799,7 @@ func parseScoutParams(r *http.Request) scoutQuery {
 	return out
 }
 
-func (sq scoutQuery) Config() beamConfig {
+func (sq multidayQuery) Config() beamConfig {
 	return beamConfig{
 		KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
 		BeamWidth: sq.BeamWidth, PivotPenalty: sq.PivotPenalty,
@@ -807,7 +807,7 @@ func (sq scoutQuery) Config() beamConfig {
 	}
 }
 
-type scoutTripJSON struct {
+type multidayTripJSON struct {
 	Score       float64    `json:"score"`
 	Bearings    []float64  `json:"bearings"`
 	Positions   []latLon   `json:"positions"`
@@ -815,14 +815,14 @@ type scoutTripJSON struct {
 	Labels      []string   `json:"labels"`
 }
 
-func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
+func handleMultidayJSON(w http.ResponseWriter, r *http.Request) {
 	lat, lon, name := locationQuery(r)
 	loc, err := ResolveLocationFor(lat, lon, name)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	sq := parseScoutParams(r)
+	sq := parseMultidayParams(r)
 	cfg := sq.Config()
 
 	resp := map[string]any{
@@ -845,9 +845,9 @@ func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
 			trips = trips[:sq.TopN]
 		}
 		labels := annotateTripLabels(trips, NoProgress)
-		out := make([]scoutTripJSON, len(trips))
+		out := make([]multidayTripJSON, len(trips))
 		for i, t := range trips {
-			out[i] = scoutTripJSON{
+			out[i] = multidayTripJSON{
 				Score: t.Score, Bearings: t.Bearings, Positions: t.Positions,
 				DailyScores: t.DailyScores, Labels: labels[i],
 			}
@@ -858,11 +858,11 @@ func handleScoutJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Log(r.Context(), LevelTrace, "encode scout response", "err", err)
+		slog.Log(r.Context(), LevelTrace, "encode multiday response", "err", err)
 	}
 }
 
-type scoutTripRow struct {
+type multidayTripRow struct {
 	Dir       string
 	Label     string
 	Temp      string
@@ -871,30 +871,30 @@ type scoutTripRow struct {
 	WindColor string
 }
 
-type scoutTripView struct {
+type multidayTripView struct {
 	Score     float64
 	Path      string
 	EndLabel  string
 	EndDistKm float64
-	Days      []scoutTripRow
+	Days      []multidayTripRow
 }
 
-type scoutPageData struct {
+type multidayPageData struct {
 	Location           Location
 	Q                  template.URL
 	NameInput          string
-	Cfg                scoutPageCfg
+	Cfg                multidayPageCfg
 	IsHeatmap          bool
 	StartLabel         string
 	EndLabel           string
 	StartInput         string
-	Trips              []scoutTripView
+	Trips              []multidayTripView
 	HeatmapDaysSVG     []template.HTML
 	RecommendationText string
 	Now                string
 }
 
-type scoutPageCfg struct {
+type multidayPageCfg struct {
 	Days          int
 	KmPerDay      float64
 	MinTemp       float64
@@ -904,14 +904,14 @@ type scoutPageCfg struct {
 	RoundTrip     bool
 }
 
-func handleScout(w http.ResponseWriter, r *http.Request) {
+func handleMultiday(w http.ResponseWriter, r *http.Request) {
 	lat, lon, name := locationQuery(r)
 	loc, err := ResolveLocationFor(lat, lon, name)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	sq := parseScoutParams(r)
+	sq := parseMultidayParams(r)
 	cfg := sq.Config()
 	endDate := sq.StartDate.AddDate(0, 0, sq.Days-1)
 
@@ -919,11 +919,11 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	flusher, _ := w.(http.Flusher)
 
-	page := scoutPageData{
+	page := multidayPageData{
 		Location:  loc,
 		Q:         locQuery(loc),
 		NameInput: name,
-		Cfg: scoutPageCfg{
+		Cfg: multidayPageCfg{
 			Days: sq.Days, KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,
 			MinTempPlus5: sq.MinTemp + 5, MinTempMinus5: sq.MinTemp - 5,
 			TopN: sq.TopN, RoundTrip: sq.RoundTrip,
@@ -933,8 +933,8 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 		EndLabel:   endDate.Format("2006-01-02"),
 		StartInput: sq.StartDateInput,
 	}
-	if err := scoutHeadTmpl.Execute(w, page); err != nil {
-		slog.Debug("template execute", "tmpl", "scoutHead", "err", err)
+	if err := multidayHeadTmpl.Execute(w, page); err != nil {
+		slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
 		return
 	}
 	if flusher != nil {
@@ -949,7 +949,7 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	if sq.Heatmap {
 		hm := RunHeatmap(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, sq.HeatmapGrid, prog)
 		prog.Finish()
-		page.HeatmapDaysSVG = scoutHeatmapToSVG(hm)
+		page.HeatmapDaysSVG = multidayHeatmapToSVG(hm)
 	} else {
 		trips := RunBeamSearch(loc.Latitude, loc.Longitude, sq.StartDate, sq.Days, cfg, prog)
 		if len(trips) > sq.TopN {
@@ -966,13 +966,13 @@ func handleScout(w http.ResponseWriter, r *http.Request) {
 	}
 	page.Now = time.Now().Format("15:04:05")
 
-	if err := scoutBodyTmpl.Execute(w, page); err != nil {
-		slog.Debug("template execute", "tmpl", "scoutBody", "err", err)
+	if err := multidayBodyTmpl.Execute(w, page); err != nil {
+		slog.Debug("template execute", "tmpl", "multidayBody", "err", err)
 	}
 }
 
-func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTrip bool) scoutTripView {
-	v := scoutTripView{Score: t.Score}
+func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTrip bool) multidayTripView {
+	v := multidayTripView{Score: t.Score}
 	parts := make([]string, 0, len(t.Bearings))
 	for _, b := range t.Bearings {
 		parts = append(parts, CompassName(b))
@@ -985,7 +985,7 @@ func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTr
 	}
 	for i, b := range t.Bearings {
 		ds := t.DailyScores[i]
-		row := scoutTripRow{
+		row := multidayTripRow{
 			Dir:  fmt.Sprintf("%s %s", CompassName(b), CompassArrow(b)),
 			Temp: fmt.Sprintf("%.0f°", ds.MaxTemp),
 			Cold: ds.BelowMinTemp,
@@ -1049,7 +1049,7 @@ func summarizeWinner(winner beamNode, labels []string, roundTrip bool) string {
 	return fmt.Sprintf("Trip 1 — %s with %s, %.0f–%.0f°C, %s.", endLabel, shape, minT, maxT, wind)
 }
 
-func scoutHeatmapToSVG(h heatmapResult) []template.HTML {
+func multidayHeatmapToSVG(h heatmapResult) []template.HTML {
 	out := make([]template.HTML, 0, len(h.Days))
 	for d, day := range h.Days {
 		cells := make([][]GridCell, h.Grid)

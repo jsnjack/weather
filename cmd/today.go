@@ -190,7 +190,7 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, 
 		Err      error
 	}
 	results := make([]cellData, len(cells))
-	sem := make(chan struct{}, scoutFetchWorkers)
+	sem := make(chan struct{}, multidayFetchWorkers)
 	var wg sync.WaitGroup
 	prog.AddTotal(len(cells))
 	for i, c := range cells {

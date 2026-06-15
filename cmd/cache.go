@@ -9,7 +9,7 @@ import (
 // ttlCache is a tiny process-wide cache with a TTL and a hard size cap. It
 // exists so the HTTP server doesn't re-issue the same upstream forecast
 // requests when a user flips quickly between pages (rain → hourly → 14-day →
-// today → scout) within a few minutes — the scout and today fan-outs alone are
+// today → multiday) within a few minutes — the multiday and today fan-outs alone are
 // 100+ Open-Meteo calls each, so re-running them on every navigation is the
 // expensive case this guards against.
 //
@@ -94,7 +94,7 @@ func memo[T any](c *ttlCache[T], key string, fn func() (T, error)) (T, error) {
 //   - Open-Meteo hourly: the model refreshes roughly hourly.
 //   - Open-Meteo daily: refreshes a few times a day.
 //
-// Size caps bound memory under the scout/today fan-out (many distinct points).
+// Size caps bound memory under the multiday/today fan-out (many distinct points).
 var (
 	buienalarmCache     = newTTLCache[*Forecast](2*time.Minute, 512)
 	buineradarCache     = newTTLCache[*Forecast](2*time.Minute, 512)

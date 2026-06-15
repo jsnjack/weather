@@ -111,9 +111,9 @@ td.muted, span.muted { color: var(--muted); }
 .g-mi-caution, td.g-mi-caution, .evolution td.g-mi-caution { color: var(--caution); }
 .g-mi-critical, td.g-mi-critical, .evolution td.g-mi-critical { color: var(--critical); font-weight: 600; }
 .water, .evolution td.water, .evolution th.water { color: var(--water); }
-.cold { color: #eab308; } /* matches the scout legend's below-min-temp star */
+.cold { color: #eab308; } /* matches the multiday legend's below-min-temp star */
 
-/* today / scout */
+/* today / multiday */
 .recommendation { background: var(--island-accent); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
 .recommendation strong { color: var(--accent); }
 .gridwrap svg { display: block; width: 100%; height: auto; }

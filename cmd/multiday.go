@@ -31,26 +31,26 @@ func padRight(s string, width int) string {
 }
 
 var (
-	FlagScoutDays             int
-	FlagScoutKmPerDay         float64
-	FlagScoutMinTemp          float64
-	FlagScoutStartDate        string
-	FlagScoutBeamWidth        int
-	FlagScoutPivotPenalty     float64
-	FlagScoutRoundTrip        bool
-	FlagScoutRoundTripPenalty float64
-	FlagScoutTopN             int
-	FlagScoutHeatmap          bool
-	FlagScoutHeatmapGrid      int
+	FlagMultidayDays             int
+	FlagMultidayKmPerDay         float64
+	FlagMultidayMinTemp          float64
+	FlagMultidayStartDate        string
+	FlagMultidayBeamWidth        int
+	FlagMultidayPivotPenalty     float64
+	FlagMultidayRoundTrip        bool
+	FlagMultidayRoundTripPenalty float64
+	FlagMultidayTopN             int
+	FlagMultidayHeatmap          bool
+	FlagMultidayHeatmapGrid      int
 )
 
 const (
-	scoutNumDirections = 8
-	scoutFetchWorkers  = 4
-	tailHeadSwitchKmh  = 5.0
+	multidayNumDirections = 8
+	multidayFetchWorkers  = 4
+	tailHeadSwitchKmh     = 5.0
 )
 
-var scoutCmd = &cobra.Command{
+var multidayCmd = &cobra.Command{
 	Use:   "multiday",
 	Short: "Plan a multi-day bike trip across the forecast window",
 	Long: `multiday renders a spatial weather heatmap around your starting point so you
@@ -62,49 +62,49 @@ disqualifies a day.
 
 Use --round-trip to bias the search toward plans that end near the starting
 point (with paired bearings that close the loop).`,
-	RunE: runScout,
+	RunE: runMultiday,
 }
 
 func init() {
-	rootCmd.AddCommand(scoutCmd)
-	scoutCmd.Flags().IntVar(&FlagScoutDays, "days", 5, "trip length in days")
-	scoutCmd.Flags().Float64Var(&FlagScoutKmPerDay, "km-per-day", 100, "daily distance in km")
-	scoutCmd.Flags().Float64Var(&FlagScoutMinTemp, "min-temp", 15, "preferred minimum daytime max temperature (°C)")
-	scoutCmd.Flags().StringVar(&FlagScoutStartDate, "start-date", "", "trip start date YYYY-MM-DD (default: today)")
-	scoutCmd.Flags().IntVar(&FlagScoutBeamWidth, "beam-width", 16, "beam search width (higher = slower, more options)")
-	scoutCmd.Flags().Float64Var(&FlagScoutPivotPenalty, "pivot-penalty", 3, "score penalty applied to each bearing change (day-to-day turn)")
-	scoutCmd.Flags().BoolVar(&FlagScoutRoundTrip, "round-trip", false, "prefer trips that end near the starting point")
-	scoutCmd.Flags().Float64Var(&FlagScoutRoundTripPenalty, "round-trip-penalty", 20, "score penalty per 100km between end and start (only with --round-trip)")
-	scoutCmd.Flags().IntVar(&FlagScoutTopN, "top", 3, "how many trip plans to print")
-	scoutCmd.Flags().BoolVar(&FlagScoutHeatmap, "heatmap", true, "render a spatial weather heatmap you trace your own route across (use --heatmap=false for ranked trip plans)")
-	scoutCmd.Flags().IntVar(&FlagScoutHeatmapGrid, "heatmap-grid", 21, "heatmap resolution (NxN, odd number so start sits on a cell)")
+	rootCmd.AddCommand(multidayCmd)
+	multidayCmd.Flags().IntVar(&FlagMultidayDays, "days", 5, "trip length in days")
+	multidayCmd.Flags().Float64Var(&FlagMultidayKmPerDay, "km-per-day", 100, "daily distance in km")
+	multidayCmd.Flags().Float64Var(&FlagMultidayMinTemp, "min-temp", 15, "preferred minimum daytime max temperature (°C)")
+	multidayCmd.Flags().StringVar(&FlagMultidayStartDate, "start-date", "", "trip start date YYYY-MM-DD (default: today)")
+	multidayCmd.Flags().IntVar(&FlagMultidayBeamWidth, "beam-width", 16, "beam search width (higher = slower, more options)")
+	multidayCmd.Flags().Float64Var(&FlagMultidayPivotPenalty, "pivot-penalty", 3, "score penalty applied to each bearing change (day-to-day turn)")
+	multidayCmd.Flags().BoolVar(&FlagMultidayRoundTrip, "round-trip", false, "prefer trips that end near the starting point")
+	multidayCmd.Flags().Float64Var(&FlagMultidayRoundTripPenalty, "round-trip-penalty", 20, "score penalty per 100km between end and start (only with --round-trip)")
+	multidayCmd.Flags().IntVar(&FlagMultidayTopN, "top", 3, "how many trip plans to print")
+	multidayCmd.Flags().BoolVar(&FlagMultidayHeatmap, "heatmap", true, "render a spatial weather heatmap you trace your own route across (use --heatmap=false for ranked trip plans)")
+	multidayCmd.Flags().IntVar(&FlagMultidayHeatmapGrid, "heatmap-grid", 21, "heatmap resolution (NxN, odd number so start sits on a cell)")
 }
 
-func runScout(cmd *cobra.Command, args []string) error {
+func runMultiday(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
-	if FlagScoutDays <= 0 {
+	if FlagMultidayDays <= 0 {
 		return fmt.Errorf("--days must be positive")
 	}
-	if FlagScoutKmPerDay <= 0 {
+	if FlagMultidayKmPerDay <= 0 {
 		return fmt.Errorf("--km-per-day must be positive")
 	}
-	if FlagScoutBeamWidth <= 0 {
+	if FlagMultidayBeamWidth <= 0 {
 		return fmt.Errorf("--beam-width must be positive")
 	}
-	if FlagScoutTopN <= 0 {
-		FlagScoutTopN = 1
+	if FlagMultidayTopN <= 0 {
+		FlagMultidayTopN = 1
 	}
 
 	startDate := time.Now()
-	if FlagScoutStartDate != "" {
-		parsed, err := time.Parse("2006-01-02", FlagScoutStartDate)
+	if FlagMultidayStartDate != "" {
+		parsed, err := time.Parse("2006-01-02", FlagMultidayStartDate)
 		if err != nil {
-			return fmt.Errorf("invalid --start-date %q (want YYYY-MM-DD): %w", FlagScoutStartDate, err)
+			return fmt.Errorf("invalid --start-date %q (want YYYY-MM-DD): %w", FlagMultidayStartDate, err)
 		}
 		startDate = parsed
 	}
-	endDate := startDate.AddDate(0, 0, FlagScoutDays-1)
+	endDate := startDate.AddDate(0, 0, FlagMultidayDays-1)
 
 	loc, err := ResolveLocation()
 	if err != nil {
@@ -112,45 +112,45 @@ func runScout(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := beamConfig{
-		KmPerDay:         FlagScoutKmPerDay,
-		MinTemp:          FlagScoutMinTemp,
-		BeamWidth:        FlagScoutBeamWidth,
-		PivotPenalty:     FlagScoutPivotPenalty,
-		RoundTrip:        FlagScoutRoundTrip,
-		RoundTripPenalty: FlagScoutRoundTripPenalty,
+		KmPerDay:         FlagMultidayKmPerDay,
+		MinTemp:          FlagMultidayMinTemp,
+		BeamWidth:        FlagMultidayBeamWidth,
+		PivotPenalty:     FlagMultidayPivotPenalty,
+		RoundTrip:        FlagMultidayRoundTrip,
+		RoundTripPenalty: FlagMultidayRoundTripPenalty,
 	}
 
 	fmt.Printf(termplt.ColorBold+"Multi-day from %s"+termplt.ColorReset+
 		"  ·  %d days × %.0f km/day  ·  %s → %s",
-		loc.Description, FlagScoutDays, FlagScoutKmPerDay,
+		loc.Description, FlagMultidayDays, FlagMultidayKmPerDay,
 		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"),
 	)
-	if FlagScoutRoundTrip {
+	if FlagMultidayRoundTrip {
 		fmt.Print("  ·  round-trip")
 	}
-	if FlagScoutHeatmap {
+	if FlagMultidayHeatmap {
 		fmt.Print("  ·  heatmap")
 	}
 	fmt.Println()
 	fmt.Println()
 
-	if FlagScoutHeatmap {
+	if FlagMultidayHeatmap {
 		prog := NewCLIProgress("heatmap cells")
-		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, heatmapGridSize(), prog)
+		hm := RunHeatmap(loc.Latitude, loc.Longitude, startDate, FlagMultidayDays, cfg, heatmapGridSize(), prog)
 		prog.Finish()
 		renderHeatmap(hm)
 		return nil
 	}
 
 	beamProg := NewCLIProgress("beam search")
-	trips := RunBeamSearch(loc.Latitude, loc.Longitude, startDate, FlagScoutDays, cfg, beamProg)
+	trips := RunBeamSearch(loc.Latitude, loc.Longitude, startDate, FlagMultidayDays, cfg, beamProg)
 	beamProg.Finish()
 	if len(trips) == 0 {
 		fmt.Println(termplt.ColorRed + "No viable trip found — every bearing hit rain or severe gusts on at least one day." + termplt.ColorReset)
 		return nil
 	}
 
-	topN := FlagScoutTopN
+	topN := FlagMultidayTopN
 	if topN > len(trips) {
 		topN = len(trips)
 	}
@@ -202,7 +202,7 @@ func annotateTripLabels(trips []beamNode, prog Progress) [][]string {
 	resolved := make(map[geoKey]string, len(pending))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, scoutFetchWorkers)
+	sem := make(chan struct{}, multidayFetchWorkers)
 	prog.AddTotal(len(pending))
 	for _, t := range pending {
 		wg.Add(1)
@@ -213,7 +213,7 @@ func annotateTripLabels(trips []beamNode, prog Progress) [][]string {
 			defer prog.Inc(1)
 			name, err := GetDescriptionFromCoordinates(t.Lat, t.Lon)
 			if err != nil {
-				slog.Debug("scout: reverse-geocode failed", "lat", t.Lat, "lon", t.Lon, "err", err)
+				slog.Debug("multiday: reverse-geocode failed", "lat", t.Lat, "lon", t.Lon, "err", err)
 			}
 			if name == "" {
 				name = fmt.Sprintf("%.2f,%.2f", t.Lat, t.Lon)
@@ -256,7 +256,7 @@ func renderLegend() {
 	fmt.Printf("  %sT<n>%s tailwind km/h (good)    %sH<n>%s headwind km/h (bad)    ·  mostly crosswind (<%.0f km/h along route)\n",
 		g, rst, r, rst, tailHeadSwitchKmh)
 	fmt.Printf("  %s*%s  below --min-temp (%.0f°C)    any rain or gust ≥60 km/h would disqualify a day\n",
-		y, rst, FlagScoutMinTemp)
+		y, rst, FlagMultidayMinTemp)
 	fmt.Println()
 }
 
@@ -384,7 +384,7 @@ func renderRecommendation(trips []beamNode, labelsByTrip [][]string, cfg beamCon
 	)
 	if cfg.RoundTrip {
 		endLat, endLon := winner.Positions[len(winner.Positions)-1].Lat, winner.Positions[len(winner.Positions)-1].Lon
-		// Approx — caller already computed start coords in runScout, but we
+		// Approx — caller already computed start coords in runMultiday, but we
 		// don't hold them here; derive from Positions[0].
 		start := winner.Positions[0]
 		dist := HaversineKm(endLat, endLon, start.Lat, start.Lon)
