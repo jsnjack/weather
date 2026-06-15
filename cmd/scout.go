@@ -51,12 +51,14 @@ const (
 )
 
 var scoutCmd = &cobra.Command{
-	Use:   "scout",
-	Short: "Find the best multi-leg backpacking trip for the forecast window",
-	Long: `Scout searches over multi-leg trips from your starting point and reports
-the top plans. Each day's bearing is chosen independently, so the recommended
-trips can pivot (e.g. S → S → SE → E → E) to follow dry air or tailwind.
-Rain during the daytime window (10:00–20:00) disqualifies a day.
+	Use:   "multiday",
+	Short: "Plan a multi-day bike trip across the forecast window",
+	Long: `multiday renders a spatial weather heatmap around your starting point so you
+can trace your own multi-day route, or (with --heatmap=false) searches over
+multi-leg trips and reports the top plans. In search mode each day's bearing is
+chosen independently, so the recommended trips can pivot (e.g. S → S → SE → E →
+E) to follow dry air or tailwind. Rain during the daytime window (10:00–20:00)
+disqualifies a day.
 
 Use --round-trip to bias the search toward plans that end near the starting
 point (with paired bearings that close the loop).`,
@@ -74,7 +76,7 @@ func init() {
 	scoutCmd.Flags().BoolVar(&FlagScoutRoundTrip, "round-trip", false, "prefer trips that end near the starting point")
 	scoutCmd.Flags().Float64Var(&FlagScoutRoundTripPenalty, "round-trip-penalty", 20, "score penalty per 100km between end and start (only with --round-trip)")
 	scoutCmd.Flags().IntVar(&FlagScoutTopN, "top", 3, "how many trip plans to print")
-	scoutCmd.Flags().BoolVar(&FlagScoutHeatmap, "heatmap", false, "render a spatial weather heatmap instead of trip plans — you trace your own route")
+	scoutCmd.Flags().BoolVar(&FlagScoutHeatmap, "heatmap", true, "render a spatial weather heatmap you trace your own route across (use --heatmap=false for ranked trip plans)")
 	scoutCmd.Flags().IntVar(&FlagScoutHeatmapGrid, "heatmap-grid", 21, "heatmap resolution (NxN, odd number so start sits on a cell)")
 }
 
@@ -118,7 +120,7 @@ func runScout(cmd *cobra.Command, args []string) error {
 		RoundTripPenalty: FlagScoutRoundTripPenalty,
 	}
 
-	fmt.Printf(termplt.ColorBold+"Scouting from %s"+termplt.ColorReset+
+	fmt.Printf(termplt.ColorBold+"Multi-day from %s"+termplt.ColorReset+
 		"  ·  %d days × %.0f km/day  ·  %s → %s",
 		loc.Description, FlagScoutDays, FlagScoutKmPerDay,
 		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"),

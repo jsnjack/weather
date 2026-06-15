@@ -11,9 +11,10 @@
 optimised for the Netherlands. The root command prints a 2-hour rain chart
 (Buienalarm + Buienradar) for your current location. Subcommands cover an
 hour-by-hour day forecast (`hourly`), a multi-day daily outlook (`forecast`,
-up to 16 days), shorter-term ride planning (`today`), multi-day backpacking
-trip search (`scout`), and an HTTP/PWA front-end (`serve`) that exposes the
-same forecasts in a browser.
+up to 16 days), shorter-term ride planning (`today`), multi-day bike-trip
+planning (`multiday`, a spatial heatmap by default or ranked trip plans with
+`--heatmap=false`; implemented in `scout*.go`), and an HTTP/PWA front-end
+(`serve`) that exposes the same forecasts in a browser.
 
 **Keep every surface in sync.** A forecast view should exist on all three
 surfaces: the CLI (`cmd_*.go`, termplt), the web/PWA (`serve` handler +
@@ -72,7 +73,7 @@ External APIs:
 1. **Root rain chart.** `ResolveLocation` → parallel fetch of Buienalarm +
    Buienradar via `fetchRain` → both series plotted on a single `termplt`
    line chart, capped at the Buienalarm horizon.
-2. **`scout`.** Beam search over bearing sequences from the start location.
+2. **`multiday`.** Beam search over bearing sequences from the start location.
    Each candidate fans out into ≤8 next-day bearings; per-day score from
    `scout_score.go` combines daytime dry hours, wind, and temperature; pivot
    and round-trip penalties prune the beam to `--beam-width`. Top-N plans
@@ -94,7 +95,7 @@ make check          # fmt + vet + build + test + lint
 make build          # multi-arch binaries in bin/
 ./weather           # rain chart for your IP-detected location
 ./weather --lat 52.37 --lon 4.90
-./weather scout --days 5 --km-per-day 100
+./weather multiday --days 5 --km-per-day 100
 ./weather today --hours 6
 ./weather serve --addr :8080
 ```

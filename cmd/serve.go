@@ -68,11 +68,11 @@ installed on Android as a stand-in for a native widget.`,
 		mux.HandleFunc("GET /hourly", handleHourly)
 		mux.HandleFunc("GET /forecast", handleForecast)
 		mux.HandleFunc("GET /today", handleToday)
-		mux.HandleFunc("GET /scout", handleScout)
+		mux.HandleFunc("GET /multiday", handleScout)
 		mux.HandleFunc("GET /api/v1/rain", handleRainJSON)
 		mux.HandleFunc("GET /api/v1/glance", handleGlanceJSON)
 		mux.HandleFunc("GET /api/v1/today", handleTodayJSON)
-		mux.HandleFunc("GET /api/v1/scout", handleScoutJSON)
+		mux.HandleFunc("GET /api/v1/multiday", handleScoutJSON)
 		mux.HandleFunc("GET /radar.gif", handleRadarMap)
 		mux.HandleFunc("GET /manifest.webmanifest", embedHandler("web/manifest.webmanifest", "application/manifest+json"))
 		mux.HandleFunc("GET /sw.js", embedHandler("web/sw.js", "application/javascript"))
@@ -771,8 +771,17 @@ func parseScoutParams(r *http.Request) scoutQuery {
 	if v, err := strconv.Atoi(q.Get("top")); err == nil && v > 0 {
 		out.TopN = v
 	}
-	if q.Get("heatmap") != "" {
-		out.Heatmap = true
+	// Heatmap is the default view. The form submits an explicit value (a hidden
+	// "0" before the checkbox's "1"), so an unchecked box turns it off; a bare
+	// link with no heatmap param keeps the default on.
+	out.Heatmap = true
+	if vals, ok := q["heatmap"]; ok {
+		out.Heatmap = false
+		for _, v := range vals {
+			if v == "1" || v == "on" || v == "true" {
+				out.Heatmap = true
+			}
+		}
 	}
 	if v, err := strconv.Atoi(q.Get("heatmap-grid")); err == nil && v >= 5 {
 		out.HeatmapGrid = v

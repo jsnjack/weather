@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F5EF">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111311">
-<title>Scout — {{.Location.Description}}</title>
+<title>Multiday — {{.Location.Description}}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="stylesheet" href="/static/styles.css">
@@ -17,7 +17,7 @@
     <a href="/hourly{{if .Q}}?{{.Q}}{{end}}">Hourly</a>
     <a href="/forecast{{if .Q}}?{{.Q}}{{end}}">14-day</a>
     <a href="/today{{if .Q}}?{{.Q}}{{end}}">Today</a>
-    <a href="/scout{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Scout</a>
+    <a href="/multiday{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Multiday</a>
   </nav>
   <header>
     <h1>{{.Location.Description}}</h1>
@@ -35,7 +35,7 @@
     <label>start <input type="date" name="start-date" value="{{.StartInput}}"></label>
     <label>top <input type="number" name="top" min="1" max="10" value="{{.Cfg.TopN}}"></label>
     <label class="check"><input type="checkbox" name="round-trip" value="1"{{if .Cfg.RoundTrip}} checked{{end}}> round-trip</label>
-    <label class="check"><input type="checkbox" name="heatmap" value="1"{{if .IsHeatmap}} checked{{end}}> heatmap</label>
+    <label class="check"><input type="hidden" name="heatmap" value="0"><input type="checkbox" name="heatmap" value="1"{{if .IsHeatmap}} checked{{end}}> heatmap</label>
     <button type="submit">Refresh</button>
   </form>
   </details>
