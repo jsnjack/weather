@@ -39,6 +39,7 @@ func init() {
 // todayCell is the scored result for one grid cell over the ride window.
 type todayCell struct {
 	DryHours    int     `json:"dryHours"`    // consecutive dry hours from ride start (0..windowHours)
+	MaxPrecip   float64 `json:"maxPrecip"`   // mm/h — peak precipitation over the ride window (drives cell colour)
 	WindBlowsTo float64 `json:"windBlowsTo"` // degrees, 0=N — where wind is pushing you (midpoint hour)
 	WindSpeed   float64 `json:"windSpeed"`   // km/h, midpoint hour sustained wind
 	Sea         bool    `json:"sea"`
@@ -303,19 +304,32 @@ func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int
 	}
 
 	dryCount := 0
+	maxPrecip := 0.0
+	stillDry := true // counting consecutive dry hours from the start
 	for i := 0; i < windowHours; i++ {
 		target := startTime.Add(time.Duration(i) * time.Hour).Format(hourKey)
 		h, ok := byHour[target]
 		if !ok {
-			return todayCell{DryHours: dryCount, NoData: dryCount == 0}
-		}
-		if h.Precipitation > rainThresholdMm {
+			// Data ran out mid-window. The first missing hour means we have
+			// nothing to show; a later gap just caps what we scanned.
+			if i == 0 {
+				return todayCell{NoData: true}
+			}
 			break
 		}
-		dryCount++
+		if h.Precipitation > maxPrecip {
+			maxPrecip = h.Precipitation
+		}
+		if stillDry {
+			if h.Precipitation > rainThresholdMm {
+				stillDry = false
+			} else {
+				dryCount++
+			}
+		}
 	}
 
-	cell := todayCell{DryHours: dryCount}
+	cell := todayCell{DryHours: dryCount, MaxPrecip: maxPrecip}
 
 	mid := startTime.Add(time.Duration(windowHours/2) * time.Hour).Format(hourKey)
 	if h, ok := byHour[mid]; ok {
@@ -336,7 +350,7 @@ func renderToday(r todayResult) {
 		fmt.Print("  ")
 		for col := 0; col < gridSize; col++ {
 			isStart := row == mid && col == mid
-			fmt.Print(todayCellGlyph(r.Cells[row][col], r.WindowHours, isStart))
+			fmt.Print(todayCellGlyph(r.Cells[row][col], isStart))
 		}
 		northCells := mid - row
 		fmt.Printf("  %+4d km\n", int(float64(northCells)*r.StepKm))
@@ -361,19 +375,19 @@ func renderToday(r todayResult) {
 }
 
 // todayCellGlyph returns the 2-char rendered cell.
-//   - Background = rain-timing band.
+//   - Background = rain-amount band (none / light / rain).
 //   - Char 1 = compass arrow (direction wind blows TO) or space if calm.
 //   - Char 2 = strength marker (· ~ ≈) or calm mark.
-//   - Sea / raining-now cells use an override glyph.
+//   - Sea / rain cells use an override glyph.
 //   - Start cell overlays ● (wind info hidden — read neighbours).
-func todayCellGlyph(c todayCell, windowHours int, isStart bool) string {
+func todayCellGlyph(c todayCell, isStart bool) string {
 	rst := termplt.ColorReset
 	// Start cell always shows the ● marker regardless of underlying data.
 	// Use the same sea-cyan tint as the rest of the heatmap when the start
 	// itself sits on water (rare, but possible if the user drops a lat/lon
 	// on the IJsselmeer or an IP geocode puts them in the North Sea).
 	if isStart {
-		bg := todayBg(rainTimingBand(c.DryHours, windowHours))
+		bg := todayBg(rainAmountBand(c.MaxPrecip))
 		if c.NoData {
 			bg = termplt.ColorBackgroundBrightBlack
 		}
@@ -387,11 +401,11 @@ func todayCellGlyph(c todayCell, windowHours int, isStart bool) string {
 		return termplt.ColorBackgroundBrightBlack + "  " + rst
 	}
 
-	band := rainTimingBand(c.DryHours, windowHours)
+	band := rainAmountBand(c.MaxPrecip)
 	bg := todayBg(band)
 
-	if band == 3 {
-		// Raining now / within 1h. Tint the ✗ cyan if this cell is over water,
+	if band == 2 {
+		// Real rain in the window. Tint the ✗ cyan if this cell is over water,
 		// so the "you can't ride here anyway" info isn't lost behind the
 		// rain colour.
 		fg := termplt.ColorBold + termplt.ColorWhite
@@ -415,26 +429,27 @@ func todayBg(band int) string {
 	case 0:
 		return termplt.ColorBackgroundBrightGreen
 	case 1:
-		return termplt.ColorBackgroundGreen
-	case 2:
 		return termplt.ColorBackgroundYellow
 	default:
 		return termplt.ColorBackgroundRed
 	}
 }
 
-// rainTimingBand maps (dryHours, windowHours) to a quality band:
-// 0 = full window dry, 1 = rain in final 1–2h, 2 = rain in middle, 3 = rain now / within 1h.
-func rainTimingBand(dryHours, windowHours int) int {
+// lightRainMm is the cut between "light rain" (yellow) and "rain" (red). Below
+// it precipitation is a drizzle you can ride through; at or above it the window
+// has real rain. ~2.5 mm/h is the conventional light/moderate boundary.
+const lightRainMm = 2.5
+
+// rainAmountBand maps the window's peak precipitation (mm/h) to a colour band:
+// 0 = no rain (green), 1 = light rain (yellow), 2 = rain (red).
+func rainAmountBand(maxPrecip float64) int {
 	switch {
-	case dryHours >= windowHours:
+	case maxPrecip <= rainThresholdMm:
 		return 0
-	case dryHours >= windowHours-2:
+	case maxPrecip < lightRainMm:
 		return 1
-	case dryHours >= 2:
-		return 2
 	default:
-		return 3
+		return 2
 	}
 }
 
@@ -521,13 +536,12 @@ func renderTodayLegend() {
 	rst := termplt.ColorReset
 	b := termplt.ColorBold
 	sw := func(bg, body string) string { return bg + body + rst }
-	fmt.Println(b + "Legend" + rst + " — background = rain timing, symbol = wind:")
+	fmt.Println(b + "Legend" + rst + " — background = rain amount, symbol = wind:")
 	fmt.Println()
-	fmt.Println(b + "  Rain timing (cell background)" + rst)
-	fmt.Printf("    %s    dry the entire %d-hour window\n", sw(termplt.ColorBackgroundBrightGreen, "   "), FlagTodayHours)
-	fmt.Printf("    %s    rain in the final 1–2 h\n", sw(termplt.ColorBackgroundGreen, "   "))
-	fmt.Printf("    %s    rain in the middle of the window\n", sw(termplt.ColorBackgroundYellow, "   "))
-	fmt.Printf("    %s    raining now or within 1 h (shown as %s ✗ %s)\n",
+	fmt.Printf(b+"  Rain (cell background) — peak over the %d-hour window"+rst+"\n", FlagTodayHours)
+	fmt.Printf("    %s    no rain at all\n", sw(termplt.ColorBackgroundBrightGreen, "   "))
+	fmt.Printf("    %s    light rain (under %.1f mm/h)\n", sw(termplt.ColorBackgroundYellow, "   "), lightRainMm)
+	fmt.Printf("    %s    rain (shown as %s ✗ %s)\n",
 		sw(termplt.ColorBackgroundRed, "   "),
 		termplt.ColorBackgroundRed+b+termplt.ColorWhite, rst)
 	fmt.Println()

@@ -630,7 +630,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 	for rIdx, row := range result.Cells {
 		gridCells[rIdx] = make([]GridCell, len(row))
 		for cIdx, cell := range row {
-			gridCells[rIdx][cIdx] = todayCellToGrid(cell, hours, rIdx == mid && cIdx == mid)
+			gridCells[rIdx][cIdx] = todayCellToGrid(cell, rIdx == mid && cIdx == mid)
 		}
 	}
 	page.HeatmapSVG = RenderHeatGridSVG(gridCells, GridOpts{
@@ -672,28 +672,28 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
+func todayCellToGrid(c todayCell, isStart bool) GridCell {
 	if isStart {
 		sc := "#fff"
 		if c.Sea {
 			sc = "#06b6d4" // start over water keeps the sea-cyan tint
 		}
-		return GridCell{Color: todayBandHex(rainTimingBand(c.DryHours, windowHours), c.NoData), Symbol: "●", SymbolColor: sc, Border: "#fff"}
+		return GridCell{Color: todayBandHex(rainAmountBand(c.MaxPrecip), c.NoData), Symbol: "●", SymbolColor: sc, Border: "#fff", Water: c.Sea}
 	}
 	if c.NoData {
 		return GridCell{Color: "#3f3f46", Symbol: ""}
 	}
-	band := rainTimingBand(c.DryHours, windowHours)
+	band := rainAmountBand(c.MaxPrecip)
 	bg := todayBandHex(band, false)
-	if band == 3 {
-		// Tint the ✗ cyan over water so the "this is water" cue isn't lost
-		// behind the rain colour.
+	if band == 2 {
+		// Real rain. Tint the ✗ cyan over water so the "this is water" cue
+		// isn't lost behind the rain colour.
 		sym := "✗"
 		sc := "#fff"
 		if c.Sea {
 			sc = "#06b6d4"
 		}
-		return GridCell{Color: bg, Symbol: sym, SymbolColor: sc}
+		return GridCell{Color: bg, Symbol: sym, SymbolColor: sc, Water: c.Sea}
 	}
 	sym := ""
 	if WindBand(c.WindSpeed) > 0 {
@@ -705,7 +705,7 @@ func todayCellToGrid(c todayCell, windowHours int, isStart bool) GridCell {
 	if c.Sea {
 		sc = "#06b6d4"
 	}
-	return GridCell{Color: bg, Symbol: sym, SymbolColor: sc}
+	return GridCell{Color: bg, Symbol: sym, SymbolColor: sc, Water: c.Sea}
 }
 
 func todayBandHex(band int, noData bool) string {
@@ -714,13 +714,11 @@ func todayBandHex(band int, noData bool) string {
 	}
 	switch band {
 	case 0:
-		return "#86efac" // bright green — dry full window
+		return "#86efac" // bright green — no rain at all
 	case 1:
-		return "#4ade80" // green — rain late
-	case 2:
-		return "#facc15" // yellow — rain middle
+		return "#facc15" // yellow — light rain
 	default:
-		return "#ef4444" // red — raining now
+		return "#ef4444" // red — rain
 	}
 }
 

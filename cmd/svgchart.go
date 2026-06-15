@@ -297,6 +297,7 @@ type GridCell struct {
 	Symbol      string
 	SymbolColor string
 	Border      string
+	Water       bool // cell is over water — drives the cyan coastline contour
 }
 
 // GridOpts controls heat-grid layout.
@@ -387,6 +388,49 @@ func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
 					x+opts.CellSize/2, y+opts.CellSize/2+1,
 					template.HTMLEscapeString(sc), opts.CellSize-6,
 					template.HTMLEscapeString(cell.Symbol))
+			}
+		}
+	}
+
+	// Coastline contour: trace the cyan boundary between water and land cells.
+	// Drawn last so it sits on top of the fills. Only interior water/land edges
+	// are stroked — a water region running off the map edge stays open, which
+	// reads correctly as "the sea continues past here". This is what makes the
+	// rain colours legible over water: the shape of the coast, not a per-cell
+	// tint, tells you what's sea.
+	// Out-of-grid neighbours count as water so a sea region touching the map
+	// edge is left open there rather than boxed in by a straight border line.
+	water := func(r, c int) bool {
+		if r < 0 || r >= rows || c < 0 || c >= cols {
+			return true
+		}
+		return cells[r][c].Water
+	}
+	const coast = "#06b6d4"
+	for r := 0; r < rows; r++ {
+		for c := 0; c < cols; c++ {
+			if !cells[r][c].Water {
+				continue
+			}
+			x := padL + c*opts.CellSize
+			y := padT + r*opts.CellSize
+			// Stroke each side that faces land (or an out-of-grid neighbour
+			// that is not itself water, i.e. the inland map edge).
+			if !water(r-1, c) { // top
+				fmt.Fprintf(&b, `<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					x, y, x+opts.CellSize, y, coast)
+			}
+			if !water(r+1, c) { // bottom
+				fmt.Fprintf(&b, `<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					x, y+opts.CellSize, x+opts.CellSize, y+opts.CellSize, coast)
+			}
+			if !water(r, c-1) { // left
+				fmt.Fprintf(&b, `<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					x, y, x, y+opts.CellSize, coast)
+			}
+			if !water(r, c+1) { // right
+				fmt.Fprintf(&b, `<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					x+opts.CellSize, y, x+opts.CellSize, y+opts.CellSize, coast)
 			}
 		}
 	}
