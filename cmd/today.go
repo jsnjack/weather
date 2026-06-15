@@ -32,7 +32,7 @@ func init() {
 	rootCmd.AddCommand(todayCmd)
 	todayCmd.Flags().IntVar(&FlagTodayHours, "hours", 6, "ride window length in hours (1–24)")
 	todayCmd.Flags().StringVar(&FlagTodayStart, "start", "", "ride start time HH:MM (default: now + 30 min rounded up)")
-	todayCmd.Flags().Float64Var(&FlagTodayRadius, "radius", 50, "map radius in km")
+	todayCmd.Flags().Float64Var(&FlagTodayRadius, "radius", 100, "map radius in km")
 	todayCmd.Flags().IntVar(&FlagTodayGrid, "grid", 21, "heatmap resolution (NxN; odd, clamped to ≥5)")
 }
 

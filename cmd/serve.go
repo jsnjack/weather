@@ -509,7 +509,7 @@ func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start ti
 	if v, err := strconv.Atoi(q.Get("hours")); err == nil && v >= 1 && v <= 24 {
 		hours = v
 	}
-	radius = 50
+	radius = 100
 	if v, err := strconv.ParseFloat(q.Get("radius"), 64); err == nil && v > 0 {
 		radius = v
 	}
