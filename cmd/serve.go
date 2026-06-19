@@ -505,15 +505,15 @@ func locQuery(loc Location) template.URL {
 // Amsterdam "09:00" otherwise becomes an 11:00 ride window.
 func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start time.Time, radius float64, grid int, startInput string) {
 	q := r.URL.Query()
-	hours = 6
+	hours = todayDefaultHours
 	if v, err := strconv.Atoi(q.Get("hours")); err == nil && v >= 1 && v <= 24 {
 		hours = v
 	}
-	radius = 100
+	radius = todayDefaultRadius
 	if v, err := strconv.ParseFloat(q.Get("radius"), 64); err == nil && v > 0 {
 		radius = v
 	}
-	grid = 21
+	grid = todayDefaultGrid
 	if v, err := strconv.Atoi(q.Get("grid")); err == nil && v >= 5 {
 		grid = v
 	}

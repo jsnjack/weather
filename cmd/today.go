@@ -18,6 +18,14 @@ var (
 	FlagTodayGrid   int
 )
 
+// Shared defaults for the today ride-window heatmap. The CLI flags and the
+// web query parser both fall back to these so the two surfaces stay in sync.
+const (
+	todayDefaultHours  = 6
+	todayDefaultRadius = 75
+	todayDefaultGrid   = 21
+)
+
 var todayCmd = &cobra.Command{
 	Use:   "today",
 	Short: "Plan a short ride in the next few hours (rain-timing heatmap)",
@@ -30,10 +38,10 @@ Useful for "it's 10am, I'm thinking about a ride tonight — where's dry?"`,
 
 func init() {
 	rootCmd.AddCommand(todayCmd)
-	todayCmd.Flags().IntVar(&FlagTodayHours, "hours", 6, "ride window length in hours (1–24)")
+	todayCmd.Flags().IntVar(&FlagTodayHours, "hours", todayDefaultHours, "ride window length in hours (1–24)")
 	todayCmd.Flags().StringVar(&FlagTodayStart, "start", "", "ride start time HH:MM (default: now + 30 min rounded up)")
-	todayCmd.Flags().Float64Var(&FlagTodayRadius, "radius", 100, "map radius in km")
-	todayCmd.Flags().IntVar(&FlagTodayGrid, "grid", 21, "heatmap resolution (NxN; odd, clamped to ≥5)")
+	todayCmd.Flags().Float64Var(&FlagTodayRadius, "radius", todayDefaultRadius, "map radius in km")
+	todayCmd.Flags().IntVar(&FlagTodayGrid, "grid", todayDefaultGrid, "heatmap resolution (NxN; odd, clamped to ≥5)")
 }
 
 // todayCell is the scored result for one grid cell over the ride window.
