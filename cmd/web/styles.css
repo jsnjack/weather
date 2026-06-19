@@ -126,6 +126,8 @@ td.muted, span.muted { color: var(--muted); }
 .trip .path { color: var(--muted); font-size: .85rem; margin: 0 0 .4rem; }
 .trip th, .trip td { white-space: nowrap; }
 .empty { padding: .8rem .9rem; color: var(--muted); background: var(--island); border-radius: 14px; margin: .75rem 0; }
+.configure { background: var(--island); border-radius: 14px; padding: .8rem .9rem; margin: .75rem 0; }
+.configure .sub { margin: 0; }
 
 /* legend cards — content, not chrome (never auto-strip these) */
 .legend-card { background: var(--island); border-radius: 14px; padding: .8rem .9rem; margin: .9rem 0; }

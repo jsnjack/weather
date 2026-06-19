@@ -892,6 +892,15 @@ type multidayPageData struct {
 	HeatmapDaysSVG     []template.HTML
 	RecommendationText string
 	Now                string
+	// Configure is true on the first visit (no ?run=1): the page shows the
+	// options form open with a Run button and does not issue any upstream
+	// requests. The expensive fan-out (100+ Open-Meteo calls) only runs once
+	// the user submits the form with run=1.
+	Configure bool
+	// EstRequests is a rough count of upstream Open-Meteo calls the chosen
+	// options will trigger, shown on the configure screen so the user can
+	// trim them before running (the rate limit is low).
+	EstRequests int
 }
 
 type multidayPageCfg struct {
@@ -933,6 +942,25 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 		EndLabel:   endDate.Format("2006-01-02"),
 		StartInput: sq.StartDateInput,
 	}
+
+	// First visit (no ?run=1): show the options form and stop. Multiday fans
+	// out into 100+ Open-Meteo requests, so the user should adjust the options
+	// and explicitly run rather than trigger the fan-out on every page load.
+	run := r.URL.Query().Get("run") == "1"
+	if !run {
+		page.Configure = true
+		page.EstRequests = estimateMultidayRequests(sq)
+		if err := multidayHeadTmpl.Execute(w, page); err != nil {
+			slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
+			return
+		}
+		// Close the page without streaming a body.
+		if _, err := w.Write([]byte("\n</main>\n<script>\n  if (\"serviceWorker\" in navigator) navigator.serviceWorker.register(\"/sw.js\").catch(function(){});\n</script>\n</body>\n</html>\n")); err != nil {
+			slog.Debug("write configure tail", "err", err)
+		}
+		return
+	}
+
 	if err := multidayHeadTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
 		return
@@ -969,6 +997,21 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 	if err := multidayBodyTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "multidayBody", "err", err)
 	}
+}
+
+// estimateMultidayRequests approximates the number of upstream Open-Meteo
+// calls a multiday run will issue, so the configure screen can warn the user
+// before they trigger the fan-out (the free-tier rate limit is low).
+func estimateMultidayRequests(sq multidayQuery) int {
+	if sq.Heatmap {
+		// RunHeatmap fetches one forecast per grid cell.
+		return sq.HeatmapGrid * sq.HeatmapGrid
+	}
+	// Beam search: each day fans every surviving node into 8 bearings; the
+	// midpoint forecasts are deduped, so the worst case per day is
+	// min(beamWidth*8, beamWidth*8) unique points. Use that as an upper bound.
+	perDay := sq.BeamWidth * multidayNumDirections
+	return perDay * sq.Days
 }
 
 func tripToView(t beamNode, labels []string, startLat, startLon float64, roundTrip bool) multidayTripView {
