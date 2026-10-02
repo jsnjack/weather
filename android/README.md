@@ -20,7 +20,7 @@ these. Bootstrap must satisfy them.
 
 | Component | Version |
 |---|---|
-| JDK | 17 or 21 — **not** newer; Gradle 8.9 rejects JDK 22+ (use the Studio JBR) |
+| JDK | 17 or 21 — **not** newer; Gradle 8.9 rejects JDK 22+ (Temurin 21 in `~/.jdks`; the Studio JBR is 25 now) |
 | Android SDK platform | `android-34` |
 | Android build-tools | `34.0.0` |
 | Gradle | 8.9 (auto-fetched by `./gradlew` on first build) |
@@ -108,18 +108,17 @@ export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
 
 ## Build + install + refresh loop
 
-> **JDK — read this first.** Gradle 8.9 runs on JDK 17–21. A newer *system*
-> JDK (Fedora currently ships `java-25`) makes Gradle fail before it even
-> evaluates the build scripts. Point `JAVA_HOME` at Android Studio's bundled
-> JBR 21 before building:
+> **JDK — read this first.** Gradle 8.9 runs on JDK 17–21. A newer JDK
+> makes Gradle fail before it even evaluates the build scripts. Fedora ships
+> `java-25`, and Android Studio's bundled JBR moved to 25 as well, so neither
+> works. Unpack a JDK 21 into `~/.jdks`, which `make apk` picks up on its own:
 >
 > ```bash
-> export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
->     -maxdepth 8 -type d -name jbr 2>/dev/null | head -1)
+> mkdir -p ~/.jdks && curl -fL \
+>     https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse \
+>     | tar xz -C ~/.jdks
+> export JAVA_HOME=$(ls -d ~/.jdks/jdk-21* | head -1)   # for ./gradlew run by hand
 > ```
->
-> To avoid re-exporting every shell, pin it once in `~/.gradle/gradle.properties`
-> (per-machine, outside the repo): `org.gradle.java.home=/…/extra/jbr`.
 
 The standard dev loop, from `android/`:
 

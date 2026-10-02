@@ -65,13 +65,19 @@ build: bin/$(BINARY) bin/$(BINARY)_linux_amd64 bin/$(BINARY)_linux_arm64 bin/$(B
 # Android widget APK — debug-signed on purpose: the widget is personal
 # sideload only (see android/README.md), and the debug signature matches dev
 # installs, so a release APK updates the widget in place instead of
-# demanding an uninstall. Gradle needs JDK 17–21: uses JAVA_HOME when set,
-# else falls back to Android Studio's bundled JBR.
+# demanding an uninstall. Gradle 8.9 needs JDK 17–21: uses JAVA_HOME when
+# set, else a JDK 21/17 unpacked in ~/.jdks, else Android Studio's bundled
+# JBR, but only if it is still 17–21 (Studio moved its JBR to 25 in 2026).
 apk:
 	@set -e; \
 	if [ -z "$$JAVA_HOME" ]; then \
-	  JBR=$$(find /var/lib/flatpak/app/com.google.AndroidStudio -maxdepth 8 -type d -name jbr 2>/dev/null | head -1); \
-	  if [ -n "$$JBR" ]; then export JAVA_HOME=$$JBR; fi; \
+	  JDK=$$(ls -d $$HOME/.jdks/jdk-21* $$HOME/.jdks/jdk-17* 2>/dev/null | head -1); \
+	  if [ -z "$$JDK" ]; then \
+	    JBR=$$(find /var/lib/flatpak/app/com.google.AndroidStudio -maxdepth 8 -type d -name jbr 2>/dev/null | head -1); \
+	    if [ -n "$$JBR" ] && "$$JBR/bin/java" -version 2>&1 | grep -qE 'version "(17|21)\.'; then JDK=$$JBR; fi; \
+	  fi; \
+	  if [ -z "$$JDK" ]; then echo "==> need JDK 17–21: set JAVA_HOME or unpack one into ~/.jdks (see android/README.md)"; exit 1; fi; \
+	  export JAVA_HOME=$$JDK; \
 	fi; \
 	cd android && ./gradlew --quiet :app:assembleDebug || { \
 	  echo "==> APK build failed — bootstrap the Android toolchain per android/README.md"; exit 1; }
