@@ -108,10 +108,11 @@ td.muted, span.muted { color: var(--muted); }
 .evolution tr.newday th, .evolution tr.newday td { border-top: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); }
 .hourly-table .mobile-detail { display: none; }
 .hourly-table .wind-value { white-space: nowrap; }
+.temp-condition { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
 .sky-condition { position: relative; }
 .sky-condition summary { list-style: none; cursor: pointer; font-size: 1.2rem; }
 .sky-condition summary::-webkit-details-marker { display: none; }
-.sky-label { position: absolute; right: 0; bottom: 100%; z-index: 1; white-space: nowrap; padding: .3rem .5rem; border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 1px 6px #0002; }
+.sky-label { position: absolute; left: 0; bottom: 100%; z-index: 1; white-space: nowrap; padding: .3rem .5rem; border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 1px 6px #0002; }
 @media (max-width: 600px) {
   .hourly-table { font-size: .8rem; }
   .hourly-table th, .hourly-table td { padding: .4rem .18rem; }

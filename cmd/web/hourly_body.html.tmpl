@@ -32,21 +32,20 @@
     <table class="hourly-table">
       <thead>
         <tr>
-          <th>Time</th><th>Temp<span class="mobile-detail">Feels</span></th><th class="wide-detail">Feels</th><th>Rain<span class="mobile-detail">Chance</span></th><th class="wide-detail">%</th><th>Wind<span class="mobile-detail">Gusts</span></th><th class="wide-detail">Gusts</th><th>UV</th><th>Sky</th>
+          <th>Time</th><th>Temp<span class="mobile-detail">Feels</span></th><th class="wide-detail">Feels</th><th>Rain<span class="mobile-detail">Chance</span></th><th class="wide-detail">%</th><th>Wind<span class="mobile-detail">Gusts</span></th><th class="wide-detail">Gusts</th><th>UV</th>
         </tr>
       </thead>
       <tbody>
         {{range .Rows}}
         <tr{{if .NewDay}} class="newday"{{end}}>
           <th>{{.Time}}</th>
-          <td>{{.Temp}}°<span class="mobile-detail muted" aria-label="Feels like {{.Feels}} degrees">{{.Feels}}°</span></td>
+          <td><span class="temp-condition"><details class="sky-condition"><summary aria-label="{{.Condition}}" title="{{.Condition}}"><span aria-hidden="true">{{.ConditionIcon}}</span></summary><span class="sky-label">{{.Condition}}</span></details><span>{{.Temp}}°</span></span><span class="mobile-detail muted" aria-label="Feels like {{.Feels}} degrees">{{.Feels}}°</span></td>
           <td class="muted wide-detail">{{.Feels}}°</td>
           <td>{{if .Precip}}{{.Precip}}{{else}}·{{end}}<span class="mobile-detail muted" aria-label="Rain chance {{.PrecipPct}} percent">{{.PrecipPct}}%</span></td>
           <td class="muted wide-detail">{{if .PrecipPct}}{{.PrecipPct}}{{end}}</td>
           <td><span class="wind-value g-mi-{{.WindClass}}">{{.WindArrow}} {{.WindKmh}}</span><span class="mobile-detail g-mi-{{.GustClass}}" aria-label="Gusts {{.GustsKmh}} kilometres per hour">{{.GustsKmh}}</span></td>
           <td class="g-mi-{{.GustClass}} wide-detail">{{.GustsKmh}}</td>
           <td class="g-mi-{{.UVClass}}">{{.UV}}</td>
-          <td class="sky-cell"><details class="sky-condition"><summary aria-label="{{.Condition}}" title="{{.Condition}}"><span aria-hidden="true">{{.ConditionIcon}}</span></summary><span class="sky-label">{{.Condition}}</span></details></td>
         </tr>
         {{end}}
       </tbody>
@@ -56,7 +55,7 @@
   <section class="legend-card">
     <h3>Legend</h3>
     <div class="legend-group">
-      <span class="legend-item">Temp / Feels — °C</span>
+      <span class="legend-item">Temp / Feels — °C · icon — sky conditions</span>
       <span class="legend-item">Rain — mm in the hour · % — chance of rain</span>
       <span class="legend-item">Wind / gusts — km/h · arrow points where it pushes you</span>
       <span class="legend-item"><span class="g-mi-caution">caution</span> wind/gusts ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind/gusts ≥50 / UV ≥8</span>

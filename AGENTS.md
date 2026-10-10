@@ -246,10 +246,15 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
   must be dry with rain chance at most 30%, wholly in daylight, start in the future, and have wind/gusts below
   the critical threshold. The Android widget opens `/day` when tapped.
-- **Hourly tables fit the phone width.** At widths up to 600px, temperature/feels,
-  rain/chance and wind/gusts share labelled two-line cells. Sky uses condition
-  icons with accessible names and tap-to-show labels. Desktop keeps separate
-  measurement columns; every forecast value remains available on both layouts.
+- **Detailed forecasts replace Hourly in web navigation.** Today, Tomorrow and
+  Weekend provide the hourly tables and ride windows. The rolling `/hourly` URL
+  and CLI command remain available for custom periods and existing links.
+  Ride planning links are labelled `Ride: today` and `Ride: multiday`.
+- **Hourly tables fit the phone width.** Sky condition icons sit beside the
+  temperature, with accessible names and tap-to-show labels. At widths up to
+  600px, temperature/feels, rain/chance and wind/gusts share labelled two-line
+  cells. Desktop keeps separate measurement columns; every forecast value
+  remains available on both layouts.
 
 ---
 

@@ -8,19 +8,18 @@
 <title>{{.Title}} — {{.Location.Description}}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
-<link rel="stylesheet" href="/static/styles.css?v=6">
+<link rel="stylesheet" href="/static/styles.css?v=7">
 </head>
 <body>
 <main>
   <nav class="nav">
     <a href="/{{if .Q}}?{{.Q}}{{end}}">Rain 2h</a>
-    <a href="/hourly{{if .Q}}?{{.Q}}{{end}}"{{if not .Period}} aria-current="page"{{end}}>Hourly</a>
     <a href="/day{{if .Q}}?{{.Q}}{{end}}"{{if eq .Period "today"}} aria-current="page"{{end}}>Today</a>
     <a href="/tomorrow{{if .Q}}?{{.Q}}{{end}}"{{if eq .Period "tomorrow"}} aria-current="page"{{end}}>Tomorrow</a>
     <a href="/weekend{{if .Q}}?{{.Q}}{{end}}"{{if eq .Period "weekend"}} aria-current="page"{{end}}>Next weekend</a>
     <a href="/forecast{{if .Q}}?{{.Q}}{{end}}">14-day</a>
-    <a href="/today{{if .Q}}?{{.Q}}{{end}}">Ride today</a>
-    <a href="/multiday{{if .Q}}?{{.Q}}{{end}}">Multiday</a>
+    <a href="/today{{if .Q}}?{{.Q}}{{end}}">Ride: today</a>
+    <a href="/multiday{{if .Q}}?{{.Q}}{{end}}">Ride: multiday</a>
   </nav>
   <header>
     <h1>{{.Location.Description}}</h1>
