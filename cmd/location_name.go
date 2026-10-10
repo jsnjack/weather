@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,16 @@ type OpenstreetmapResponse struct {
 	BoundingBox []string `json:"boundingbox"`
 }
 
+// GetLocationFromString resolves a place name and caches successful results.
 func GetLocationFromString(str string) (Location, error) {
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return Location{}, fmt.Errorf("place name is empty")
+	}
+	return memo(locationNameCache, str, func() (Location, error) { return fetchLocationFromString(str) })
+}
+
+func fetchLocationFromString(str string) (Location, error) {
 	slog.Debug("getting location from string", "name", str)
 	location := Location{}
 	client := &http.Client{
@@ -67,13 +77,17 @@ func GetLocationFromString(str string) (Location, error) {
 	osmResponse := osmResponses[0]
 
 	location.Description = osmResponse.DisplayName
-	location.Longitude = parseFloat(osmResponse.Lon)
-	location.Latitude = parseFloat(osmResponse.Lat)
+	location.Longitude, err = strconv.ParseFloat(osmResponse.Lon, 64)
+	if err != nil {
+		return Location{}, fmt.Errorf("parse geocoded longitude: %w", err)
+	}
+	location.Latitude, err = strconv.ParseFloat(osmResponse.Lat, 64)
+	if err != nil {
+		return Location{}, fmt.Errorf("parse geocoded latitude: %w", err)
+	}
+	if err := validateCoordinates(location.Latitude, location.Longitude); err != nil {
+		return Location{}, fmt.Errorf("geocoded location: %w", err)
+	}
 
 	return location, nil
-}
-
-func parseFloat(str string) float64 {
-	value, _ := strconv.ParseFloat(str, 64)
-	return value
 }

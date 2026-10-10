@@ -32,7 +32,8 @@ const (
 )
 
 var tmplFuncs = template.FuncMap{
-	"add": func(a, b int) int { return a + b },
+	"add":   func(a, b int) int { return a + b },
+	"coord": coordinateText,
 }
 
 // Each page streams in two parts: a "_head" template flushed before the work
@@ -246,8 +247,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
@@ -261,7 +261,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		Location:        loc,
 		BuienalarmColor: buienalarmColor,
 		BuineradarColor: buineradarColor,
-		Q:               locQuery(loc),
+		Q:               locQuery(loc, name),
 		NameInput:       name,
 	}
 	if err := indexHeadTmpl.Execute(w, data); err != nil {
@@ -442,8 +442,7 @@ type rainAPIResponse struct {
 }
 
 func handleRainJSON(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
@@ -468,18 +467,6 @@ func writeJSONError(w http.ResponseWriter, code int, err error) {
 	}
 }
 
-func locationQuery(r *http.Request) (lat, lon float64, name string) {
-	q := r.URL.Query()
-	if v := q.Get("lat"); v != "" {
-		lat, _ = strconv.ParseFloat(v, 64)
-	}
-	if v := q.Get("lon"); v != "" {
-		lon, _ = strconv.ParseFloat(v, 64)
-	}
-	name = q.Get("name")
-	return
-}
-
 func embedHandler(path, contentType string) http.HandlerFunc {
 	data, err := webFS.ReadFile(path)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -493,13 +480,6 @@ func embedHandler(path, contentType string) http.HandlerFunc {
 			slog.Log(r.Context(), LevelTrace, "write embedded asset", "path", path, "err", werr)
 		}
 	}
-}
-
-// locQuery returns "lat=...&lon=..." for the resolved location so nav links
-// preserve the user's place when hopping between pages. Returned as
-// template.URL so html/template doesn't percent-encode the & and = chars.
-func locQuery(loc Location) template.URL {
-	return template.URL(fmt.Sprintf("lat=%.4f&lon=%.4f", loc.Latitude, loc.Longitude))
 }
 
 // ---------- /today ----------
@@ -541,8 +521,7 @@ func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start ti
 }
 
 func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
@@ -590,8 +569,7 @@ type todayPageData struct {
 }
 
 func handleToday(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
@@ -604,7 +582,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 
 	page := todayPageData{
 		Location:    loc,
-		Q:           locQuery(loc),
+		Q:           locQuery(loc, name),
 		NameInput:   name,
 		WindowHours: hours,
 		Grid:        grid,
@@ -820,8 +798,7 @@ type multidayTripJSON struct {
 }
 
 func handleMultidayJSON(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
@@ -918,8 +895,7 @@ type multidayPageCfg struct {
 }
 
 func handleMultiday(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
@@ -934,7 +910,7 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 
 	page := multidayPageData{
 		Location:  loc,
-		Q:         locQuery(loc),
+		Q:         locQuery(loc, name),
 		NameInput: name,
 		Cfg: multidayPageCfg{
 			Days: sq.Days, KmPerDay: sq.KmPerDay, MinTemp: sq.MinTemp,

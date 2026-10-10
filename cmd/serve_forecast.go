@@ -217,8 +217,7 @@ func parseHoursParam(r *http.Request) int {
 }
 
 func handleHourly(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
@@ -238,7 +237,7 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 	page := hourlyPageData{
 		Title:      "Hourly",
 		Location:   loc,
-		Q:          locQuery(loc),
+		Q:          locQuery(loc, name),
 		NameInput:  name,
 		Hours:      hours,
 		StartLabel: start.Format("Mon 15:04"),
@@ -333,8 +332,7 @@ func parseDaysParam(r *http.Request) int {
 }
 
 func handleForecast(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
@@ -347,7 +345,7 @@ func handleForecast(w http.ResponseWriter, r *http.Request) {
 
 	page := forecastPageData{
 		Location:  loc,
-		Q:         locQuery(loc),
+		Q:         locQuery(loc, name),
 		NameInput: name,
 		Days:      days,
 	}

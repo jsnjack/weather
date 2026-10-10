@@ -8,10 +8,20 @@ import (
 	"time"
 )
 
+// GetDescriptionFromCoordinates returns a cached locality, city and country label.
 func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
+	if err := validateCoordinates(lat, lon); err != nil {
+		return "", err
+	}
+	return memo(locationDescriptionCache, coordinateText(lat)+"|"+coordinateText(lon), func() (string, error) {
+		return fetchDescriptionFromCoordinates(lat, lon)
+	})
+}
+
+func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
 	slog.Debug("reverse-geocode: getting description", "lat", lat, "lon", lon)
-	urlTpl := "https://us1.api-bdc.net/data/reverse-geocode-client?latitude=%.2f&longitude=%.2f&localityLanguage=en"
-	url := fmt.Sprintf(urlTpl, lat, lon)
+	urlTpl := "https://us1.api-bdc.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en"
+	url := fmt.Sprintf(urlTpl, coordinateText(lat), coordinateText(lon))
 
 	slog.Debug("reverse-geocode: requesting", "url", url)
 	client := &http.Client{
@@ -67,6 +77,9 @@ func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
 			description += ", "
 		}
 		description += p
+	}
+	if description == "" {
+		return "", fmt.Errorf("reverse geocoder returned no location name")
 	}
 	return description, nil
 }

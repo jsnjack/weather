@@ -26,8 +26,7 @@ func handleOutlookJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	lat, lon, name := locationQuery(r)
-	location, err := ResolveLocationFor(lat, lon, name)
+	location, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
@@ -56,13 +55,12 @@ func handleOutlook(w http.ResponseWriter, r *http.Request) {
 	case "/weekend":
 		period, title = outlookWeekend, "Next weekend"
 	}
-	lat, lon, name := locationQuery(r)
-	location, err := ResolveLocationFor(lat, lon, name)
+	location, name, err := resolveRequestLocation(r)
 	if err != nil {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	page := hourlyPageData{Title: title, Period: period, Location: location, Q: locQuery(location), NameInput: name}
+	page := hourlyPageData{Title: title, Period: period, Location: location, Q: locQuery(location, name), NameInput: name}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := hourlyHeadTmpl.Execute(w, page); err != nil {

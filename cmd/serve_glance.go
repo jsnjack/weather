@@ -67,8 +67,7 @@ type glanceWindPair struct {
 }
 
 func handleGlanceJSON(w http.ResponseWriter, r *http.Request) {
-	lat, lon, name := locationQuery(r)
-	loc, err := ResolveLocationFor(lat, lon, name)
+	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return

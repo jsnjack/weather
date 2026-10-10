@@ -42,7 +42,7 @@ cmd/
   forecast_buineradar.go         Buienradar nowcast client (gpsgadget.buienradar.nl)
   location.go                    ResolveLocation — priority: lat/lon > name > IP
   location_ip.go                 MaxMind IP geolocation fallback
-  location_name.go               Name → coordinates (open-meteo geocoding)
+  location_name.go               Name → coordinates (Nominatim geocoding)
   lat_lon_to_location.go         Reverse-geocode coordinates → human description
   progress.go                    CLI progress bar
   multiday.go                       Multi-leg trip search command + result rendering
@@ -53,6 +53,7 @@ cmd/
   multiday_score.go                 Per-day weather scoring
   serve.go                       HTTP server: HTML pages + JSON API + embedded PWA assets
   serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
+  serve_location.go              Strict web location parsing and navigation state
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -70,6 +71,7 @@ External APIs:
 - `api.open-meteo.com` — hourly temperature / precipitation / wind for multiday & today.
 - `geoip.maxmind.com` — IP geolocation fallback.
 - `us1.api-bdc.net` — reverse-geocoding for human-readable location names.
+- `nominatim.openstreetmap.org` — place-name geocoding.
 
 ---
 
@@ -246,6 +248,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
   must be dry with rain chance at most 30%, wholly in daylight, start in the future, and have wind/gusts below
   the critical threshold. The Android widget opens `/day` when tapped.
+- **Locations stay fixed across web views.** Navigation carries exact coordinates,
+  the resolved display label and the original place-name input. Location forms
+  preserve coordinate precision; editing a name clears coordinates, and editing
+  coordinates clears the name and label. Invalid, incomplete and non-finite
+  coordinates return HTTP 400; an explicit `(0, 0)` is valid. With no name or
+  coordinates, the fallback is the server’s IP location. Forward and reverse
+  geocoding share bounded 24-hour caches with in-flight deduplication.
 - **Detailed forecasts replace Hourly in web navigation.** Today, Tomorrow and
   Weekend provide the hourly tables and ride windows. The rolling `/hourly` URL
   and CLI command remain available for custom periods and existing links.
