@@ -180,6 +180,8 @@ type hourlyRow struct {
 	PrecipPct int
 	WindArrow string
 	WindKmh   int
+	GustsKmh  int
+	GustClass string
 	WindClass string
 	UV        int
 	UVClass   string
@@ -187,6 +189,9 @@ type hourlyRow struct {
 }
 
 type hourlyPageData struct {
+	Title          string
+	Period         string
+	Rides          []rideWindowRow
 	Location       Location
 	Q              template.URL
 	NameInput      string
@@ -230,6 +235,7 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 	flusher, _ := w.(http.Flusher)
 
 	page := hourlyPageData{
+		Title:      "Hourly",
 		Location:   loc,
 		Q:          locQuery(loc),
 		NameInput:  name,
@@ -266,48 +272,13 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var tempPts, feelsPts, precipPts []ForecastDataPoint
-	lastDay := -1
-	for _, h := range data.Hourly {
-		if h.Time.Before(start) || h.Time.After(end) {
-			continue
+	rows := make([]HourlyForecast, 0, hours)
+	for _, hour := range data.Hourly {
+		if !hour.Time.Before(start) && !hour.Time.After(end) {
+			rows = append(rows, hour)
 		}
-		windKmh := int(round(h.WindSpeed))
-		uv := int(round(h.UVIndex))
-		newDay := h.Time.YearDay() != lastDay
-		lastDay = h.Time.YearDay()
-		label := h.Time.Format("15:04")
-		if newDay {
-			label = h.Time.Format("Mon 15:04")
-		}
-		page.Rows = append(page.Rows, hourlyRow{
-			Time:      label,
-			NewDay:    newDay && len(page.Rows) > 0,
-			Temp:      int(round(h.Temperature)),
-			Feels:     int(round(h.ApparentTemperature)),
-			Precip:    formatPrecip(h.Precipitation),
-			PrecipPct: h.PrecipitationProbability,
-			WindArrow: windArrowFor(int(round(h.WindDirection))),
-			WindKmh:   windKmh,
-			WindClass: windClassFor(windKmh),
-			UV:        uv,
-			UVClass:   uvClassFor(uv),
-			Condition: conditionHumanLabel(wmoCondition(h.WeatherCode)),
-		})
-		tempPts = append(tempPts, ForecastDataPoint{Time: h.Time, Value: h.Temperature})
-		feelsPts = append(feelsPts, ForecastDataPoint{Time: h.Time, Value: h.ApparentTemperature})
-		precipPts = append(precipPts, ForecastDataPoint{Time: h.Time, Value: h.Precipitation})
 	}
-
-	if len(tempPts) >= 2 {
-		page.TempChartSVG = RenderLineChartSVG([]SVGSeries{
-			{Name: "Temp", Color: tempColor, Data: tempPts},
-			{Name: "Feels", Color: feelsColor, Data: feelsPts},
-		}, SVGOpts{YUnit: "°C", XTimeFormat: "Mon 15h"})
-		page.PrecipChartSVG = RenderLineChartSVG([]SVGSeries{
-			{Name: "Precip", Color: buienalarmColor, Data: precipPts},
-		}, SVGOpts{YUnit: "mm", XTimeFormat: "Mon 15h", MinYHi: 1, FillArea: true})
-	}
+	populateHourlyPage(&page, rows)
 
 	if err := hourlyBodyTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "hourlyBody", "err", err)

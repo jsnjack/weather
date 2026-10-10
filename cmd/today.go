@@ -83,6 +83,13 @@ type todayResult struct {
 
 func runToday(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
+	forecast, err := cmd.Flags().GetBool("forecast")
+	if err != nil {
+		return fmt.Errorf("read forecast option: %w", err)
+	}
+	if forecast {
+		return runOutlook(cmd, outlookToday)
+	}
 	if FlagTodayHours <= 0 || FlagTodayHours > 24 {
 		return fmt.Errorf("--hours must be between 1 and 24")
 	}

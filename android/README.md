@@ -2,7 +2,7 @@
 
 A native Android widget that calls the `weather serve` JSON API
 (`/api/v1/glance`) and renders the 2-hour Buienalarm + Buienradar
-mini-chart on the home screen. Tap → opens the hourly forecast for the
+mini-chart on the home screen. Tap → opens the detailed today forecast for the
 widget's own location in the browser.
 
 > **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).

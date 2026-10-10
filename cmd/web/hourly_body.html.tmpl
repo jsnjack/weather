@@ -1,3 +1,14 @@
+  {{if .Period}}
+  {{if .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
+  <section class="island evolution">
+    <h2>Best dry 2-hour ride windows</h2>
+    <p class="sub">Ranked by rain chance, wind, gusts, feels-like temperature and UV. Daylight only; gusts below 50 km/h.</p>
+    {{if .Rides}}<table><thead><tr><th>Time</th><th>Rain %</th><th>Wind</th><th>Gusts</th><th>Feels</th><th>UV</th></tr></thead><tbody>
+    {{range .Rides}}<tr><th>{{.Start}}–{{.End}}</th><td>{{.RainChance}}%</td><td>{{.Wind}}</td><td>{{.Gusts}}</td><td>{{.Feels}}°</td><td>{{.UV}}</td></tr>{{end}}
+    </tbody></table>{{else}}{{if not .Note}}<p>No suitable daylight window in the forecast.</p>{{end}}{{end}}
+  </section>
+  {{end}}
+
   {{if .Note}}<p class="empty">{{.Note}}</p>{{end}}
 
   {{if .TempChartSVG}}
@@ -21,7 +32,7 @@
     <table>
       <thead>
         <tr>
-          <th>Time</th><th>Temp</th><th>Feels</th><th>Rain</th><th>%</th><th>Wind</th><th>UV</th><th>Sky</th>
+          <th>Time</th><th>Temp</th><th>Feels</th><th>Rain</th><th>%</th><th>Wind</th><th>Gusts</th><th>UV</th><th>Sky</th>
         </tr>
       </thead>
       <tbody>
@@ -33,6 +44,7 @@
           <td>{{if .Precip}}{{.Precip}}{{else}}·{{end}}</td>
           <td class="muted">{{if .PrecipPct}}{{.PrecipPct}}{{end}}</td>
           <td class="g-mi-{{.WindClass}}">{{.WindArrow}} {{.WindKmh}}</td>
+          <td class="g-mi-{{.GustClass}}">{{.GustsKmh}}</td>
           <td class="g-mi-{{.UVClass}}">{{.UV}}</td>
           <td class="muted">{{.Condition}}</td>
         </tr>
@@ -46,8 +58,8 @@
     <div class="legend-group">
       <span class="legend-item">Temp / Feels — °C</span>
       <span class="legend-item">Rain — mm in the hour · % — chance of rain</span>
-      <span class="legend-item">Wind — arrow points where it pushes you · km/h</span>
-      <span class="legend-item"><span class="g-mi-caution">caution</span> wind ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind ≥50 / UV ≥8</span>
+      <span class="legend-item">Wind / gusts — km/h · arrow points where it pushes you</span>
+      <span class="legend-item"><span class="g-mi-caution">caution</span> wind/gusts ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind/gusts ≥50 / UV ≥8</span>
     </div>
   </section>
   {{end}}

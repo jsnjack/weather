@@ -15,8 +15,11 @@
   <nav class="nav">
     <a href="/{{if .Q}}?{{.Q}}{{end}}">Rain 2h</a>
     <a href="/hourly{{if .Q}}?{{.Q}}{{end}}">Hourly</a>
+    <a href="/day{{if .Q}}?{{.Q}}{{end}}">Today</a>
+    <a href="/tomorrow{{if .Q}}?{{.Q}}{{end}}">Tomorrow</a>
+    <a href="/weekend{{if .Q}}?{{.Q}}{{end}}">Next weekend</a>
     <a href="/forecast{{if .Q}}?{{.Q}}{{end}}">14-day</a>
-    <a href="/today{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Today</a>
+    <a href="/today{{if .Q}}?{{.Q}}{{end}}" aria-current="page">Ride today</a>
     <a href="/multiday{{if .Q}}?{{.Q}}{{end}}">Multiday</a>
   </nav>
   <header>

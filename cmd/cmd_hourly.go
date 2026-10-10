@@ -120,8 +120,8 @@ func renderHourlyPrecipChart(rows []HourlyForecast) {
 
 func renderHourlyTable(rows []HourlyForecast) {
 	b, rst := termplt.ColorBold, termplt.ColorReset
-	fmt.Printf("%s  %-10s %5s %6s %6s %6s  %-11s %3s  %s%s\n",
-		b, "Time", "Temp", "Feels", "Rain", "Rain%", "Wind", "UV", "Sky", rst)
+	fmt.Printf("%s  %-10s %5s %6s %6s %6s  %-11s %5s %3s  %s%s\n",
+		b, "Time", "Temp", "Feels", "Rain", "Rain%", "Wind", "Gusts", "UV", "Sky", rst)
 
 	lastDay := -1
 	for _, h := range rows {
@@ -154,7 +154,7 @@ func renderHourlyTable(rows []HourlyForecast) {
 		// colour, so ANSI escapes don't throw off column alignment.
 		windCell := wrap(fmt.Sprintf("%-11s", windPlain), windColor(kmh))
 		uvCell := wrap(fmt.Sprintf("%3d", uvVal), uvColor(uvVal))
-		fmt.Printf("  %-10s %5s %6s %6s %6s  %s %s  %s\n",
-			label, temp, feels, rain, pct, windCell, uvCell, sky)
+		fmt.Printf("  %-10s %5s %6s %6s %6s  %s %5s %s  %s\n",
+			label, temp, feels, rain, pct, windCell, wrap(fmt.Sprintf("%5d", int(round(h.WindGusts))), windColor(int(round(h.WindGusts)))), uvCell, sky)
 	}
 }

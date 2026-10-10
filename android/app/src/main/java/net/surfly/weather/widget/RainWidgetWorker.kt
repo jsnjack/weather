@@ -274,11 +274,11 @@ class RainWidgetWorker(
         views.setOnClickPendingIntent(R.id.updated, refreshPi)
     }
 
-    /** Builds the deep link the card opens: the hourly forecast page anchored
+    /** Builds the deep link the card opens: the detailed today forecast anchored
      *  to the widget's location (lat/lon, else name, else server IP). */
     private fun buildOpenUri(serverUrl: String, lat: Double?, lon: Double?, name: String?): Uri {
         val base = serverUrl.trimEnd('/')
-        val b = Uri.parse("$base/hourly").buildUpon()
+        val b = Uri.parse("$base/day").buildUpon()
         if (lat != null && lon != null) {
             b.appendQueryParameter("lat", lat.toString())
             b.appendQueryParameter("lon", lon.toString())

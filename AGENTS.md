@@ -10,7 +10,8 @@
 `weather` is a Go CLI for short-range rain forecasting and bike-trip planning,
 optimised for the Netherlands. The root command prints a 2-hour rain chart
 (Buienalarm + Buienradar) for your current location. Subcommands cover an
-hour-by-hour day forecast (`hourly`), a multi-day daily outlook (`forecast`,
+hour-by-hour rolling forecast (`hourly`), detailed calendar-day forecasts
+(`today --forecast`, `tomorrow`, `weekend`), a multi-day daily outlook (`forecast`,
 up to 16 days), shorter-term ride planning (`today`), multi-day bike-trip
 planning (`multiday`, a spatial heatmap by default or ranked trip plans with
 `--heatmap=false`; implemented in `multiday*.go`), and an HTTP/PWA front-end
@@ -52,6 +53,8 @@ cmd/
   multiday_score.go                 Per-day weather scoring
   serve.go                       HTTP server: HTML pages + JSON API + embedded PWA assets
   serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
+  outlook.go                     Calendar-day windows and ranked dry ride windows
+  serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
   svgchart.go                    Inline SVG chart for the HTML pages
   today.go                       Short ride-window heatmap command
@@ -101,6 +104,9 @@ make build          # multi-arch binaries in bin/
 ./weather --lat 52.37 --lon 4.90
 ./weather multiday --days 5 --km-per-day 100
 ./weather today --hours 6
+./weather today --forecast
+./weather tomorrow
+./weather weekend
 ./weather serve --addr :8080
 ```
 
@@ -230,6 +236,16 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   responses retain the upstream timezone string for parsing after CLI restarts.
   Request pacing and in-flight deduplication are per process; separate running
   processes share stored responses but do not share a request limiter.
+- **Calendar-day detail complements the ride heatmap.** `today --forecast`,
+  `tomorrow` and `weekend` share the data and ride ranking used by `/day`,
+  `/tomorrow`, `/weekend` and `/api/v1/outlook?period=today|tomorrow|weekend`.
+  Weekend includes the current Saturday/Sunday when already in the weekend,
+  with Sunday showing Sunday only. Windows use location midnight and calendar
+  arithmetic so DST does not force a 24-hour day. The three views share one
+  seven-day hourly response. Up to three non-overlapping two-hour ride windows
+  are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
+  must be dry, wholly in daylight, start in the future, and have wind/gusts below
+  the critical threshold. The Android widget opens `/day` when tapped.
 
 ---
 
