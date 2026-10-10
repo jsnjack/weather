@@ -258,7 +258,9 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   geocoding share bounded 24-hour caches with in-flight deduplication.
 - **KNMI radar opens paused on its newest supplied frame.** The rain page uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
-  observation, identified by KNMI's black timestamp followed by red forecast
+  observation. Playback stops at the last frame; Play at the end starts again
+  from the first frame. The latest observation is
+  identified by KNMI's black timestamp followed by red forecast
   timestamps on its 425×445 map. This visual convention is not an upstream API:
   Now is hidden if dimensions, caption colours or chronological ordering are
   unrecognised. `/api/v1/radar` describes the

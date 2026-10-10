@@ -38,12 +38,14 @@
   }
 
   function advance() {
-    show((frame + 1) % timeline.delays.length);
+    show(frame + 1);
+    if (frame === timeline.delays.length - 1) { pause(); return; }
     timer = setTimeout(advance, timeline.delays[frame]);
   }
 
   play.addEventListener("click", function () {
     if (timer !== null) { pause(); return; }
+    if (frame === timeline.delays.length - 1) show(0);
     play.textContent = "Pause";
     play.setAttribute("aria-pressed", "true");
     timer = setTimeout(advance, timeline.delays[frame]);
