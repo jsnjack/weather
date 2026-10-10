@@ -16,16 +16,17 @@ widget's own location in the browser.
 ## Pinned versions
 
 `build.gradle.kts` and `gradle/wrapper/gradle-wrapper.properties` expect
-these. Bootstrap must satisfy them.
+these. Bootstrap must satisfy them. The compile SDK is 37; the target SDK remains
+34 and the minimum supported Android version remains 12 (API 31).
 
 | Component | Version |
 |---|---|
-| JDK | 17 or 21 — **not** newer; Gradle 8.9 rejects JDK 22+ (Temurin 21 in `~/.jdks`; the Studio JBR is 25 now) |
-| Android SDK platform | `android-34` |
-| Android build-tools | `34.0.0` |
-| Gradle | 8.9 (auto-fetched by `./gradlew` on first build) |
-| Android Gradle Plugin | 8.5.2 |
-| Kotlin | 2.0.20 |
+| JDK | 21 (tested; Make also accepts JDK 17) |
+| Android SDK platform | `android-37.0` |
+| Android build-tools | `37.0.0` |
+| Gradle | 9.8.1 (auto-fetched by `./gradlew` on first build) |
+| Android Gradle Plugin | 9.4.1 |
+| Kotlin | 2.4.21 (AGP built-in Kotlin) |
 
 ## Bootstrap a fresh Fedora machine
 
@@ -46,7 +47,7 @@ export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v javac))))
 # 2. Android SDK command-line tools
 mkdir -p ~/Android/Sdk/cmdline-tools
 curl -fL -o /tmp/cmdline-tools.zip \
-    https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+    https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
 unzip -q /tmp/cmdline-tools.zip -d ~/Android/Sdk/cmdline-tools
 mv ~/Android/Sdk/cmdline-tools/cmdline-tools ~/Android/Sdk/cmdline-tools/latest
 rm /tmp/cmdline-tools.zip
@@ -55,7 +56,7 @@ rm /tmp/cmdline-tools.zip
 export ANDROID_HOME=$HOME/Android/Sdk
 export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 yes | sdkmanager --licenses >/dev/null
-sdkmanager 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
+sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;37.0.0'
 
 # 4. Tell Gradle where the SDK lives (local.properties is gitignored)
 echo "sdk.dir=$HOME/Android/Sdk" > /path/to/weather/android/local.properties
@@ -73,7 +74,7 @@ cd /path/to/weather/android
 ```
 
 After step 6 succeeds you have `app/build/outputs/apk/debug/app-debug.apk`.
-The Gradle 8.9 distribution (~150 MB) is now cached in
+The Gradle 9.8.1 distribution (~150 MB) is now cached in
 `~/.gradle/wrapper/dists/` and is shared across all subsequent builds
 on this machine.
 
@@ -108,10 +109,8 @@ export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
 
 ## Build + install + refresh loop
 
-> **JDK — read this first.** Gradle 8.9 runs on JDK 17–21. A newer JDK
-> makes Gradle fail before it even evaluates the build scripts. Fedora ships
-> `java-25`, and Android Studio's bundled JBR moved to 25 as well, so neither
-> works. Unpack a JDK 21 into `~/.jdks`, which `make apk` picks up on its own:
+> **JDK.** The terminal build is tested with JDK 21. Make respects `JAVA_HOME`
+> and otherwise looks for JDK 21 or 17 in `~/.jdks`. To unpack JDK 21 locally:
 >
 > ```bash
 > mkdir -p ~/.jdks && curl -fL \
@@ -132,6 +131,24 @@ to the GitHub release as `weather-widget.apk`, so a phone can sideload it
 straight from the release page. Debug-signed is deliberate: it matches dev
 installs, so it updates an existing widget in place; a differently-signed
 APK would require uninstalling first.
+
+`make apk` and `make release` stamp the widget version from `monova`. The numeric
+version code is `major * 1,000,000 + minor * 1,000 + patch`, matching F-Droid
+publication. A direct Gradle build without `-PappVersion` keeps the original
+development version; use `make apk` for builds intended to update a released widget.
+
+Run `make android-check` from the repository root to build the widget APK and
+run its JVM tests and Android lint. `make release` requires this Android gate
+and the Go `make check` gate to pass before uploading artifacts.
+
+Commit changes and push `master` before running `make release`. After uploading
+the GitHub release, it queues the shared F-Droid publisher for this app's exact
+source commit. GitHub Actions builds and signs the repository APK and deploys
+it to https://jsnjack.github.io/android-apps/; Wahoo Share stays at its published
+version. There is no scheduled polling. GitHub CLI (`gh`) must be authenticated
+with access to `jsnjack/android-apps`. If only the F-Droid trigger fails, retry
+with `make fdroid-publish` from the repository root. Follow the deployment in
+https://github.com/jsnjack/android-apps/actions/workflows/publish.yml.
 
 `adb install -r` redelivers `APPWIDGET_UPDATE` to existing widget instances,
 so reinstalling already forces a refresh and re-arms the 15-minute periodic
@@ -212,5 +229,6 @@ icon (top-right) to force an immediate fetch.
 `res/xml/network_security_config.xml` permits cleartext to **any host**
 via `<base-config cleartextTrafficPermitted="true">`. One APK works for
 a LAN IP, a VPN-internal hostname, or a public HTTPS URL with no
-rebuild. HTTPS still validates against the system CA store. This is for
-personal sideloading — don't redistribute this APK.
+rebuild. HTTPS still validates against the system CA store. APKs are distributed
+through the project's GitHub releases and custom F-Droid repository; the user
+chooses the server when configuring the widget.

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> See [AGENTS.universal.md](./AGENTS.universal.md) and [AGENTS.go.md](./AGENTS.go.md) for universal conventions.
+> See [AGENTS.universal.md](./AGENTS.universal.md), [AGENTS.go.md](./AGENTS.go.md) and [AGENTS.android.md](./AGENTS.android.md) for shared conventions.
 > Refresh: `make standards`
 
 ---
@@ -92,6 +92,8 @@ External APIs:
 
 ```bash
 make check          # fmt + vet + build + test + lint
+make android-check  # widget APK + JVM tests + Android lint
+make install        # build widget APK + explicit adb install -r
 make build          # multi-arch binaries in bin/
 ./weather           # rain chart for your IP-detected location
 ./weather --lat 52.37 --lon 4.90
@@ -99,6 +101,20 @@ make build          # multi-arch binaries in bin/
 ./weather today --hours 6
 ./weather serve --addr :8080
 ```
+
+`make release` runs the Go and Android validation gates, uploads the CLI
+archives and widget APK, then queues the shared
+F-Droid publisher for Weather Widget at the exact source commit. Releases
+require a clean checkout pushed to `origin/master` and authenticated GitHub CLI
+access to `jsnjack/android-apps`. `make fdroid-publish` retries the trigger without
+re-uploading GitHub release assets. Publication is asynchronous and preserves
+Wahoo Share's published APKs; the publisher has no scheduled polling.
+The Go dependencies require Go 1.26 or newer. Android builds use Gradle 9.8.1,
+AGP 9.4.1 with built-in Kotlin 2.4.21, SDK 37 and build tools 37.0.0; the
+minimum SDK remains 31 and target SDK remains 34. Make reports missing SDK
+components before Gradle can download them automatically.
+`make apk` stamps the widget version from `monova` through `-PappVersion`, using
+the same major/minor/patch numeric mapping as the shared F-Droid publisher.
 
 `--debug` (`-d`) prints logs to stderr; `--trace` writes maximum detail to
 `/tmp/weather.log` (truncated on every start).

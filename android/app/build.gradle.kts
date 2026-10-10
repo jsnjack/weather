@@ -1,12 +1,12 @@
 plugins {
     id("com.android.application")
-    kotlin("android")
     kotlin("plugin.serialization")
 }
 
 android {
     namespace = "net.surfly.weather.widget"
-    compileSdk = 34
+    compileSdk = 37
+    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "net.surfly.weather.widget"
@@ -16,8 +16,22 @@ android {
         // version-guard shims for older releases.
         minSdk = 31
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2"
+        val appVersion = (project.findProperty("appVersion") as String?)?.takeIf { it != "0.0.0" }
+        versionName = appVersion ?: "0.2"
+        versionCode = if (appVersion != null) {
+            require(Regex("\\d+\\.\\d+\\.\\d+").matches(appVersion)) {
+                "appVersion must be major.minor.patch"
+            }
+            val (major, minor, patch) = appVersion.split('.').map(String::toLong)
+            require(minor < 1_000 && patch < 1_000 && major <= 2_100) {
+                "appVersion exceeds Android version-code limits"
+            }
+            val code = major * 1_000_000 + minor * 1_000 + patch
+            require(code <= 2_100_000_000) { "appVersion exceeds Android version-code limits" }
+            maxOf(2, code.toInt())
+        } else {
+            2
+        }
     }
 
     buildTypes {
@@ -37,17 +51,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
 
     buildFeatures { viewBinding = true }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 }

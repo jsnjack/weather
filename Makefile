@@ -3,6 +3,9 @@ PKG     := ./...
 VERSION := 0.0.0
 MONOVA  := $(shell which monova 2> /dev/null)
 LDFLAGS  = -ldflags="-X weather/cmd.Version=$(VERSION)"
+FDROID_REPO := jsnjack/android-apps
+
+.NOTPARALLEL: check release
 
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
@@ -43,10 +46,12 @@ check: fmt vet build test lint
 	@echo "==> make check: all green"
 
 standards:
-	curl -sL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.universal.md \
+	curl -fsSL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.universal.md \
 	    -o AGENTS.universal.md
-	curl -sL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.go.md \
+	curl -fsSL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.go.md \
 	    -o AGENTS.go.md
+	curl -fsSL https://raw.githubusercontent.com/jsnjack/standards/master/AGENTS.android.md \
+	    -o AGENTS.android.md
 
 bin/$(BINARY): bin/$(BINARY)_linux_amd64
 	cp $< $@
@@ -62,14 +67,8 @@ bin/$(BINARY)_darwin_arm64: version
 
 build: bin/$(BINARY) bin/$(BINARY)_linux_amd64 bin/$(BINARY)_linux_arm64 bin/$(BINARY)_darwin_amd64 bin/$(BINARY)_darwin_arm64
 
-# Android widget APK — debug-signed on purpose: the widget is personal
-# sideload only (see android/README.md), and the debug signature matches dev
-# installs, so a release APK updates the widget in place instead of
-# demanding an uninstall. Gradle 8.9 needs JDK 17–21: uses JAVA_HOME when
-# set, else a JDK 21/17 unpacked in ~/.jdks, else Android Studio's bundled
-# JBR, but only if it is still 17–21 (Studio moved its JBR to 25 in 2026).
-apk:
-	@set -e; \
+# Local APKs retain the existing debug certificate for update compatibility.
+ANDROID_GRADLE = set -e; \
 	if [ -z "$$JAVA_HOME" ]; then \
 	  JDK=$$(ls -d $$HOME/.jdks/jdk-21* $$HOME/.jdks/jdk-17* 2>/dev/null | head -1); \
 	  if [ -z "$$JDK" ]; then \
@@ -79,12 +78,35 @@ apk:
 	  if [ -z "$$JDK" ]; then echo "==> need JDK 17–21: set JAVA_HOME or unpack one into ~/.jdks (see android/README.md)"; exit 1; fi; \
 	  export JAVA_HOME=$$JDK; \
 	fi; \
-	cd android && ./gradlew --quiet :app:assembleDebug || { \
+	SDK=$${ANDROID_HOME:-$$(sed -n 's/^sdk.dir=//p' android/local.properties 2>/dev/null)}; \
+	if [ ! -d "$$SDK/platforms/android-37.0" ] || [ ! -d "$$SDK/build-tools/37.0.0" ]; then \
+	  echo 'Install the Android SDK components with: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"'; exit 1; \
+	fi; \
+	cd android && ./gradlew --quiet -PappVersion=$(VERSION)
+
+apk: version
+	@$(ANDROID_GRADLE) :app:assembleDebug || { \
 	  echo "==> APK build failed — bootstrap the Android toolchain per android/README.md"; exit 1; }
 	@mkdir -p bin
 	cp android/app/build/outputs/apk/debug/app-debug.apk bin/$(BINARY)-widget.apk
 
-release: build apk
+android-check: apk
+	@$(ANDROID_GRADLE) :app:testDebugUnitTest :app:lintDebug
+	@echo "==> make android-check: all green"
+
+install: apk
+	adb install -r bin/$(BINARY)-widget.apk
+
+release-preflight:
+	@command -v gh >/dev/null 2>&1 || { echo "Install GitHub CLI with: sudo dnf install gh"; exit 1; }
+	@command -v monova >/dev/null 2>&1 || { echo "Install monova with: grm install jsnjack/monova"; exit 1; }
+	@gh auth status --hostname github.com >/dev/null
+	@test -z "$$(git status --porcelain)" || { echo "Commit your changes and push master before make release."; exit 1; }
+	@test "$$(git branch --show-current)" = master || { echo "Switch to master before make release."; exit 1; }
+	@test "$$(git rev-parse HEAD)" = "$$(git ls-remote origin refs/heads/master | cut -f1)" || { echo "Push this commit to origin/master before make release."; exit 1; }
+
+release: release-preflight check android-check
+	$(MAKE) release-preflight
 	tar -czf bin/$(BINARY)_linux_amd64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_amd64
 	tar -czf bin/$(BINARY)_linux_arm64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_arm64
 	tar -czf bin/$(BINARY)_darwin_amd64.tar.gz --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_darwin_amd64
@@ -96,8 +118,13 @@ release: build apk
 		-f bin/$(BINARY)_darwin_arm64.tar.gz \
 		-f bin/$(BINARY)-widget.apk \
 		-t "v`monova`"
+	$(MAKE) fdroid-publish
+
+fdroid-publish: release-preflight version
+	gh workflow run publish.yml --repo $(FDROID_REPO) -f app=$(BINARY) -f revision="$$(git rev-parse HEAD)" -f release_version=$(VERSION)
+	@echo "F-Droid publication queued: https://github.com/$(FDROID_REPO)/actions/workflows/publish.yml"
 
 clean:
 	rm -rf bin/ $(BINARY)
 
-.PHONY: version start build apk release test vet fmt lint check standards clean
+.PHONY: version start build apk android-check install release-preflight release fdroid-publish test vet fmt lint check standards clean
