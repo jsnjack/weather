@@ -64,3 +64,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 }
+
+tasks.register<JavaExec>("checkRadarPolicy") {
+    dependsOn("compileDebugKotlin")
+    classpath = files(
+        tasks.named("compileDebugKotlin").map { it.outputs.files },
+        configurations.named("debugRuntimeClasspath"),
+    )
+    mainClass.set(rootProject.file("checks/RadarPolicyChecks.java").absolutePath)
+}

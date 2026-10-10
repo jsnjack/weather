@@ -80,6 +80,7 @@ installed on Android as a stand-in for a native widget.`,
 		mux.HandleFunc("GET /api/v1/multiday", handleMultidayJSON)
 		mux.HandleFunc("GET /radar.gif", handleRadarMap)
 		mux.HandleFunc("GET /api/v1/radar", handleRadarTimeline)
+		mux.HandleFunc("GET /api/v1/radar/local", handleLocalRadar)
 		mux.HandleFunc("GET /radar/atlas.png", handleRadarAtlas)
 		mux.HandleFunc("GET /manifest.webmanifest", embedHandler("web/manifest.webmanifest", "application/manifest+json"))
 		mux.HandleFunc("GET /sw.js", embedHandler("web/sw.js", "application/javascript"))

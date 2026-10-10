@@ -65,7 +65,7 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 .radar { padding: .65rem .7rem .7rem; }
 .radar-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 .15rem .5rem; }
 .radar-src { color: var(--muted); font-size: .78rem; }
-.radar img, .radar canvas { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 10px; border: 1px solid var(--hairline); }
+.radar img, .radar canvas { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 10px; border: .5px solid var(--hairline); }
 .radar [hidden] { display: none; }
 .radar-controls { max-width: 425px; margin: .6rem auto 0; }
 .radar-slider { display: block; color: var(--muted); font-size: .78rem; }
@@ -73,7 +73,7 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 .radar-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .radar-actions output { margin-left: auto; }
 .radar-actions button { min-height: 44px; padding: .35rem .9rem; background: var(--accent); color: #fff; border: 0; border-radius: 999px; cursor: pointer; font: inherit; }
-.radar-actions button[data-latest], .radar-actions button[data-now] { background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); }
+.radar-actions button[data-latest], .radar-actions button[data-now] { background: var(--surface); color: var(--ink); border: .5px solid var(--hairline); }
 .radar-actions button:disabled { opacity: .55; cursor: default; }
 
 /* controls — collapsed by default; the data leads, the knobs follow */
@@ -84,7 +84,7 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 form.controls { display: flex; gap: .6rem; flex-wrap: wrap; margin: .5rem 0 0; font-size: .85rem; background: var(--island); border-radius: 14px; padding: .75rem .9rem; }
 form.controls label { display: flex; flex-direction: column; gap: .2rem; color: var(--muted); }
 form.controls label.check { flex-direction: row; align-items: center; gap: .35rem; align-self: flex-end; padding-bottom: .4rem; }
-form.controls input, form.controls select { padding: .3rem .45rem; background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; min-width: 4rem; font: inherit; }
+form.controls input, form.controls select { padding: .3rem .45rem; background: var(--surface); color: var(--ink); border: .5px solid var(--hairline); border-radius: 8px; min-width: 4rem; font: inherit; }
 form.controls .loc-name input { min-width: 9rem; }
 form.controls button { padding: .35rem .9rem; align-self: flex-end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; cursor: pointer; font: inherit; }
 
@@ -107,14 +107,14 @@ table.stats td.end { color: var(--muted); }
 
 /* tables */
 table { width: 100%; border-collapse: collapse; margin-top: .25rem; font-size: .88rem; font-variant-numeric: tabular-nums; }
-th, td { padding: .3rem .5rem; text-align: right; border-bottom: 1px solid var(--hairline); }
+th, td { padding: .3rem .5rem; text-align: right; border-bottom: .5px solid var(--hairline); }
 th:first-child, td:first-child { text-align: left; }
 thead th { color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
 tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 td.muted, span.muted { color: var(--muted); }
 .evolution { overflow-x: auto; }
 .evolution table { min-width: 100%; }
-.evolution tr.newday th, .evolution tr.newday td { border-top: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+.evolution tr.newday th, .evolution tr.newday td { border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); }
 .hourly-table .mobile-detail { display: none; }
 .hourly-table .wind-value { white-space: nowrap; }
 .temp-condition { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }

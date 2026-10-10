@@ -38,11 +38,11 @@
 
   {{if .Description}}<p class="caption">{{.Description}}</p>{{end}}
 
+  <section class="radar island" id="local-radar" data-location="{{.Q}}" hidden>
+    <img alt="Observed rain within 50 km of your location" width="256" height="256">
+  </section>
+  <script src="/static/local-radar.js?v=2"></script>
   <section class="radar island" id="radar-player">
-    <div class="radar-head">
-      <span class="microlabel">Radar</span>
-      <span class="radar-src">rain + lightning · KNMI</span>
-    </div>
     <img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" loading="lazy" width="425" height="445">
     <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
     <div class="radar-controls" hidden>

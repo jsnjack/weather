@@ -39,4 +39,5 @@
     <string name="stat_uv">UV</string>
     <string name="dry_fallback">Dry for the next 2 hours</string>
     <string name="sunset_label">SUNSET</string>
+    <string name="radar_description">Rain radar within 50 km of your location</string>
 </resources>

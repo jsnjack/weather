@@ -32,6 +32,7 @@ main.go                          Thin entry point — delegates to cmd.Execute()
 cmd/
   cmd_root.go                    Root cobra command — 2h rain chart, persistent flags
   cmd_hourly.go                  `hourly` command — by-hour temp/precip charts + table
+  cmd_radar.go                   `radar --output` PNG export of the local observation
   cmd_forecast.go                `forecast` command — multi-day table + hi/lo chart
   logger.go                      slog wiring for --debug / --trace
   cache.go                       Bounded TTL cache with shared in-flight requests
@@ -55,6 +56,7 @@ cmd/
   serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
   serve_location.go              Strict web location parsing and navigation state
   serve_radar_timeline.go         Cached KNMI GIF composition and seekable frame atlas
+  serve_radar_local.go            Cached, georeferenced 50 km radar images for web/widget
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -270,6 +272,27 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   Frame disposal and offsets are preserved, including the baked-in timestamp
   and legend. Past and future frames share the slider; timestamps are read from
   the image, never inferred. The original GIF is the fallback if controls fail.
+- **Local widget radar is optional data.** `/api/v1/radar/local` returns a
+  256×256 PNG of the latest KNMI WMS precipitation observation, with
+  `X-Radar-Observed-At`; HTTP 204 means no nearby rain, stale data or unsupported
+  coverage. The map spans 50 km in each direction in Web Mercator, with the
+  precise location marked on an embedded Natural Earth land outline. WMS image
+  requests share a three-minute cache on 0.01° cells; the marker keeps the exact
+  requested coordinates. Raw WMS responses persist to disk for CLI reuse.
+  Observation metadata has its own shared cache. WMS
+  requests are spaced by one second, and 403/429/5xx responses trigger a cooldown
+  that honours Retry-After. `KNMI_WMS_API_KEY` selects authenticated WMS access;
+  without it, anonymous shared quotas apply. No basemap network requests occur.
+  The widget first renders its existing layout, then adds the right-hand radar
+  island only after a successful fresh image. Missing images, older servers,
+  cached forecast fallback and missing location retain the original layout.
+  Radar observations older than 20 minutes are rejected on both server and
+  phone. `widget_rain_radar.xml` retains every measurement in native views,
+  and requires at least 340dp width and 210dp height (scaled for larger fonts).
+  Radar shows only the map; provider, radius and timestamp labels are omitted.
+  The CLI exports the same map with `weather radar --output radar.png`.
+  Its chart width and native row height are budgeted separately in
+  `chartSizePx`; radar taps open the web's local radar for the same location.
 - **Detailed forecasts replace Hourly in web navigation.** Today, Tomorrow and
   Weekend provide the hourly tables and ride windows. The rolling `/hourly` URL
   and CLI command remain available for custom periods and existing links.

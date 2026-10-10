@@ -25,6 +25,8 @@ import net.surfly.weather.widget.net.ErrKind
 import net.surfly.weather.widget.net.FetchResult
 import net.surfly.weather.widget.net.GlanceApi
 import net.surfly.weather.widget.net.GlanceResponse
+import net.surfly.weather.widget.net.RadarApi
+import net.surfly.weather.widget.net.RadarPolicy
 import net.surfly.weather.widget.render.ChartRenderer
 import java.io.File
 import java.time.Instant
@@ -188,6 +190,39 @@ class RainWidgetWorker(
 
         wireClicks(ctx, views, id, cfg.serverUrl, lat, lon, nameQ)
         mgr.updateAppWidget(id, views)
+
+        // Keep the forecast visible while the optional radar request completes.
+        if (result is FetchResult.Ok && response != null && RadarPolicy.fits(
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0),
+                ctx.resources.configuration.fontScale,
+            )
+        ) {
+            val radar = RadarApi.fetch(cfg.serverUrl, response.location) ?: return
+            val radarViews = RemoteViews(ctx.packageName, R.layout.widget_rain_radar)
+            radarViews.setTextViewText(R.id.location, response.location.description)
+            val caption = applyBody(ctx, radarViews, options, response, radarPanel = true)
+            setHeadline(radarViews, caption)
+            radarViews.setTextViewText(R.id.updated, "↻  " + ctx.getString(
+                R.string.updated_at, formatClock(System.currentTimeMillis()),
+            ))
+            radarViews.setImageViewBitmap(R.id.radar_image, radar.bitmap)
+            wireClicks(ctx, radarViews, id, cfg.serverUrl, lat, lon, nameQ)
+            val radarUri = Uri.parse(cfg.serverUrl.trimEnd('/') + "/").buildUpon()
+                .appendQueryParameter("lat", response.location.latitude.toString())
+                .appendQueryParameter("lon", response.location.longitude.toString())
+                .appendQueryParameter("label", response.location.description)
+                .fragment("local-radar")
+                .build()
+            val radarIntent = Intent(Intent.ACTION_VIEW, radarUri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            radarViews.setOnClickPendingIntent(R.id.local_radar, PendingIntent.getActivity(
+                ctx, id + 100_000, radarIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            ))
+            mgr.updateAppWidget(id, radarViews)
+        }
     }
 
     /**
@@ -302,6 +337,7 @@ class RainWidgetWorker(
         views: RemoteViews,
         options: Bundle,
         response: GlanceResponse,
+        radarPanel: Boolean = false,
     ): String {
         views.setImageViewResource(R.id.condition, conditionDrawable(response.condition))
         val alarmData = response.buienalarm?.data ?: emptyList()
@@ -335,6 +371,7 @@ class RainWidgetWorker(
             ctx, options,
             statsRow = true,
             captionLines = captionLines(ctx, options, caption),
+            radarPanel = radarPanel,
         )
         views.setImageViewBitmap(
             R.id.chart,
@@ -617,16 +654,18 @@ class RainWidgetWorker(
         opts: Bundle,
         statsRow: Boolean,
         captionLines: Int,
+        radarPanel: Boolean = false,
     ): Pair<Int, Int> {
         val density = ctx.resources.displayMetrics.density
         val widgetW = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
             .takeIf { it > 0 } ?: 350
         val widgetH = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
             .takeIf { it > 0 } ?: 160
-        var chrome = 24 + 22 + 8 // root padding + header row + chart top margin
-        if (statsRow) chrome += 29 // native temps/micros row + its margin
+        var chrome = if (radarPanel) 16 + 22 + 6 else 24 + 22 + 8
+        if (statsRow) chrome += if (radarPanel) 46 else 29
         if (captionLines > 0) chrome += 6 + 15 * captionLines
-        val w = ((widgetW - 24) * density).toInt().coerceIn(64, 2048)
+        val islandW = if (radarPanel) (widgetW - 22) * 2 / 3 else widgetW - 24
+        val w = (islandW * density).toInt().coerceIn(64, 2048)
         val h = ((widgetH - chrome).coerceAtLeast(56) * density).toInt().coerceIn(64, 2048)
         return w to h
     }

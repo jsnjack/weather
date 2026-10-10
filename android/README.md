@@ -5,6 +5,19 @@ A native Android widget that calls the `weather serve` JSON API
 mini-chart on the home screen. Tap → opens the detailed today forecast for the
 widget's own location in the browser.
 
+When nearby rain is present, a right-hand radar island shows the latest KNMI
+observation within a 50 km radius, with a location marker.
+All existing measurements remain in a compact native left panel. Radar taps
+open the same local map in the web view. Widgets smaller than 340×210dp (or too
+short for the chosen font size) keep the original layout. Unavailable, empty or
+stale radar data also keeps the original layout, including with older servers.
+Deploy the updated server manually to enable `/api/v1/radar/local`.
+
+The server caches KNMI WMS requests in memory and on disk and embeds its land outline. Anonymous WMS
+access works without configuration but has a shared quota; set the server's
+`KNMI_WMS_API_KEY` environment variable for a dedicated quota. Images older
+than 20 minutes are rejected rather than shown as current observations.
+
 > **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).
 > `minSdk` is 31 (Android 12) — there are no compatibility shims for older
 > releases. It installs on anything API 31+, but that's the floor we test.
