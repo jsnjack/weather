@@ -6,21 +6,21 @@ import (
 	"time"
 )
 
-// ttlCache is a tiny process-wide cache with a TTL and a hard size cap. It
-// exists so the HTTP server doesn't re-issue the same upstream forecast
-// requests when a user flips quickly between pages (rain → hourly → 14-day →
-// today → multiday) within a few minutes — the multiday and today fan-outs alone are
-// 100+ Open-Meteo calls each, so re-running them on every navigation is the
-// expensive case this guards against.
-//
-// Values are shared (pointers/slices), so cached results MUST be treated as
-// read-only by callers. The CLI gets a fresh empty cache per process, so it
-// only ever dedupes within a single command run.
+// ttlCache bounds memory and shares concurrent fetches for the same key.
+// Cached values must be treated as read-only.
 type ttlCache[T any] struct {
-	mu  sync.Mutex
-	m   map[string]ttlEntry[T]
-	ttl time.Duration
-	max int
+	mu      sync.Mutex
+	m       map[string]ttlEntry[T]
+	flights map[string]*cacheFlight[T]
+	ttl     time.Duration
+	max     int
+	expires func(T) time.Time
+}
+
+type cacheFlight[T any] struct {
+	done chan struct{}
+	val  T
+	err  error
 }
 
 type ttlEntry[T any] struct {
@@ -29,21 +29,7 @@ type ttlEntry[T any] struct {
 }
 
 func newTTLCache[T any](ttl time.Duration, max int) *ttlCache[T] {
-	return &ttlCache[T]{m: make(map[string]ttlEntry[T]), ttl: ttl, max: max}
-}
-
-func (c *ttlCache[T]) get(key string) (T, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	e, ok := c.m[key]
-	if !ok || time.Now().After(e.exp) {
-		if ok {
-			delete(c.m, key)
-		}
-		var zero T
-		return zero, false
-	}
-	return e.val, true
+	return &ttlCache[T]{m: make(map[string]ttlEntry[T]), flights: make(map[string]*cacheFlight[T]), ttl: ttl, max: max}
 }
 
 func (c *ttlCache[T]) put(key string, v T) {
@@ -52,7 +38,11 @@ func (c *ttlCache[T]) put(key string, v T) {
 	if len(c.m) >= c.max {
 		c.evictLocked()
 	}
-	c.m[key] = ttlEntry[T]{val: v, exp: time.Now().Add(c.ttl)}
+	expires := time.Now().Add(c.ttl)
+	if c.expires != nil {
+		expires = c.expires(v)
+	}
+	c.m[key] = ttlEntry[T]{val: v, exp: expires}
 }
 
 // evictLocked drops expired entries first; if that still leaves the map at the
@@ -77,29 +67,38 @@ func (c *ttlCache[T]) evictLocked() {
 // result. Errors are never cached, so a transient upstream failure doesn't
 // pin a bad result for the whole TTL.
 func memo[T any](c *ttlCache[T], key string, fn func() (T, error)) (T, error) {
-	if v, ok := c.get(key); ok {
-		return v, nil
+	c.mu.Lock()
+	if entry, ok := c.m[key]; ok && time.Now().Before(entry.exp) {
+		c.mu.Unlock()
+		return entry.val, nil
 	}
-	v, err := fn()
-	if err == nil {
-		c.put(key, v)
+	if flight, ok := c.flights[key]; ok {
+		c.mu.Unlock()
+		<-flight.done
+		return flight.val, flight.err
 	}
-	return v, err
+	flight := &cacheFlight[T]{done: make(chan struct{})}
+	c.flights[key] = flight
+	c.mu.Unlock()
+	flight.val, flight.err = fn()
+	if flight.err == nil {
+		c.put(key, flight.val)
+	}
+	c.mu.Lock()
+	delete(c.flights, key)
+	close(flight.done)
+	c.mu.Unlock()
+	return flight.val, flight.err
 }
 
-// Per-upstream caches. TTLs reflect how fast each source changes:
-//   - nowcast (Buienalarm/Buienradar): a fast-moving 2 h precipitation line,
-//     so a short window — long enough to absorb page-flipping, short enough to
-//     stay current.
-//   - Open-Meteo hourly: the model refreshes roughly hourly.
-//   - Open-Meteo daily: refreshes a few times a day.
-//
-// Size caps bound memory under the multiday/today fan-out (many distinct points).
 var (
-	buienalarmCache     = newTTLCache[*Forecast](2*time.Minute, 512)
-	buineradarCache     = newTTLCache[*Forecast](2*time.Minute, 512)
-	openMeteoRangeCache = newTTLCache[*OpenMeteoData](10*time.Minute, 4096)
-	openMeteoDailyCache = newTTLCache[[]DailyAggregate](30*time.Minute, 512)
+	buienalarmCache = newTTLCache[*Forecast](2*time.Minute, 512)
+	buineradarCache = newTTLCache[*Forecast](2*time.Minute, 512)
+)
+
+const (
+	openMeteoHourlyTTL = 10 * time.Minute
+	openMeteoDailyTTL  = 30 * time.Minute
 )
 
 // locationZones remembers the timezone Open-Meteo reported per rounded

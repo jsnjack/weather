@@ -1,13 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"time"
 )
+
+const openMeteoHourlyURL = "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,weather_code&daily=sunrise,sunset&timezone=auto"
 
 // HourlyForecast is a single hour of weather data for one location. WindDirection
 // follows the meteorological convention: degrees the wind is coming FROM.
@@ -85,56 +86,26 @@ func (d *OpenMeteoData) IsSea() bool {
 // heatmap issue 100+ parallel calls, where a single brief glitch otherwise
 // shows up as a contiguous block of "no data" cells.
 //
-// Results are cached process-wide for a short TTL (openMeteoRangeCache) and
-// MUST be treated as read-only — the cache shares the returned pointer.
+// Responses are cached in memory and on disk for ten minutes.
 func GetOpenMeteoRange(lat, lon float64, startDate, endDate time.Time) (*OpenMeteoData, error) {
-	key := fmt.Sprintf("%.3f|%.3f|%s|%s", lat, lon,
-		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-	return memo(openMeteoRangeCache, key, func() (*OpenMeteoData, error) {
-		return getOpenMeteoRangeUncached(lat, lon, startDate, endDate)
-	})
+	return getOpenMeteoRangeUncached(lat, lon, startDate, endDate)
 }
 
 func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (*OpenMeteoData, error) {
 	start := startDate.Format("2006-01-02")
 	end := endDate.Format("2006-01-02")
-	url := fmt.Sprintf(
-		"https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,weather_code&daily=sunrise,sunset&timezone=auto&start_date=%s&end_date=%s",
-		lat, lon, start, end,
-	)
-	slog.Debug("open-meteo: requesting", "url", url)
-
-	client := &http.Client{Timeout: 15 * time.Second}
-
-	var resp *http.Response
-	var lastErr error
-	for attempt := 0; attempt < 4; attempt++ {
-		r, err := client.Get(url)
-		if err != nil {
-			lastErr = err
-			slog.Debug("open-meteo net error", "lat", lat, "lon", lon, "attempt", attempt+1, "err", err)
-		} else if r.StatusCode == http.StatusTooManyRequests || r.StatusCode >= 500 {
-			lastErr = fmt.Errorf("open-meteo transient status %d", r.StatusCode)
-			closeBody(r.Body, "open-meteo transient response")
-			slog.Debug("open-meteo transient status", "status", r.StatusCode, "lat", lat, "lon", lon, "attempt", attempt+1)
-		} else {
-			resp = r
-			break
-		}
-		time.Sleep(time.Duration(1<<attempt) * time.Second)
-	}
-	if resp == nil {
-		return nil, fmt.Errorf("open-meteo retries exhausted: %w", lastErr)
-	}
-	defer closeBody(resp.Body, "open-meteo response body")
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("open-meteo status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var parsed openMeteoRangeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	url := fmt.Sprintf(openMeteoHourlyURL+"&start_date=%s&end_date=%s", lat, lon, start, end)
+	body, err := openMeteoGetBody(url)
+	if err != nil {
 		return nil, err
+	}
+	return parseOpenMeteoRange(body, lat, lon)
+}
+
+func parseOpenMeteoRange(body []byte, lat, lon float64) (*OpenMeteoData, error) {
+	var parsed openMeteoRangeResponse
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&parsed); err != nil {
+		return nil, fmt.Errorf("decode open-meteo hourly forecast: %w", err)
 	}
 
 	n := len(parsed.Hourly.Time)
@@ -163,6 +134,13 @@ func getOpenMeteoRangeUncached(lat, lon float64, startDate, endDate time.Time) (
 		if err != nil {
 			slog.Debug("open-meteo: skipping unparseable time", "time", t, "err", err)
 			continue
+		}
+		// The repeated autumn hour is ambiguous without the preceding instant.
+		if len(hourly) > 0 {
+			next := hourly[len(hourly)-1].Time.Add(time.Hour)
+			if next.Format("2006-01-02T15:04") == t {
+				parsedTime = next
+			}
 		}
 		prob := 0
 		if parsed.Hourly.PrecipProb[i] != nil {

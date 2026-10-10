@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -62,40 +61,9 @@ type openMeteoDailyResponse struct {
 	} `json:"daily"`
 }
 
-// openMeteoGetBody runs the same retry/back-off policy as GetOpenMeteoRange and
-// returns the raw response body. Factored out so the daily endpoint shares the
-// transient-failure handling without duplicating the loop.
-func openMeteoGetBody(url string) ([]byte, error) {
-	slog.Debug("open-meteo: requesting", "url", url)
-	client := &http.Client{Timeout: 15 * time.Second}
-	var lastErr error
-	for attempt := 0; attempt < 4; attempt++ {
-		r, err := client.Get(url)
-		switch {
-		case err != nil:
-			lastErr = err
-			slog.Debug("open-meteo net error", "attempt", attempt+1, "err", err)
-		case r.StatusCode == http.StatusTooManyRequests || r.StatusCode >= 500:
-			lastErr = fmt.Errorf("open-meteo transient status %d", r.StatusCode)
-			closeBody(r.Body, "open-meteo transient response")
-			slog.Debug("open-meteo transient status", "status", r.StatusCode, "attempt", attempt+1)
-		default:
-			defer closeBody(r.Body, "open-meteo response body")
-			if r.StatusCode != http.StatusOK {
-				body, _ := io.ReadAll(r.Body)
-				return nil, fmt.Errorf("open-meteo status %d: %s", r.StatusCode, string(body))
-			}
-			return io.ReadAll(r.Body)
-		}
-		time.Sleep(time.Duration(1<<attempt) * time.Second)
-	}
-	return nil, fmt.Errorf("open-meteo retries exhausted: %w", lastErr)
-}
-
 // GetOpenMeteoDailyRange fetches per-day summary weather for `days` days
 // starting today. Like GetOpenMeteoRange it requests timezone=auto so day
-// boundaries and sun times are local. Cached process-wide (openMeteoDailyCache);
-// the returned slice MUST be treated as read-only.
+// boundaries and sun times are local. Responses are cached in memory and on disk for thirty minutes.
 func GetOpenMeteoDailyRange(lat, lon float64, days int) ([]DailyAggregate, error) {
 	if days < 1 {
 		days = 1
@@ -103,10 +71,7 @@ func GetOpenMeteoDailyRange(lat, lon float64, days int) ([]DailyAggregate, error
 	if days > 16 { // Open-Meteo caps the free daily horizon at 16 days
 		days = 16
 	}
-	key := fmt.Sprintf("%.3f|%.3f|%d", lat, lon, days)
-	return memo(openMeteoDailyCache, key, func() ([]DailyAggregate, error) {
-		return getOpenMeteoDailyRangeUncached(lat, lon, days)
-	})
+	return getOpenMeteoDailyRangeUncached(lat, lon, days)
 }
 
 func getOpenMeteoDailyRangeUncached(lat, lon float64, days int) ([]DailyAggregate, error) {

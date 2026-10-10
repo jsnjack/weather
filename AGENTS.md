@@ -33,7 +33,9 @@ cmd/
   cmd_hourly.go                  `hourly` command — by-hour temp/precip charts + table
   cmd_forecast.go                `forecast` command — multi-day table + hi/lo chart
   logger.go                      slog wiring for --debug / --trace
-  cache.go                       Process-wide TTL cache wrapping the upstream fetchers
+  cache.go                       Bounded TTL cache with shared in-flight requests
+  forecast_store.go              Atomic persistent Open-Meteo response cache
+  openmeteo_http.go              Shared request pacing, concurrency and rate-limit cooldown
   forecast.go                    Shared Forecast / ForecastType / ForecastDataPoint types
   forecast_buinealarm.go         Buienalarm nowcast client (imn-rust-lb.infoplaza.io)
   forecast_buineradar.go         Buienradar nowcast client (gpsgadget.buienradar.nl)
@@ -217,12 +219,17 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
 - **Beam search, not exhaustive.** Multiday is bounded by `--beam-width` rather
   than enumerating every bearing sequence; otherwise a 7-day search blows
   out the Open-Meteo request budget.
-- **Upstream fetches are cached, not the rendered pages.** `cache.go` wraps the
-  four upstream fetchers (Open-Meteo hourly/daily, Buienalarm, Buienradar) with
-  a process-wide TTL cache so flipping between web views doesn't re-issue the
-  same requests — the multiday/today fan-outs (100+ calls) are the expensive case.
-  Cached values are shared pointers/slices: **treat them as read-only.** The CLI
-  gets a fresh cache per process, so it only dedupes within one run.
+- **Upstream fetches are cached, not rendered pages.** Rain providers use a
+  two-minute memory cache. Open-Meteo response bodies use bounded memory and
+  atomic disk caches under the XDG user cache directory (`weather/forecasts-v1`),
+  with ten-minute hourly and thirty-minute daily TTLs. Reading from disk preserves
+  the original expiry; relative forecasts expire at location midnight as well.
+  Concurrent misses share one fetch. All Open-Meteo views and heatmaps share four
+  request slots, 250 ms request spacing and a `Retry-After` cooldown after HTTP
+  429; fresh cached responses remain available during that cooldown. Persistent
+  responses retain the upstream timezone string for parsing after CLI restarts.
+  Request pacing and in-flight deduplication are per process; separate running
+  processes share stored responses but do not share a request limiter.
 
 ---
 
@@ -230,6 +237,6 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
 
 - Open-Meteo returns inconsistent array lengths if a column is missing;
   `GetOpenMeteoRange` rejects the response rather than silently zero-filling.
-- `multiday` and `today` issue 100+ parallel Open-Meteo requests. The retry loop
-  in `multiday_fetch.go` exists because a single transient 5xx otherwise turns
+- `multiday` and `today` issue 100+ parallel Open-Meteo requests. The shared retry loop
+  in `openmeteo_http.go` exists because a single transient 5xx otherwise turns
   into a contiguous block of "no data" cells.
