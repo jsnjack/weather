@@ -172,20 +172,21 @@ func uvClassFor(uv int) string {
 // ---------- /hourly (by-hour day forecast) ----------
 
 type hourlyRow struct {
-	Time      string // "15:00", prefixed with weekday on the first hour of a new day
-	NewDay    bool   // marks the first row of a calendar day for a subtle rule
-	Temp      int
-	Feels     int
-	Precip    string // formatted mm (blank when ~0)
-	PrecipPct int
-	WindArrow string
-	WindKmh   int
-	GustsKmh  int
-	GustClass string
-	WindClass string
-	UV        int
-	UVClass   string
-	Condition string // human label
+	Time          string // "15:00", prefixed with weekday on the first hour of a new day
+	NewDay        bool   // marks the first row of a calendar day for a subtle rule
+	Temp          int
+	Feels         int
+	Precip        string // formatted mm (blank when ~0)
+	PrecipPct     int
+	WindArrow     string
+	WindKmh       int
+	GustsKmh      int
+	GustClass     string
+	WindClass     string
+	UV            int
+	UVClass       string
+	Condition     string // human label
+	ConditionIcon string
 }
 
 type hourlyPageData struct {

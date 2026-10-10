@@ -106,6 +106,21 @@ td.muted, span.muted { color: var(--muted); }
 .evolution { overflow-x: auto; }
 .evolution table { min-width: 100%; }
 .evolution tr.newday th, .evolution tr.newday td { border-top: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+.hourly-table .mobile-detail { display: none; }
+.hourly-table .wind-value { white-space: nowrap; }
+.sky-condition { position: relative; }
+.sky-condition summary { list-style: none; cursor: pointer; font-size: 1.2rem; }
+.sky-condition summary::-webkit-details-marker { display: none; }
+.sky-label { position: absolute; right: 0; bottom: 100%; z-index: 1; white-space: nowrap; padding: .3rem .5rem; border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 1px 6px #0002; }
+@media (max-width: 600px) {
+  .hourly-table { font-size: .8rem; }
+  .hourly-table th, .hourly-table td { padding: .4rem .18rem; }
+  .hourly-table thead th { font-size: .6rem; letter-spacing: 0; }
+  .hourly-table .wide-detail { display: none; }
+  .hourly-table .mobile-detail { display: block; margin-top: .15rem; }
+  .hourly-table thead .mobile-detail { font-weight: 400; }
+  .hourly-table tbody th { max-width: 4.2rem; }
+}
 
 /* semantic states — shared with the widget and the CLI */
 .g-mi-caution, td.g-mi-caution, .evolution td.g-mi-caution { color: var(--caution); }

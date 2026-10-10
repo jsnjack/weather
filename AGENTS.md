@@ -244,8 +244,12 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   arithmetic so DST does not force a 24-hour day. The three views share one
   seven-day hourly response. Up to three non-overlapping two-hour ride windows
   are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
-  must be dry, wholly in daylight, start in the future, and have wind/gusts below
+  must be dry with rain chance at most 30%, wholly in daylight, start in the future, and have wind/gusts below
   the critical threshold. The Android widget opens `/day` when tapped.
+- **Hourly tables fit the phone width.** At widths up to 600px, temperature/feels,
+  rain/chance and wind/gusts share labelled two-line cells. Sky uses condition
+  icons with accessible names and tap-to-show labels. Desktop keeps separate
+  measurement columns; every forecast value remains available on both layouts.
 
 ---
 

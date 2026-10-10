@@ -114,7 +114,7 @@ func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast) {
 		wind, gusts, uv := int(round(hour.WindSpeed)), int(round(hour.WindGusts)), int(round(hour.UVIndex))
 		page.Rows = append(page.Rows, hourlyRow{
 			Time: label, NewDay: day != lastDay && lastDay != "", Temp: int(round(hour.Temperature)), Feels: int(round(hour.ApparentTemperature)), Precip: formatPrecip(hour.Precipitation), PrecipPct: hour.PrecipitationProbability,
-			WindArrow: windArrowFor(int(round(hour.WindDirection))), WindKmh: wind, WindClass: windClassFor(wind), GustsKmh: gusts, GustClass: windClassFor(gusts), UV: uv, UVClass: uvClassFor(uv), Condition: conditionHumanLabel(wmoCondition(hour.WeatherCode)),
+			WindArrow: windArrowFor(int(round(hour.WindDirection))), WindKmh: wind, WindClass: windClassFor(wind), GustsKmh: gusts, GustClass: windClassFor(gusts), UV: uv, UVClass: uvClassFor(uv), Condition: conditionHumanLabel(wmoCondition(hour.WeatherCode)), ConditionIcon: conditionIcon(wmoCondition(hour.WeatherCode)),
 		})
 		lastDay = day
 		temps = append(temps, ForecastDataPoint{Time: hour.Time, Value: hour.Temperature})
@@ -124,5 +124,26 @@ func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast) {
 	if len(temps) >= 2 {
 		page.TempChartSVG = RenderLineChartSVG([]SVGSeries{{Name: "Temp", Color: tempColor, Data: temps}, {Name: "Feels", Color: feelsColor, Data: feels}}, SVGOpts{YUnit: "°C", XTimeFormat: "Mon 15h"})
 		page.PrecipChartSVG = RenderLineChartSVG([]SVGSeries{{Name: "Precip", Color: buienalarmColor, Data: rain}}, SVGOpts{YUnit: "mm", XTimeFormat: "Mon 15h", MinYHi: 1, FillArea: true})
+	}
+}
+
+func conditionIcon(condition string) string {
+	switch condition {
+	case "partly_cloudy":
+		return "🌤️"
+	case "overcast":
+		return "☁️"
+	case "fog":
+		return "🌫️"
+	case "drizzle":
+		return "🌦️"
+	case "rain":
+		return "🌧️"
+	case "snow":
+		return "🌨️"
+	case "thunderstorm":
+		return "⛈️"
+	default:
+		return "☀️"
 	}
 }
