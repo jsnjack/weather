@@ -21,6 +21,10 @@ change. It must pass before reporting the task as complete.
   output is suppressed" not "if `isSilent` is true"; write "the retry limit"
   not "`maxRetries`". Code names are implementation details that belong in the
   code, not in the reasoning.
+- **Keep the build current.** After a change compiles, run `make build` —
+  don't wait for the full `make check` gate at the end. The user should
+  always have an up-to-date binary on disk to try, not just a change that
+  passed tests.
 - Never report work as done until all requirements are met and `make check`
   passes. If requirements cannot be met, say so explicitly.
 - When something is unclear, read the existing code first — match its patterns.
@@ -41,7 +45,7 @@ Missing tools print an install command and exit — never auto-install silently.
 make check      # full validation gate — run after every change
 make test       # tests only
 make build      # compile only
-make standards  # refresh AGENTS.universal.md from the standards repo (if present)
+make standards  # refresh all applicable convention files from the standards repo (if present)
 ```
 
 ---
@@ -103,8 +107,58 @@ errors through the UI itself.
   than one place gets a named constant.
 - **No dead code.** Remove unused code. If something is temporarily disabled,
   replace it with a TODO comment explaining why and what needs to happen.
-- **Comments explain why, not what.** The code says what. Comments explain
-  intent, gotchas, and non-obvious constraints.
+- **Comments earn their place.** Default to no comment. Write one only when it
+  explains a fact that isn't obvious from the code itself. Keep concise "why"
+  comments that explain the origin of a non-obvious value, a security or sandbox
+  invariant, a compatibility quirk or workaround, an easy way to break the code,
+  an invisible rule the code depends on, or an upstream reference (ticket,
+  advisory ID, or URL). Prefer one line; use more only when one line would omit
+  necessary context.
+  Never write AI diary or proof-of-work notes, including verification reports.
+  Never narrate mechanical control flow, restate what code or configuration does,
+  merely repeat a name or type signature, add reassurance ("safe", "read-only",
+  "no changes"), or put process and opinions in code (those belong in
+  documentation).
+  Required public-symbol documentation and actionable TODOs are exceptions, but
+  they must add information beyond the symbol name or signature. Match how much
+  the surrounding file comments; when unsure, leave it out.
+
+---
+
+## Writing style
+
+Applies to all prose: docs, READMEs, commit messages, UI copy, and summaries.
+
+Plain, calm, factual writing in complete sentences. Specifically banned:
+
+- Sentence fragments for punch ("Not a web page in a frame." "Fast. Local.
+  Yours.")
+- Bold-lead marketing bullets ("**AI on your terms.** Any endpoint works…")
+- Stating the obvious or overexplaining (don't explain what an RPM is, don't
+  reassure twice that a feature is optional)
+- Negative or edgy framing, taglines, and competitor comparisons
+- Jargon where an ordinary word exists
+
+Good example of the register: "Mail is stored in a local database, so search
+is instant and reading works offline."
+
+---
+
+## Commits
+
+Every commit message starts with a single-letter prefix that drives automatic
+versioning ([jsnjack/monova](https://github.com/jsnjack/monova)):
+
+- `M` — major change (breaking).
+- `m` — minor change (backward-compatible feature).
+- `p` — patch (backward-compatible fix).
+
+The prefix is the first character of the subject line, followed by a space:
+
+```
+m Add --trace flag to the server command
+p Fix panic when the config file is empty
+```
 
 ---
 
@@ -134,4 +188,5 @@ breaks has no value.
 - Never change code outside the scope of the current task.
 - Never add a dependency without explicit justification and agreement.
 - Never change existing behaviour silently — always flag it first.
-- Never commit on behalf of the user.
+- Never commit or push on behalf of the user unless they explicitly ask for it.
+- Never write a commit message without an `M`/`m`/`p` version prefix.
