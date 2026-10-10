@@ -2,7 +2,7 @@
   {{if .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
   <section class="island evolution">
     <h2>Best dry 2-hour ride windows</h2>
-    <p class="sub">Ranked by rain chance, wind, gusts, feels-like temperature and UV. Daylight only; gusts below 50 km/h.</p>
+    <p class="sub">Ranked by rain chance, wind, gusts, feels-like temperature and UV. Daylight only; rain chance ≤30%; gusts below 50 km/h.</p>
     {{if .Rides}}<table><thead><tr><th>Time</th><th>Rain %</th><th>Wind</th><th>Gusts</th><th>Feels</th><th>UV</th></tr></thead><tbody>
     {{range .Rides}}<tr><th>{{.Start}}–{{.End}}</th><td>{{.RainChance}}%</td><td>{{.Wind}}</td><td>{{.Gusts}}</td><td>{{.Feels}}°</td><td>{{.UV}}</td></tr>{{end}}
     </tbody></table>{{else}}{{if not .Note}}<p>No suitable daylight window in the forecast.</p>{{end}}{{end}}

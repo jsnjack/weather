@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	outlookToday    = "today"
-	outlookTomorrow = "tomorrow"
-	outlookWeekend  = "weekend"
-	rideWindowHours = 2
-	rideWindowLimit = 3
+	outlookToday      = "today"
+	outlookTomorrow   = "tomorrow"
+	outlookWeekend    = "weekend"
+	rideWindowHours   = 2
+	rideWindowLimit   = 3
+	rideRainChanceMax = 30
 )
 
 type rideWindow struct {
@@ -127,7 +128,7 @@ func rankRideWindows(hours []HourlyForecast, days []DailyForecast, now time.Time
 		valid := true
 		for j := 0; j < rideWindowHours; j++ {
 			hour := hours[i+j]
-			if !hour.Time.Equal(first.Time.Add(time.Duration(j)*time.Hour)) || hour.Precipitation >= DryThresholdMmH || hour.WindSpeed >= WindCriticalKmh || hour.WindGusts >= WindCriticalKmh {
+			if !hour.Time.Equal(first.Time.Add(time.Duration(j)*time.Hour)) || hour.Precipitation >= DryThresholdMmH || hour.PrecipitationProbability > rideRainChanceMax || hour.WindSpeed >= WindCriticalKmh || hour.WindGusts >= WindCriticalKmh {
 				valid = false
 				break
 			}
@@ -187,7 +188,7 @@ func runOutlook(command *cobra.Command, period string) error {
 	renderHourlyPrecipChart(result.Hours)
 	fmt.Println()
 	renderHourlyTable(result.Hours)
-	fmt.Println("\nBest dry 2-hour ride windows (daylight; gusts below 50 km/h):")
+	fmt.Println("\nBest dry 2-hour ride windows (daylight; rain chance ≤30%; gusts below 50 km/h):")
 	if len(result.Rides) == 0 {
 		fmt.Println("No suitable daylight window in the forecast.")
 	}

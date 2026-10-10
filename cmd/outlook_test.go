@@ -50,6 +50,22 @@ func TestRideWindows(t *testing.T) {
 		want   int
 	}{
 		{"dry daylight", func(h []HourlyForecast) {}, 3},
+		{"rain chance at limit", func(h []HourlyForecast) {
+			for i := range h {
+				h[i].PrecipitationProbability = 30
+			}
+		}, 3},
+		{"rain chance above limit", func(h []HourlyForecast) {
+			for i := range h {
+				h[i].PrecipitationProbability = 31
+			}
+		}, 0},
+		{"certain rain with trace precipitation", func(h []HourlyForecast) {
+			for i := range h {
+				h[i].PrecipitationProbability = 100
+				h[i].Precipitation = 0.01
+			}
+		}, 0},
 		{"rain", func(h []HourlyForecast) {
 			for i := range h {
 				h[i].Precipitation = 1
