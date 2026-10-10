@@ -32,6 +32,16 @@ func newTTLCache[T any](ttl time.Duration, max int) *ttlCache[T] {
 	return &ttlCache[T]{m: make(map[string]ttlEntry[T]), flights: make(map[string]*cacheFlight[T]), ttl: ttl, max: max}
 }
 
+func (c *ttlCache[T]) get(key string) (T, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if entry, ok := c.m[key]; ok && time.Now().Before(entry.exp) {
+		return entry.val, true
+	}
+	var zero T
+	return zero, false
+}
+
 func (c *ttlCache[T]) put(key string, v T) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

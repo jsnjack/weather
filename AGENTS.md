@@ -54,6 +54,7 @@ cmd/
   serve.go                       HTTP server: HTML pages + JSON API + embedded PWA assets
   serve_forecast.go              /hourly + /forecast handlers, Open-Meteo daily fetch
   serve_location.go              Strict web location parsing and navigation state
+  serve_radar_timeline.go         Cached KNMI GIF composition and seekable frame atlas
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -255,6 +256,18 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   coordinates return HTTP 400; an explicit `(0, 0)` is valid. With no name or
   coordinates, the fallback is the server’s IP location. Forward and reverse
   geocoding share bounded 24-hour caches with in-flight deduplication.
+- **KNMI radar opens paused on its newest supplied frame.** The rain page uses
+  a slider, Play/Pause, Now and Latest frame controls. Now selects the last
+  observation, identified by KNMI's black timestamp followed by red forecast
+  timestamps on its 425×445 map. This visual convention is not an upstream API:
+  Now is hidden if dimensions, caption colours or chronological ordering are
+  unrecognised. `/api/v1/radar` describes the
+  GIF's frame dimensions and delays; `/radar/atlas.png?id=...` serves a composed
+  PNG atlas keyed by the GIF checksum. Two snapshots stay cached for six minutes;
+  GIF fetches keep their three-minute cache, so scrubbing never calls KNMI.
+  Frame disposal and offsets are preserved, including the baked-in timestamp
+  and legend. Past and future frames share the slider; timestamps are read from
+  the image, never inferred. The original GIF is the fallback if controls fail.
 - **Detailed forecasts replace Hourly in web navigation.** Today, Tomorrow and
   Weekend provide the hourly tables and ride windows. The rolling `/hourly` URL
   and CLI command remain available for custom periods and existing links.

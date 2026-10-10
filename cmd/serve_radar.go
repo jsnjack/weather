@@ -39,7 +39,15 @@ func getKNMIRadarMap() ([]byte, error) {
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 		}
-		return io.ReadAll(resp.Body)
+		const maxRadarBytes = 8 << 20
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxRadarBytes+1))
+		if err != nil {
+			return nil, fmt.Errorf("read KNMI radar GIF: %w", err)
+		}
+		if len(body) > maxRadarBytes {
+			return nil, fmt.Errorf("KNMI radar GIF exceeds size limit")
+		}
+		return body, nil
 	})
 }
 

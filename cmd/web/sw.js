@@ -1,6 +1,6 @@
-const SHELL_CACHE = "forecast-shell-v7";
-const DATA_CACHE  = "forecast-data-v7";
-const SHELL = ["/static/styles.css?v=7", "/static/location.js?v=1", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_CACHE = "forecast-shell-v9";
+const DATA_CACHE  = "forecast-data-v9";
+const SHELL = ["/static/styles.css?v=9", "/static/location.js?v=1", "/static/radar.js?v=2", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)));
@@ -20,6 +20,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  if (url.pathname === "/radar/atlas.png") return;
 
   // Network-first for page navigations (/, /hourly, /forecast, /today,
   // /multiday), the API, and the live radar GIF; fall back to the last good

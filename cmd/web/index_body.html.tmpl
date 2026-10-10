@@ -38,13 +38,21 @@
 
   {{if .Description}}<p class="caption">{{.Description}}</p>{{end}}
 
-  <section class="radar island">
+  <section class="radar island" id="radar-player">
     <div class="radar-head">
       <span class="microlabel">Radar</span>
       <span class="radar-src">rain + lightning · KNMI</span>
     </div>
     <img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" loading="lazy" width="425" height="445">
+    <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
+    <div class="radar-controls" hidden>
+      <label class="radar-slider">Radar timeline <input type="range" min="0" max="0" value="0" aria-label="Radar frame"></label>
+      <div class="radar-actions"><button type="button" data-play>Play</button><button type="button" data-now hidden aria-label="Now: latest observation" title="Latest observation">Now</button><button type="button" data-latest>Latest frame</button><output class="sub"></output></div>
+      <p class="sub">Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.</p>
+    </div>
+    <p class="sub radar-note" hidden></p>
   </section>
+  <script src="/static/radar.js?v=2"></script>
 
   <footer>refreshed {{.Now}}</footer>
 </main>
