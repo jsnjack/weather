@@ -6,15 +6,18 @@ mini-chart on the home screen. Tap → opens the detailed today forecast for the
 widget's own location in the browser.
 
 When nearby rain is present, a right-hand radar island shows the latest KNMI
-observation within a 50 km radius, with a location marker.
+observation within a 50 km radius, with a location marker. The grey PDOK
+background includes town names, roads and water; place labels remain above rain.
 All existing measurements remain in a compact native left panel. Radar taps
 open the same local map in the web view. Widgets smaller than 340×210dp (or too
 short for the chosen font size) keep the original layout. Unavailable, empty or
 stale radar data also keeps the original layout, including with older servers.
 Deploy the updated server manually to enable `/api/v1/radar/local`.
 
-The server caches KNMI WMS requests in memory and on disk and embeds its land outline. Anonymous WMS
-access works without configuration but has a shared quota; set the server's
+The server caches KNMI WMS requests in memory and on disk. PDOK background
+tiles have a separate seven-day cache; the embedded land outline remains the
+fallback when map tiles cannot be fetched. Anonymous WMS access works without
+configuration but has a shared quota; set the server's
 `KNMI_WMS_API_KEY` environment variable for a dedicated quota. Images older
 than 20 minutes are rejected rather than shown as current observations.
 

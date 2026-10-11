@@ -47,6 +47,8 @@ var (
 
 type localRadarImage struct {
 	overlay         image.Image
+	background      image.Image
+	labels          image.Image
 	observed        time.Time
 	x, y, halfWidth float64
 }
@@ -233,7 +235,16 @@ func getLocalRadar(ctx context.Context, lat, lon float64) (*localRadarImage, err
 		if err != nil {
 			return nil, fmt.Errorf("decode KNMI radar PNG: %w", err)
 		}
-		return &localRadarImage{overlay: overlay, observed: observed, x: x, y: y, halfWidth: halfWidth}, nil
+		radar := &localRadarImage{overlay: overlay, observed: observed, x: x, y: y, halfWidth: halfWidth}
+		if hasLocalRadarRain(overlay) {
+			mapCtx, cancel := context.WithTimeout(ctx, radarBasemapTimeout)
+			defer cancel()
+			radar.background = localRadarBasemap(mapCtx, radar, "grijs")
+			if radar.background != nil {
+				radar.labels = localRadarBasemap(mapCtx, radar, "labels")
+			}
+		}
+		return radar, nil
 	})
 }
 
@@ -305,7 +316,13 @@ func renderLocalRadar(radar *localRadarImage, lat, lon float64) ([]byte, error) 
 			}
 		}
 	}
+	if radar.background != nil {
+		draw.Draw(canvas, canvas.Bounds(), radar.background, image.Point{}, draw.Over)
+	}
 	draw.Draw(canvas, canvas.Bounds(), radar.overlay, image.Point{}, draw.Over)
+	if radar.labels != nil {
+		draw.Draw(canvas, canvas.Bounds(), radar.labels, image.Point{}, draw.Over)
+	}
 	centerX, centerY := project(lat, lon)
 	for y := 0; y < localRadarSize; y++ {
 		for x := 0; x < localRadarSize; x++ {

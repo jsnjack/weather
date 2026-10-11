@@ -57,6 +57,7 @@ cmd/
   serve_location.go              Strict web location parsing and navigation state
   serve_radar_timeline.go         Cached KNMI GIF composition and seekable frame atlas
   serve_radar_local.go            Cached, georeferenced 50 km radar images for web/widget
+  serve_radar_basemap.go          PDOK tile composition, shared and persistent map caching
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -258,7 +259,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   coordinates return HTTP 400; an explicit `(0, 0)` is valid. With no name or
   coordinates, the fallback is the server’s IP location. Forward and reverse
   geocoding share bounded 24-hour caches with in-flight deduplication.
-- **KNMI radar opens paused on its newest supplied frame.** The rain page uses
+- **One web radar player has Local / Netherlands coverage controls.** Local
+  shows the latest available observation with the same labelled basemap as the
+  widget. It is selected by default when fresh nearby rain is available;
+  otherwise Netherlands is selected and Local is disabled. National frames
+  load on demand once per page and survive coverage changes; switching views
+  pauses playback. The widget’s `#local-radar` link selects the local image.
+- **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again
   from the first frame. The latest observation is
@@ -276,13 +283,19 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   256×256 PNG of the latest KNMI WMS precipitation observation, with
   `X-Radar-Observed-At`; HTTP 204 means no nearby rain, stale data or unsupported
   coverage. The map spans 50 km in each direction in Web Mercator, with the
-  precise location marked on an embedded Natural Earth land outline. WMS image
+  precise location marked on a grey PDOK BRT basemap with town names, roads
+  and water. A separate label layer sits above rain so town names stay readable.
+  Embedded Natural Earth land is the fallback when tiles fail.
+  PDOK tiles use shared in-flight deduplication and a seven-day memory/disk
+  cache, with at most two network requests at once and a four-second map budget.
+  Rain overlays and map tiles have separate lifetimes. WMS image
   requests share a three-minute cache on 0.01° cells; the marker keeps the exact
   requested coordinates. Raw WMS responses persist to disk for CLI reuse.
   Observation metadata has its own shared cache. WMS
   requests are spaced by one second, and 403/429/5xx responses trigger a cooldown
   that honours Retry-After. `KNMI_WMS_API_KEY` selects authenticated WMS access;
-  without it, anonymous shared quotas apply. No basemap network requests occur.
+  without it, anonymous shared quotas apply. Basemap failures retain the rain
+  image over the embedded outline rather than hiding useful radar data.
   The widget first renders its existing layout, then adds the right-hand radar
   island only after a successful fresh image. Missing images, older servers,
   cached forecast fallback and missing location retain the original layout.

@@ -79,7 +79,7 @@ func TestLocalRadarResponses(t *testing.T) {
 		{"invalid coordinates", 5 * time.Minute, true, "lat=NaN&lon=4.90", 400, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("XDG_CACHE_HOME", t.TempDir())
+			resetRadarBasemap(t)
 			oldTransport, oldObservations, oldMaps := http.DefaultTransport, radarObservationCache, localRadarCache
 			t.Cleanup(func() {
 				http.DefaultTransport, radarObservationCache, localRadarCache = oldTransport, oldObservations, oldMaps
@@ -93,6 +93,9 @@ func TestLocalRadarResponses(t *testing.T) {
 			calls := 0
 			observed := time.Now().Add(-tc.age).UTC().Truncate(time.Second)
 			http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host == "service.pdok.nl" {
+					return &http.Response{StatusCode: 503, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(nil))}, nil
+				}
 				calls++
 				var body []byte
 				if r.URL.Query().Get("REQUEST") == "GetCapabilities" {

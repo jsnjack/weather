@@ -38,21 +38,24 @@
 
   {{if .Description}}<p class="caption">{{.Description}}</p>{{end}}
 
-  <section class="radar island" id="local-radar" data-location="{{.Q}}" hidden>
-    <img alt="Observed rain within 50 km of your location" width="256" height="256">
-  </section>
-  <script src="/static/local-radar.js?v=2"></script>
-  <section class="radar island" id="radar-player">
-    <img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" loading="lazy" width="425" height="445">
+  <section class="radar island" id="radar-player" data-location="{{.Q}}">
+    <div class="radar-views" role="group" aria-label="Radar coverage">
+      <button type="button" data-view="local" aria-pressed="false" disabled title="Checking local radar">Local</button>
+      <button type="button" data-view="national" aria-pressed="true">Netherlands</button>
+    </div>
+    <img id="local-radar" data-local-map hidden alt="Observed rain within 50 km of your location" width="256" height="256">
+    <img data-national-fallback hidden alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445">
     <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
+    <noscript><img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445"></noscript>
     <div class="radar-controls" hidden>
       <label class="radar-slider">Radar timeline <input type="range" min="0" max="0" value="0" aria-label="Radar frame"></label>
       <div class="radar-actions"><button type="button" data-play>Play</button><button type="button" data-now hidden aria-label="Now: latest observation" title="Latest observation">Now</button><button type="button" data-latest>Latest frame</button><output class="sub"></output></div>
       <p class="sub">Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.</p>
     </div>
+    <p class="sub radar-credit" hidden>Map: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-achtergrondkaarten-brt-a-">Kadaster / PDOK</a> · Rain: <a href="https://dataplatform.knmi.nl/dataset/radar-reflectivity-composites-2-0">KNMI</a></p>
     <p class="sub radar-note" hidden></p>
   </section>
-  <script src="/static/radar.js?v=3"></script>
+  <script src="/static/radar.js?v=4"></script>
 
   <footer>refreshed {{.Now}}</footer>
 </main>
