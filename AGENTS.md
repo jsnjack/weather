@@ -57,6 +57,7 @@ cmd/
   serve_location.go              Strict web location parsing and navigation state
   serve_radar_timeline.go         Cached KNMI GIF composition and seekable frame atlas
   serve_radar_local.go            Cached, georeferenced 50 km radar images for web/widget
+  serve_radar_local_timeline.go   Pinned one-hour local forecast frames and cached atlas
   serve_radar_basemap.go          PDOK tile composition, shared and persistent map caching
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
@@ -264,7 +265,24 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   widget. It is selected by default when fresh nearby rain is available;
   otherwise Netherlands is selected and Local is disabled. National frames
   load on demand once per page and survive coverage changes; switching views
-  pauses playback. The widget’s `#local-radar` link selects the local image.
+  pauses playback. The widget’s `radar=play#radar-player` link plays the local
+  forecast once; ordinary page visits keep the local observation paused.
+- **Local playback uses a pinned forecast run.** `/api/v1/radar/local/timeline`
+  starts with the actual latest observation, followed by KNMI
+  `radar_forecast_2.0` five-minute frames through the following hour. The
+  `precipitation_nowcast` layer's `reference_time`, not its future default
+  `time`, establishes freshness; every frame sends `DIM_REFERENCE_TIME`.
+  Frames share the observation's projection, basemap, labels and exact marker.
+  Upstream images deduplicate by rounded map cell, run and valid time, with
+  a three-minute memory/disk cache and the shared WMS pacing/cooldown.
+  Sixteen composed timelines stay cached for six minutes; their private
+  `/radar/local-atlas.png` snapshots never enter the service worker cache.
+  Forecast loading has a 45-second server budget and runs only after Play
+  or a widget tap. Replays, scrubbing and coverage switches reuse frames.
+  Playback stops at the end with Replay available. A coverage change or
+  hidden page cancels pending autoplay. Failed or stale forecasts retain
+  the current observation. The CLI exports the same sequence as a GIF with
+  `weather radar --animate --output radar.gif`; the GIF plays once.
 - **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again
@@ -306,7 +324,7 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   provider, radius and timestamp labels are omitted.
   The CLI exports the same map with `weather radar --output radar.png`.
   Its chart width and native row height are budgeted separately in
-  `chartSizePx`; radar taps open the web's local radar for the same location.
+  `chartSizePx`; radar taps open and play the web's local radar for the same location.
 - **Detailed forecasts replace Hourly in web navigation.** Today, Tomorrow and
   Weekend provide the hourly tables and ride windows. The rolling `/hourly` URL
   and CLI command remain available for custom periods and existing links.

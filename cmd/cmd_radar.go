@@ -1,7 +1,13 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/color/palette"
+	"image/draw"
+	"image/gif"
+	"image/png"
 	"os"
 	"time"
 
@@ -9,19 +15,40 @@ import (
 )
 
 var radarOutput string
+var radarAnimate bool
 
 var radarCmd = &cobra.Command{
 	Use:   "radar",
-	Short: "Save the latest local rain radar as a PNG",
+	Short: "Save local rain radar as a PNG or a one-hour animated GIF",
 	Args:  cobra.NoArgs,
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
 		if radarOutput == "" {
-			return fmt.Errorf("--output must specify a PNG file")
+			return fmt.Errorf("--output must specify a destination file")
 		}
 		loc, err := ResolveLocation()
 		if err != nil {
 			return fmt.Errorf("resolve radar location: %w", err)
+		}
+		if radarAnimate {
+			timeline, err := getLocalRadarTimeline(command.Context(), loc.Latitude, loc.Longitude)
+			if err != nil {
+				return fmt.Errorf("load radar animation: %w", err)
+			}
+			if timeline == nil {
+				return fmt.Errorf("no fresh nearby radar rain is available")
+			}
+			body, err := encodeLocalRadarGIF(timeline)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(radarOutput, body, 0644); err != nil {
+				return fmt.Errorf("save radar animation: %w", err)
+			}
+			if _, err := fmt.Fprintf(command.OutOrStdout(), "Saved %s · %s to %s\n", radarOutput, timeline.Times[0].Format("15:04 MST"), timeline.Times[len(timeline.Times)-1].Format("15:04 MST")); err != nil {
+				return fmt.Errorf("write radar result: %w", err)
+			}
+			return nil
 		}
 		radar, err := getLocalRadar(command.Context(), loc.Latitude, loc.Longitude)
 		if err != nil {
@@ -44,8 +71,29 @@ var radarCmd = &cobra.Command{
 	},
 }
 
+func encodeLocalRadarGIF(timeline *localRadarTimeline) ([]byte, error) {
+	atlas, err := png.Decode(bytes.NewReader(timeline.atlas))
+	if err != nil {
+		return nil, fmt.Errorf("decode radar animation atlas: %w", err)
+	}
+	animation := &gif.GIF{LoopCount: -1}
+	for i, delay := range timeline.Delays {
+		frame := image.NewPaletted(image.Rect(0, 0, timeline.Width, timeline.Height), palette.Plan9)
+		origin := image.Pt(i%timeline.Columns*timeline.Width, i/timeline.Columns*timeline.Height)
+		draw.FloydSteinberg.Draw(frame, frame.Bounds(), atlas, origin)
+		animation.Image = append(animation.Image, frame)
+		animation.Delay = append(animation.Delay, delay/10)
+	}
+	var encoded bytes.Buffer
+	if err := gif.EncodeAll(&encoded, animation); err != nil {
+		return nil, fmt.Errorf("encode radar animation: %w", err)
+	}
+	return encoded.Bytes(), nil
+}
+
 func init() {
-	radarCmd.Flags().StringVar(&radarOutput, "output", "", "destination PNG file")
+	radarCmd.Flags().StringVar(&radarOutput, "output", "", "destination PNG or animated GIF file")
+	radarCmd.Flags().BoolVar(&radarAnimate, "animate", false, "save a GIF from the current observation through the next hour, playing once")
 	if err := radarCmd.MarkFlagRequired("output"); err != nil {
 		panic(err)
 	}

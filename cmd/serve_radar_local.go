@@ -63,7 +63,9 @@ func radarWMSRequest(ctx context.Context, query url.Values) ([]byte, error) {
 	if key != "" {
 		endpoint = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 	}
-	query.Set("DATASET", "radar_reflectivity_composites")
+	if query.Get("DATASET") == "" {
+		query.Set("DATASET", "radar_reflectivity_composites")
+	}
 	query.Set("SERVICE", "WMS")
 	requestURL := endpoint + "?" + query.Encode()
 	cachePath, cacheErr := forecastStorePath("knmi-wms-v1:" + requestURL)
@@ -134,7 +136,13 @@ func radarWMSRequest(ctx context.Context, query url.Values) ([]byte, error) {
 	}
 	switch query.Get("REQUEST") {
 	case "GetCapabilities":
-		if _, err := parseRadarObservationTime(body); err != nil {
+		var err error
+		if query.Get("DATASET") == radarForecastDataset {
+			_, err = parseRadarDimensionTime(body, "precipitation_nowcast", "reference_time")
+		} else {
+			_, err = parseRadarObservationTime(body)
+		}
+		if err != nil {
 			return nil, err
 		}
 	case "GetMap":
@@ -169,6 +177,10 @@ func latestRadarTime(ctx context.Context) (time.Time, error) {
 }
 
 func parseRadarObservationTime(body []byte) (time.Time, error) {
+	return parseRadarDimensionTime(body, "precipitation", "time")
+}
+
+func parseRadarDimensionTime(body []byte, layerName, dimensionName string) (time.Time, error) {
 	var capabilities struct {
 		Capability struct {
 			Layer struct {
@@ -186,20 +198,20 @@ func parseRadarObservationTime(body []byte) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("read KNMI radar capabilities: %w", err)
 	}
 	for _, layer := range capabilities.Capability.Layer.Layers {
-		if layer.Name != "precipitation" {
+		if layer.Name != layerName {
 			continue
 		}
 		for _, dimension := range layer.Dimensions {
-			if dimension.Name == "time" {
+			if dimension.Name == dimensionName {
 				observed, err := time.Parse(time.RFC3339, dimension.Default)
 				if err != nil {
-					return time.Time{}, fmt.Errorf("read KNMI observation time: %w", err)
+					return time.Time{}, fmt.Errorf("read KNMI %s: %w", dimensionName, err)
 				}
 				return observed, nil
 			}
 		}
 	}
-	return time.Time{}, fmt.Errorf("KNMI radar has no observation timestamp")
+	return time.Time{}, fmt.Errorf("KNMI %s has no %s timestamp", layerName, dimensionName)
 }
 
 func getLocalRadar(ctx context.Context, lat, lon float64) (*localRadarImage, error) {
@@ -270,6 +282,18 @@ func hasLocalRadarRain(overlay image.Image) bool {
 }
 
 func renderLocalRadar(radar *localRadarImage, lat, lon float64) ([]byte, error) {
+	canvas, err := renderLocalRadarImage(radar, lat, lon)
+	if err != nil {
+		return nil, err
+	}
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, canvas); err != nil {
+		return nil, fmt.Errorf("encode local radar: %w", err)
+	}
+	return encoded.Bytes(), nil
+}
+
+func renderLocalRadarImage(radar *localRadarImage, lat, lon float64) (*image.RGBA, error) {
 	radarLandOnce.Do(func() {
 		body, err := radarLandFS.ReadFile("radar/land.json")
 		if err != nil {
@@ -334,11 +358,7 @@ func renderLocalRadar(radar *localRadarImage, lat, lon float64) ([]byte, error) 
 			}
 		}
 	}
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, canvas); err != nil {
-		return nil, fmt.Errorf("encode local radar: %w", err)
-	}
-	return encoded.Bytes(), nil
+	return canvas, nil
 }
 
 func handleLocalRadar(w http.ResponseWriter, r *http.Request) {

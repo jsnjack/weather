@@ -13,3 +13,10 @@ the frequently updated KNMI rain overlay. `land.json` remains the fallback.
 
 Map service: https://www.pdok.nl/ogc-webservices/-/article/basisregistratie-topografie-achtergrondkaarten-brt-a-
 Radar data: https://dataplatform.knmi.nl/dataset/radar-reflectivity-composites-2-0
+
+Local playback and `weather radar --animate --output radar.gif` use the
+five-minute KNMI nowcast, pinned to the latest `reference_time` for every
+frame. The first frame is the current observation; subsequent frames cover
+the next hour. The same basemap, labels and marker stay fixed throughout.
+
+Forecast data: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0

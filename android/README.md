@@ -11,12 +11,19 @@ background includes town names, roads and water; place labels remain above rain.
 The square map has no surrounding panel or padding, so its aspect ratio stays
 accurate without coloured bands above and below it.
 All existing measurements remain in a compact native left panel. Radar taps
-open the same local map in the web view. Widgets smaller than 340×210dp (or too
+open the same local map in the browser and play from the latest observation
+through the next hour, then stop. Replay, Pause, Now and the slider reuse the
+loaded frames. Unavailable forecasts keep the current observation visible.
+Widgets smaller than 340×210dp (or too
 short for the chosen font size) keep the original layout. Unavailable, empty or
 stale radar data also keeps the original layout, including with older servers.
-Deploy the updated server manually to enable `/api/v1/radar/local`.
+Deploy the updated server manually to enable `/api/v1/radar/local` and
+`/api/v1/radar/local/timeline`.
 
-The server caches KNMI WMS requests in memory and on disk. PDOK background
+Forecasts use KNMI's five-minute nowcast, pinned to one run through its
+`reference_time` dimension. Frames load only on a map tap or Play, and reuse
+the observation's projection and basemap. The server caches KNMI WMS requests
+in memory and on disk. PDOK background
 tiles have a separate seven-day cache; the embedded land outline remains the
 fallback when map tiles cannot be fetched. Anonymous WMS access works without
 configuration but has a shared quota; set the server's

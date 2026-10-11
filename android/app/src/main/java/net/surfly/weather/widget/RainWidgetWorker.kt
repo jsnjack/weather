@@ -212,7 +212,8 @@ class RainWidgetWorker(
                 .appendQueryParameter("lat", response.location.latitude.toString())
                 .appendQueryParameter("lon", response.location.longitude.toString())
                 .appendQueryParameter("label", response.location.description)
-                .fragment("local-radar")
+                .appendQueryParameter("radar", "play")
+                .fragment("radar-player")
                 .build()
             val radarIntent = Intent(Intent.ACTION_VIEW, radarUri).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK

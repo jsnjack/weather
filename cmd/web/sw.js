@@ -1,6 +1,6 @@
-const SHELL_CACHE = "forecast-shell-v13";
-const DATA_CACHE  = "forecast-data-v13";
-const SHELL = ["/static/styles.css?v=11", "/static/location.js?v=1", "/static/radar.js?v=4", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_CACHE = "forecast-shell-v14";
+const DATA_CACHE  = "forecast-data-v14";
+const SHELL = ["/static/styles.css?v=11", "/static/location.js?v=1", "/static/radar.js?v=5", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)));
@@ -20,7 +20,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.pathname === "/radar/atlas.png") return;
+  if (url.pathname === "/radar/atlas.png" || url.pathname === "/radar/local-atlas.png" || url.pathname === "/api/v1/radar/local/timeline") return;
 
   // Network-first for page navigations (/, /hourly, /forecast, /today,
   // /multiday), the API, and the live radar GIF; fall back to the last good

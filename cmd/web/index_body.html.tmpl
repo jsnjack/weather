@@ -50,12 +50,12 @@
     <div class="radar-controls" hidden>
       <label class="radar-slider">Radar timeline <input type="range" min="0" max="0" value="0" aria-label="Radar frame"></label>
       <div class="radar-actions"><button type="button" data-play>Play</button><button type="button" data-now hidden aria-label="Now: latest observation" title="Latest observation">Now</button><button type="button" data-latest>Latest frame</button><output class="sub"></output></div>
-      <p class="sub">Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.</p>
+      <p class="sub" data-help>Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.</p>
     </div>
     <p class="sub radar-credit" hidden>Map: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-achtergrondkaarten-brt-a-">Kadaster / PDOK</a> · Rain: <a href="https://dataplatform.knmi.nl/dataset/radar-reflectivity-composites-2-0">KNMI</a></p>
     <p class="sub radar-note" hidden></p>
   </section>
-  <script src="/static/radar.js?v=4"></script>
+  <script src="/static/radar.js?v=5"></script>
 
   <footer>refreshed {{.Now}}</footer>
 </main>
