@@ -297,12 +297,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   without it, anonymous shared quotas apply. Basemap failures retain the rain
   image over the embedded outline rather than hiding useful radar data.
   The widget first renders its existing layout, then adds the right-hand radar
-  island only after a successful fresh image. Missing images, older servers,
+  map only after a successful fresh image. Missing images, older servers,
   cached forecast fallback and missing location retain the original layout.
   Radar observations older than 20 minutes are rejected on both server and
   phone. `widget_rain_radar.xml` retains every measurement in native views,
   and requires at least 340dp width and 210dp height (scaled for larger fonts).
-  Radar shows only the map; provider, radius and timestamp labels are omitted.
+  Radar shows only the square map, without a surrounding panel or padding;
+  provider, radius and timestamp labels are omitted.
   The CLI exports the same map with `weather radar --output radar.png`.
   Its chart width and native row height are budgeted separately in
   `chartSizePx`; radar taps open the web's local radar for the same location.

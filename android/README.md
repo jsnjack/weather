@@ -5,9 +5,11 @@ A native Android widget that calls the `weather serve` JSON API
 mini-chart on the home screen. Tap → opens the detailed today forecast for the
 widget's own location in the browser.
 
-When nearby rain is present, a right-hand radar island shows the latest KNMI
+When nearby rain is present, a right-hand radar map shows the latest KNMI
 observation within a 50 km radius, with a location marker. The grey PDOK
 background includes town names, roads and water; place labels remain above rain.
+The square map has no surrounding panel or padding, so its aspect ratio stays
+accurate without coloured bands above and below it.
 All existing measurements remain in a compact native left panel. Radar taps
 open the same local map in the web view. Widgets smaller than 340×210dp (or too
 short for the chosen font size) keep the original layout. Unavailable, empty or
