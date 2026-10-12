@@ -12,6 +12,7 @@
   const now = controls.querySelector("[data-now]");
   const output = controls.querySelector("output");
   const help = controls.querySelector("[data-help]");
+  const progress = controls.querySelector("[data-progress]");
   const note = player.querySelector(".radar-note");
   const credit = player.querySelector(".radar-credit");
   const localButton = player.querySelector('[data-view="local"]');
@@ -21,6 +22,7 @@
   let chosen = false;
   let localReady = false;
   let timer = null;
+  let pendingPlay = false;
   let playRequest = 0;
 
   function locationParams() {
@@ -34,6 +36,7 @@
 
   function pause() {
     playRequest++;
+    pendingPlay = false;
     clearTimeout(timer);
     timer = null;
     const state = states[mode];
@@ -50,12 +53,17 @@
     sliderRow.hidden = !state.timeline;
     latest.hidden = !state.timeline;
     now.hidden = !state.timeline || !Number.isInteger(state.timeline.latestObservation);
-    help.hidden = !state.timeline;
+    help.hidden = !state.timeline || mode === "local";
     help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after one hour." : "Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.";
     credit.hidden = mode !== "local" || !localReady;
     note.hidden = !state.failed;
     note.textContent = mode === "local" ? "Forecast unavailable; showing the current observation." : "Timeline unavailable; showing the original animation.";
-    play.disabled = !!state.loading || !!state.failed || (!!state.timeline && state.timeline.delays.length < 2);
+    play.disabled = (!!state.loading && !canPlay(state) && !pendingPlay) || !!state.failed || (!!state.timeline && state.timeline.delays.length < 2);
+    play.textContent = timer !== null || pendingPlay ? "Pause" : mode === "local" && state.timeline && state.frame === state.timeline.delays.length - 1 ? "Replay" : "Play";
+    play.setAttribute("aria-pressed", String(timer !== null || pendingPlay));
+    progress.hidden = mode !== "local" || !state.loading;
+    progress.textContent = state.metadata ? "Loading " + (state.frames || []).length + " / " + state.metadata.delays.length + " frames" : "Loading forecast…";
+    latest.textContent = mode === "local" ? "+1h" : "Latest";
     if (!state.timeline) output.textContent = state.loading ? "Loading forecast…" : mode === "local" ? "Current observation" : "";
     player.querySelectorAll("[data-view]").forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.dataset.view === mode));
@@ -77,10 +85,14 @@
     state.frame = index;
     canvas.width = timeline.width;
     canvas.height = timeline.height;
-    const x = (index % timeline.columns) * timeline.width;
-    const y = Math.floor(index / timeline.columns) * timeline.height;
     const context = canvas.getContext("2d");
-    context.drawImage(state.atlas, x, y, timeline.width, timeline.height, 0, 0, canvas.width, canvas.height);
+    if (state.frames) {
+      context.drawImage(state.frames[index], 0, 0, canvas.width, canvas.height);
+    } else {
+      const x = (index % timeline.columns) * timeline.width;
+      const y = Math.floor(index / timeline.columns) * timeline.height;
+      context.drawImage(state.atlas, x, y, timeline.width, timeline.height, 0, 0, canvas.width, canvas.height);
+    }
     canvas.setAttribute("aria-label", mode === "local" ? "Rain within 50 km of your location" : "KNMI precipitation and lightning radar over the Netherlands");
     slider.max = timeline.delays.length - 1;
     slider.value = index;
@@ -91,24 +103,30 @@
       output.textContent = (index === 0 ? "Now" : "+" + minutes + " min") + " · " + clock;
     } else output.textContent = (index + 1) + " / " + timeline.delays.length;
     slider.setAttribute("aria-valuetext", mode === "local" ? output.textContent : "Frame " + (index + 1) + " of " + timeline.delays.length);
-    latest.disabled = index === timeline.delays.length - 1;
+    latest.disabled = (state.frames && !state.complete) || index === timeline.delays.length - 1;
     now.disabled = index === timeline.latestObservation;
   }
 
   function advance() {
     const state = states[mode];
+    if (state.frames && !state.frames[state.frame + 1]) {
+      timer = setTimeout(advance, 150);
+      return;
+    }
     show(state.frame + 1);
     if (state.frame === state.timeline.delays.length - 1) { pause(); return; }
     timer = setTimeout(advance, state.timeline.delays[state.frame]);
   }
 
   async function start() {
-    if (timer !== null) { pause(); return; }
+    if (timer !== null || pendingPlay) { pause(); present(); return; }
     const view = mode;
     const state = states[view];
     const request = ++playRequest;
-    if (!state.timeline) await loadTimeline(view);
-    if (request !== playRequest || mode !== view || !state.timeline || document.hidden) return;
+    pendingPlay = true;
+    if (!canPlay(state)) await loadTimeline(view);
+    if (request !== playRequest || mode !== view || !canPlay(state) || state.failed || document.hidden) return;
+    pendingPlay = false;
     if (widgetPlayback) player.scrollIntoView({block: "start"});
     if (state.frame === state.timeline.delays.length - 1) show(0);
     play.textContent = "Pause";
@@ -120,7 +138,12 @@
     button.addEventListener("click", function () { chosen = true; select(button.dataset.view); });
   });
   play.addEventListener("click", start);
-  slider.addEventListener("input", function () { pause(); show(Number(slider.value)); pause(); });
+  slider.addEventListener("input", function () {
+    pause();
+    const state = states[mode];
+    show(state.frames ? Math.min(Number(slider.value), state.frames.length - 1) : Number(slider.value));
+    pause();
+  });
   latest.addEventListener("click", function () { pause(); show(states[mode].timeline.delays.length - 1); pause(); });
   now.addEventListener("click", function () { pause(); show(states[mode].timeline.latestObservation); pause(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden) pause(); });
@@ -128,22 +151,28 @@
 
   function loadTimeline(view) {
     const state = states[view];
-    if (state.load) return state.load;
+    if (state.load) return view === "local" ? state.ready : state.load;
+    let ready;
+    if (view === "local") state.ready = new Promise(function (resolve) { ready = resolve; });
     state.loading = true;
     present();
     state.load = (async function () {
       const controller = new AbortController();
       const timeout = setTimeout(function () { controller.abort(); }, view === "local" ? 50000 : 15000);
       try {
-        const path = view === "local" ? "/api/v1/radar/local/timeline?" + locationParams().toString() : "/api/v1/radar";
+        const params = locationParams();
+        params.set("progressive", "1");
+        const path = view === "local" ? "/api/v1/radar/local/timeline?" + params.toString() : "/api/v1/radar";
         const response = await fetch(path, {cache: "no-store", signal: controller.signal});
         if (!response.ok || response.status === 204) throw new Error("Radar timeline: HTTP " + response.status);
+        if (view === "local" && (response.headers.get("Content-Type") || "").includes("application/x-ndjson")) {
+          await readLocalStream(response, state, ready);
+          return;
+        }
         const candidate = await response.json();
         if (!Array.isArray(candidate.delays) || !candidate.delays.length) throw new Error("Radar timeline has no frames");
         if (view === "local") {
-          const observed = new Date(candidate.times && candidate.times[0]).getTime();
-          const reference = new Date(candidate.reference).getTime();
-          if (!fresh(observed) || !fresh(reference) || candidate.times.length !== candidate.delays.length) throw new Error("Radar forecast is stale or incomplete");
+          validateLocal(candidate);
         }
         const responseAtlas = await fetch(candidate.atlasURL, {signal: controller.signal});
         if (!responseAtlas.ok) throw new Error("Radar frames: HTTP " + responseAtlas.status);
@@ -154,17 +183,97 @@
         state.timeline = candidate;
         state.atlas = image;
         state.frame = view === "local" ? 0 : candidate.delays.length - 1;
+        state.complete = true;
+        if (ready) ready();
       } catch (error) {
         console.warn("Radar timeline", error);
         state.failed = true;
+        if (view === "local") {
+          state.timeline = null;
+          state.frames = null;
+          if (mode === view) pause();
+        }
         if (view === "national") fallback.src = "/radar.gif";
       } finally {
         clearTimeout(timeout);
         state.loading = false;
+        if (ready) ready();
         present();
       }
     })();
-    return state.load;
+    return view === "local" ? state.ready : state.load;
+  }
+
+  function canPlay(state) {
+    return !!state.timeline && (!state.frames || state.frames.length >= 3 || state.complete);
+  }
+
+  function validateLocal(candidate) {
+    if (candidate.width !== 256 || candidate.height !== 256 || !Array.isArray(candidate.times) ||
+        !Array.isArray(candidate.delays) || candidate.delays.length < 2 || candidate.delays.length > 13 ||
+        candidate.times.length !== candidate.delays.length || candidate.latestObservation !== 0 ||
+        !fresh(new Date(candidate.times[0]).getTime()) || !fresh(new Date(candidate.reference).getTime())) {
+      throw new Error("Radar forecast is stale or incomplete");
+    }
+    candidate.times.forEach(function (at, index) {
+      const instant = new Date(at).getTime();
+      if (!Number.isFinite(instant) || instant - new Date(candidate.times[0]) > 3600000 ||
+          (index > 0 && instant <= new Date(candidate.times[index - 1]).getTime()) ||
+          !Number.isFinite(candidate.delays[index]) || candidate.delays[index] < 100) {
+        throw new Error("Invalid radar frame timing");
+      }
+    });
+  }
+
+  async function readLocalStream(response, state, ready) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
+    let complete = false;
+    async function event(line) {
+      const item = JSON.parse(line);
+      if (complete) throw new Error("Unexpected data after radar completion");
+      if (item.type === "metadata") {
+        if (state.metadata) throw new Error("Repeated radar metadata");
+        validateLocal(item);
+        state.metadata = item;
+        state.frames = [];
+      } else if (item.type === "frame") {
+        if (!state.metadata || item.index !== state.frames.length || item.index >= state.metadata.times.length ||
+            typeof item.image !== "string" || !item.image.startsWith("data:image/png;base64,")) throw new Error("Invalid radar frame");
+        const image = new Image();
+        image.src = item.image;
+        await image.decode();
+        if (image.naturalWidth !== 256 || image.naturalHeight !== 256) throw new Error("Invalid radar frame dimensions");
+        state.frames.push(image);
+        state.timeline = state.metadata;
+        if (canPlay(state)) ready();
+      } else if (item.type === "complete") {
+        if (!state.metadata || state.frames.length !== state.metadata.times.length) throw new Error("Incomplete radar frames");
+        complete = state.complete = true;
+        ready();
+      } else throw new Error("Radar forecast unavailable");
+      present();
+    }
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        pending += decoder.decode(chunk.value || new Uint8Array(), {stream: !chunk.done});
+        if (pending.length > 2000000) throw new Error("Radar stream exceeds frame budget");
+        let end;
+        while ((end = pending.indexOf("\n")) >= 0) {
+          const line = pending.slice(0, end);
+          pending = pending.slice(end + 1);
+          if (line.trim()) await event(line);
+        }
+        if (chunk.done) break;
+      }
+      if (pending.trim()) await event(pending);
+      if (!complete) throw new Error("Radar stream interrupted");
+    } catch (error) {
+      try { await reader.cancel(); } catch (cancelError) { console.debug("Cancel radar stream", cancelError); }
+      throw error;
+    }
   }
 
   function fresh(at) {

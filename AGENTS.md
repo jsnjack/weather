@@ -57,7 +57,7 @@ cmd/
   serve_location.go              Strict web location parsing and navigation state
   serve_radar_timeline.go         Cached KNMI GIF composition and seekable frame atlas
   serve_radar_local.go            Cached, georeferenced 50 km radar images for web/widget
-  serve_radar_local_timeline.go   Pinned one-hour local forecast frames and cached atlas
+  serve_radar_local_timeline.go   Progressive local forecast frames and cached atlas
   serve_radar_basemap.go          PDOK tile composition, shared and persistent map caching
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
@@ -283,6 +283,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   hidden page cancels pending autoplay. Failed or stale forecasts retain
   the current observation. The CLI exports the same sequence as a GIF with
   `weather radar --animate --output radar.gif`; the GIF plays once.
+  Web requests add `progressive=1` to receive flushed NDJSON metadata, PNG
+  frames and a final completion event. Playback starts after the observation
+  and two forecast frames arrive, then waits without skipping if the next
+  frame is delayed. Incomplete streams return to the observation. Rendered
+  frames share a bounded six-minute cache with the CLI/legacy atlas, so replay
+  and concurrent viewers reuse upstream fetches and rendering. Proxy buffering
+  is disabled through `X-Accel-Buffering: no`; deployments must allow streaming.
 - **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again
@@ -310,7 +317,9 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   requests share a three-minute cache on 0.01° cells; the marker keeps the exact
   requested coordinates. Raw WMS responses persist to disk for CLI reuse.
   Observation metadata has its own shared cache. WMS
-  requests are spaced by one second, and 403/429/5xx responses trigger a cooldown
+  requests are spaced by one second anonymously or 50 ms with an API key,
+  matching KNMI's 1/20 requests per second limits. Both have a 1,000-request
+  hourly quota; the anonymous quota is shared. 403/429/5xx responses trigger a cooldown
   that honours Retry-After. `KNMI_WMS_API_KEY` selects authenticated WMS access;
   without it, anonymous shared quotas apply. Basemap failures retain the rain
   image over the embedded outline rather than hiding useful radar data.
@@ -320,7 +329,8 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   Radar observations older than 20 minutes are rejected on both server and
   phone. `widget_rain_radar.xml` retains every measurement in native views,
   and requires at least 340dp width and 210dp height (scaled for larger fonts).
-  Radar shows only the square map, without a surrounding panel or padding;
+  Radar shows only the square map, with native bitmap corners matching the
+  islands' 16dp radius and no surrounding panel or padding;
   provider, radius and timestamp labels are omitted.
   The CLI exports the same map with `weather radar --output radar.png`.
   Its chart width and native row height are budgeted separately in

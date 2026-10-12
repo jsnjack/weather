@@ -23,11 +23,13 @@ import (
 )
 
 const (
-	localRadarSize    = 256
-	localRadarRadiusM = 50_000.0
-	radarEarthRadiusM = 6_378_137.0
-	localRadarMaxAge  = 20 * time.Minute
-	knmiWMSURL        = "https://anonymous.api.dataplatform.knmi.nl/wms/adaguc-server"
+	localRadarSize             = 256
+	localRadarRadiusM          = 50_000.0
+	radarEarthRadiusM          = 6_378_137.0
+	localRadarMaxAge           = 20 * time.Minute
+	knmiWMSURL                 = "https://anonymous.api.dataplatform.knmi.nl/wms/adaguc-server"
+	radarAnonymousInterval     = time.Second
+	radarAuthenticatedInterval = time.Second / 20
 )
 
 //go:embed radar/land.json
@@ -90,7 +92,11 @@ func radarWMSRequest(ctx context.Context, query url.Values) ([]byte, error) {
 	if slot.Before(now) {
 		slot = now
 	}
-	radarWMSGate.next = slot.Add(time.Second)
+	interval := radarAnonymousInterval
+	if key != "" {
+		interval = radarAuthenticatedInterval
+	}
+	radarWMSGate.next = slot.Add(interval)
 	radarWMSGate.Unlock()
 	timer := time.NewTimer(time.Until(slot))
 	defer timer.Stop()

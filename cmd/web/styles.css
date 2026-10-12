@@ -67,16 +67,17 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 .radar-views button:disabled { opacity: .5; cursor: default; }
 .radar-credit { max-width: 425px; margin: .5rem auto 0; font-size: .65rem; }
 .radar-credit a { color: inherit; }
-.radar img, .radar canvas { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 10px; border: .5px solid var(--hairline); }
+.radar img, .radar canvas { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 16px; }
 .radar [hidden] { display: none; }
-.radar-controls { max-width: 425px; margin: .6rem auto 0; }
+.radar-controls { max-width: 425px; margin: .25rem auto 0; }
 .radar-slider { display: block; color: var(--muted); font-size: .78rem; }
 .radar-slider input { display: block; width: 100%; height: 44px; margin: 0; padding: 0; accent-color: var(--accent); }
-.radar-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.radar-actions output { margin-left: auto; }
-.radar-actions button { min-height: 44px; padding: .35rem .9rem; background: var(--accent); color: #fff; border: 0; border-radius: 999px; cursor: pointer; font: inherit; }
+.radar-actions { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); align-items: center; gap: .35rem; }
+.radar-actions output { min-width: 0; text-align: right; font-size: .72rem; line-height: 1.3; }
+.radar-actions button { min-height: 44px; min-width: 44px; padding: .3rem .65rem; background: var(--accent); color: #fff; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-size: .82rem; }
 .radar-actions button[data-latest], .radar-actions button[data-now] { background: var(--surface); color: var(--ink); border: .5px solid var(--hairline); }
 .radar-actions button:disabled { opacity: .55; cursor: default; }
+.radar-progress { margin: .15rem 0 0; font-size: .68rem; }
 
 /* controls — collapsed by default; the data leads, the knobs follow */
 .opts { margin: .65rem 0; }

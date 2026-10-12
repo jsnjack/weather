@@ -28,6 +28,7 @@ import net.surfly.weather.widget.net.GlanceResponse
 import net.surfly.weather.widget.net.RadarApi
 import net.surfly.weather.widget.net.RadarPolicy
 import net.surfly.weather.widget.render.ChartRenderer
+import net.surfly.weather.widget.render.RadarRenderer
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -206,7 +207,8 @@ class RainWidgetWorker(
             radarViews.setTextViewText(R.id.updated, "↻  " + ctx.getString(
                 R.string.updated_at, formatClock(System.currentTimeMillis()),
             ))
-            radarViews.setImageViewBitmap(R.id.radar_image, radar.bitmap)
+            val mapWidthDp = (options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 340) - 22) / 3
+            radarViews.setImageViewBitmap(R.id.radar_image, RadarRenderer.rounded(radar.bitmap, mapWidthDp))
             wireClicks(ctx, radarViews, id, cfg.serverUrl, lat, lon, nameQ)
             val radarUri = Uri.parse(cfg.serverUrl.trimEnd('/') + "/").buildUpon()
                 .appendQueryParameter("lat", response.location.latitude.toString())

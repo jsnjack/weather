@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,7 @@ type localRadarTimeline struct {
 var radarForecastRunCache = newTTLCache[time.Time](3*time.Minute, 1)
 var radarForecastFrameCache = newTTLCache[image.Image](3*time.Minute, 256)
 var localRadarTimelineCache = newTTLCache[*localRadarTimeline](6*time.Minute, 16)
+var localRadarRenderedFrameCache = newTTLCache[[]byte](6*time.Minute, 256)
 
 func localRadarForecastTimes(observed, reference time.Time) []time.Time {
 	times := []time.Time{observed}
@@ -73,49 +75,24 @@ func localRadarForecastFrame(ctx context.Context, radar *localRadarImage, refere
 func getLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarTimeline, error) {
 	ctx, cancel := context.WithTimeout(ctx, localRadarTimelineTimeout)
 	defer cancel()
-	radar, err := getLocalRadar(ctx, lat, lon)
-	if err != nil {
+	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, lat, lon)
+	if err != nil || timeline == nil {
 		return nil, err
 	}
-	if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
-		return nil, nil
-	}
-	reference, err := memo(radarForecastRunCache, "latest", func() (time.Time, error) {
-		body, err := radarWMSRequest(ctx, url.Values{"DATASET": {radarForecastDataset}, "REQUEST": {"GetCapabilities"}})
-		if err != nil {
-			return time.Time{}, err
-		}
-		return parseRadarDimensionTime(body, "precipitation_nowcast", "reference_time")
-	})
-	if err != nil {
-		return nil, err
-	}
-	if !freshRadarObservation(reference, time.Now()) || reference.After(radar.observed.Add(5*time.Minute)) {
-		return nil, fmt.Errorf("radar forecast run is stale or ahead of the observation")
-	}
-	id := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%.17g,%.17g,%s,%s", lat, lon, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339)))))
 	return memo(localRadarTimelineCache, id, func() (*localRadarTimeline, error) {
-		times := localRadarForecastTimes(radar.observed, reference)
-		const columns = 4
-		rows := (len(times) + columns - 1) / columns
-		atlas := image.NewRGBA(image.Rect(0, 0, columns*localRadarSize, rows*localRadarSize))
-		timeline := &localRadarTimeline{Width: localRadarSize, Height: localRadarSize, Columns: columns,
-			Times: times, Reference: reference, Delays: make([]int, len(times)), AtlasURL: "/radar/local-atlas.png?id=" + id}
-		for i, at := range times {
-			frame := *radar
-			if i > 0 {
-				frame.overlay, err = localRadarForecastFrame(ctx, radar, reference, at)
-				if err != nil {
-					return nil, fmt.Errorf("load radar forecast at %s: %w", at.Format(time.RFC3339), err)
-				}
-			}
-			picture, err := renderLocalRadarImage(&frame, lat, lon)
+		rows := (len(timeline.Times) + timeline.Columns - 1) / timeline.Columns
+		atlas := image.NewRGBA(image.Rect(0, 0, timeline.Columns*localRadarSize, rows*localRadarSize))
+		for i := range timeline.Times {
+			body, err := localRadarTimelineFrame(ctx, radar, timeline, id, i, lat, lon)
 			if err != nil {
 				return nil, err
 			}
-			x, y := i%columns*localRadarSize, i/columns*localRadarSize
+			picture, err := png.Decode(bytes.NewReader(body))
+			if err != nil {
+				return nil, fmt.Errorf("decode rendered radar frame: %w", err)
+			}
+			x, y := i%timeline.Columns*localRadarSize, i/timeline.Columns*localRadarSize
 			draw.Draw(atlas, image.Rect(x, y, x+localRadarSize, y+localRadarSize), picture, image.Point{}, draw.Src)
-			timeline.Delays[i] = localRadarFrameDelay
 		}
 		var encoded bytes.Buffer
 		if err := png.Encode(&encoded, atlas); err != nil {
@@ -126,7 +103,56 @@ func getLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarTi
 	})
 }
 
+func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarImage, *localRadarTimeline, string, error) {
+	radar, err := getLocalRadar(ctx, lat, lon)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
+		return nil, nil, "", nil
+	}
+	reference, err := memo(radarForecastRunCache, "latest", func() (time.Time, error) {
+		body, err := radarWMSRequest(ctx, url.Values{"DATASET": {radarForecastDataset}, "REQUEST": {"GetCapabilities"}})
+		if err != nil {
+			return time.Time{}, err
+		}
+		return parseRadarDimensionTime(body, "precipitation_nowcast", "reference_time")
+	})
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if !freshRadarObservation(reference, time.Now()) || reference.After(radar.observed.Add(5*time.Minute)) {
+		return nil, nil, "", fmt.Errorf("radar forecast run is stale or ahead of the observation")
+	}
+	id := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%.17g,%.17g,%s,%s", lat, lon, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339)))))
+	times := localRadarForecastTimes(radar.observed, reference)
+	timeline := &localRadarTimeline{Width: localRadarSize, Height: localRadarSize, Columns: 4,
+		Times: times, Reference: reference, Delays: make([]int, len(times)), AtlasURL: "/radar/local-atlas.png?id=" + id}
+	for i := range times {
+		timeline.Delays[i] = localRadarFrameDelay
+	}
+	return radar, timeline, id, nil
+}
+
+func localRadarTimelineFrame(ctx context.Context, radar *localRadarImage, timeline *localRadarTimeline, id string, index int, lat, lon float64) ([]byte, error) {
+	return memo(localRadarRenderedFrameCache, fmt.Sprintf("%s:%d", id, index), func() ([]byte, error) {
+		frame := *radar
+		if index > 0 {
+			overlay, err := localRadarForecastFrame(ctx, radar, timeline.Reference, timeline.Times[index])
+			if err != nil {
+				return nil, fmt.Errorf("load radar forecast frame %d: %w", index, err)
+			}
+			frame.overlay = overlay
+		}
+		return renderLocalRadar(&frame, lat, lon)
+	})
+}
+
 func handleLocalRadarTimeline(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("progressive") == "1" {
+		handleLocalRadarStream(w, r)
+		return
+	}
 	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
@@ -147,6 +173,73 @@ func handleLocalRadarTimeline(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(timeline); err != nil {
 		slog.Log(r.Context(), LevelTrace, "write local radar timeline", "err", err)
 	}
+}
+
+func handleLocalRadarStream(w http.ResponseWriter, r *http.Request) {
+	loc, _, err := resolveRequestLocation(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), localRadarTimelineTimeout)
+	defer cancel()
+	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, loc.Latitude, loc.Longitude)
+	if err != nil {
+		slog.Debug("local radar stream unavailable", "err", err)
+		http.Error(w, "local radar forecast unavailable", http.StatusBadGateway)
+		return
+	}
+	if timeline == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	encoder := json.NewEncoder(w)
+	controller := http.NewResponseController(w)
+	send := func(event any) bool {
+		if err := encoder.Encode(event); err != nil {
+			slog.Log(ctx, LevelTrace, "write radar stream", "err", err)
+			return false
+		}
+		if err := controller.Flush(); err != nil {
+			slog.Log(ctx, LevelTrace, "flush radar stream", "err", err)
+			return false
+		}
+		return true
+	}
+	if !send(struct {
+		Type string `json:"type"`
+		*localRadarTimeline
+	}{"metadata", timeline}) {
+		return
+	}
+	for i := range timeline.Times {
+		if ctx.Err() != nil {
+			return
+		}
+		body, err := localRadarTimelineFrame(ctx, radar, timeline, id, i, loc.Latitude, loc.Longitude)
+		if err != nil {
+			slog.Debug("local radar stream frame unavailable", "err", err)
+			send(struct {
+				Type string `json:"type"`
+			}{"error"})
+			return
+		}
+		if !send(struct {
+			Type  string `json:"type"`
+			Index int    `json:"index"`
+			Image string `json:"image"`
+		}{
+			"frame", i, "data:image/png;base64," + base64.StdEncoding.EncodeToString(body),
+		}) {
+			return
+		}
+	}
+	send(struct {
+		Type string `json:"type"`
+	}{"complete"})
 }
 
 func handleLocalRadarAtlas(w http.ResponseWriter, r *http.Request) {

@@ -8,12 +8,14 @@ widget's own location in the browser.
 When nearby rain is present, a right-hand radar map shows the latest KNMI
 observation within a 50 km radius, with a location marker. The grey PDOK
 background includes town names, roads and water; place labels remain above rain.
-The square map has no surrounding panel or padding, so its aspect ratio stays
+The square map has 16dp rounded corners and no surrounding panel or padding, so its aspect ratio stays
 accurate without coloured bands above and below it.
 All existing measurements remain in a compact native left panel. Radar taps
 open the same local map in the browser and play from the latest observation
 through the next hour, then stop. Replay, Pause, Now and the slider reuse the
 loaded frames. Unavailable forecasts keep the current observation visible.
+The browser starts after the observation and two forecast frames arrive, while
+the remainder loads progressively. Its controls and time stay in one compact row.
 Widgets smaller than 340×210dp (or too
 short for the chosen font size) keep the original layout. Unavailable, empty or
 stale radar data also keeps the original layout, including with older servers.
@@ -29,6 +31,13 @@ fallback when map tiles cannot be fetched. Anonymous WMS access works without
 configuration but has a shared quota; set the server's
 `KNMI_WMS_API_KEY` environment variable for a dedicated quota. Images older
 than 20 minutes are rejected rather than shown as current observations.
+Request the **Web Map Service (WMS)** key in the KNMI API catalogue. Anonymous
+access allows one request per second per IP and shares a 1,000-request hourly
+quota; an API key allows twenty per second and 1,000 per hour. The server spaces
+requests accordingly, retains the caches and honours rate-limit cooldowns.
+Keep the key on the server, outside the browser and widget configuration.
+
+Limits: https://developer.dataplatform.knmi.nl/wms
 
 > **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).
 > `minSdk` is 31 (Android 12) — there are no compatibility shims for older

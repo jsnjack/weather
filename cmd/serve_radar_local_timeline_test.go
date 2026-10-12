@@ -55,9 +55,10 @@ func TestLocalRadarForecast(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resetRadarBasemap(t)
-			oldObs, oldMaps, oldRun, oldFrames, oldTimeline := radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarTimelineCache
+			oldObs, oldMaps, oldRun, oldFrames, oldTimeline, oldRendered := radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarTimelineCache, localRadarRenderedFrameCache
 			t.Cleanup(func() {
 				radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarTimelineCache = oldObs, oldMaps, oldRun, oldFrames, oldTimeline
+				localRadarRenderedFrameCache = oldRendered
 				radarWMSGate.Lock()
 				radarWMSGate.next = time.Time{}
 				radarWMSGate.cooldown = time.Time{}
@@ -68,6 +69,7 @@ func TestLocalRadarForecast(t *testing.T) {
 			radarForecastRunCache = newTTLCache[time.Time](time.Minute, 1)
 			radarForecastFrameCache = newTTLCache[image.Image](time.Minute, 256)
 			localRadarTimelineCache = newTTLCache[*localRadarTimeline](time.Minute, 16)
+			localRadarRenderedFrameCache = newTTLCache[[]byte](time.Minute, 256)
 			observed := time.Now().UTC().Truncate(5 * time.Minute)
 			reference := observed
 			if tc.stale {
@@ -193,6 +195,7 @@ func TestLocalRadarForecast(t *testing.T) {
 			localRadarTimelineCache = newTTLCache[*localRadarTimeline](time.Minute, 16)
 			radarForecastFrameCache = newTTLCache[image.Image](time.Minute, 256)
 			radarForecastRunCache = newTTLCache[time.Time](time.Minute, 1)
+			localRadarRenderedFrameCache = newTTLCache[[]byte](time.Minute, 256)
 			if _, err := getLocalRadarTimeline(context.Background(), 52.37, 4.9); err != nil {
 				t.Fatal(err)
 			}
