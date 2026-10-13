@@ -158,6 +158,13 @@ func TestLocalRadarForecast(t *testing.T) {
 			if len(timeline.Times) != 13 || timeline.LatestObservation != 0 || !timeline.Reference.Equal(observed) {
 				t.Fatalf("wrong timeline metadata: %+v", timeline)
 			}
+			dark, err := getLocalRadarTimelineTheme(context.Background(), 52.37, 4.9, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if dark.AtlasURL == timeline.AtlasURL || calls.Load() != 13 {
+				t.Fatal("dark theme refetched weather or reused light snapshot identity")
+			}
 			atlas, err := png.Decode(bytes.NewReader(timeline.atlas))
 			if err != nil {
 				t.Fatal(err)

@@ -19,11 +19,12 @@ internal object RadarApi {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    fun fetch(serverUrl: String, location: LocationDto): RadarSnapshot? {
+    fun fetch(serverUrl: String, location: LocationDto, dark: Boolean): RadarSnapshot? {
         val url = "${serverUrl.trimEnd('/')}/api/v1/radar/local".toHttpUrlOrNull()?.newBuilder()
             ?.addQueryParameter("lat", location.latitude.toString())
             ?.addQueryParameter("lon", location.longitude.toString())
             ?.addQueryParameter("label", location.description)
+            ?.addQueryParameter("theme", if (dark) "dark" else "light")
             ?.build() ?: return null
         return try {
             client.newCall(Request.Builder().url(url).build()).execute().use { response ->

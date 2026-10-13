@@ -16,6 +16,7 @@ import (
 
 var radarOutput string
 var radarAnimate bool
+var radarDark bool
 
 var radarCmd = &cobra.Command{
 	Use:   "radar",
@@ -31,7 +32,7 @@ var radarCmd = &cobra.Command{
 			return fmt.Errorf("resolve radar location: %w", err)
 		}
 		if radarAnimate {
-			timeline, err := getLocalRadarTimeline(command.Context(), loc.Latitude, loc.Longitude)
+			timeline, err := getLocalRadarTimelineTheme(command.Context(), loc.Latitude, loc.Longitude, radarDark)
 			if err != nil {
 				return fmt.Errorf("load radar animation: %w", err)
 			}
@@ -57,7 +58,7 @@ var radarCmd = &cobra.Command{
 		if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
 			return fmt.Errorf("no fresh nearby radar rain is available")
 		}
-		body, err := renderLocalRadar(radar, loc.Latitude, loc.Longitude)
+		body, err := renderLocalRadarTheme(radar, loc.Latitude, loc.Longitude, radarDark)
 		if err != nil {
 			return fmt.Errorf("render local radar: %w", err)
 		}
@@ -94,6 +95,7 @@ func encodeLocalRadarGIF(timeline *localRadarTimeline) ([]byte, error) {
 func init() {
 	radarCmd.Flags().StringVar(&radarOutput, "output", "", "destination PNG or animated GIF file")
 	radarCmd.Flags().BoolVar(&radarAnimate, "animate", false, "save a GIF from the current observation through the next hour, playing once")
+	radarCmd.Flags().BoolVar(&radarDark, "dark", false, "use a dark basemap while keeping rain colours unchanged")
 	if err := radarCmd.MarkFlagRequired("output"); err != nil {
 		panic(err)
 	}

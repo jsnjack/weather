@@ -1,6 +1,6 @@
-const SHELL_CACHE = "forecast-shell-v15";
-const DATA_CACHE  = "forecast-data-v15";
-const SHELL = ["/static/styles.css?v=12", "/static/location.js?v=1", "/static/radar.js?v=6", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_CACHE = "forecast-shell-v16";
+const DATA_CACHE  = "forecast-data-v16";
+const SHELL = ["/static/styles.css?v=12", "/static/location.js?v=1", "/static/radar.js?v=7", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)));

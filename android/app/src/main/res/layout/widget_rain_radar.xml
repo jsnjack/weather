@@ -61,7 +61,7 @@
             </LinearLayout>
         </LinearLayout>
         <LinearLayout android:id="@+id/local_radar" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <ImageView android:id="@+id/radar_image" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:contentDescription="@string/radar_description" />
+            <ImageView android:id="@+id/radar_image" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:forceDarkAllowed="false" android:contentDescription="@string/radar_description" />
         </LinearLayout>
     </LinearLayout>
     <TextView android:id="@+id/headline" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="@color/widget_subtle" android:textSize="11sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end" android:lineSpacingMultiplier="0.98" android:paddingStart="4dp" android:paddingEnd="4dp" android:text="" />

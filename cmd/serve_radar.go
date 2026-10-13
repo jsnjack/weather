@@ -1,7 +1,12 @@
 package cmd
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"image"
+	"image/color"
+	"image/gif"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,6 +26,7 @@ const knmiRadarMapURL = "https://cdn.knmi.nl/knmi/map/general/weather-map.gif"
 // few minutes upstream; 3 min keeps it current without re-fetching per client.
 // The cached []byte is shared — treat it as read-only.
 var radarMapCache = newTTLCache[[]byte](3*time.Minute, 1)
+var darkRadarMapCache = newTTLCache[[]byte](3*time.Minute, 1)
 
 // getKNMIRadarMap returns the KNMI national radar GIF, cached process-wide.
 func getKNMIRadarMap() ([]byte, error) {
@@ -56,7 +62,12 @@ func getKNMIRadarMap() ([]byte, error) {
 // browser cache mirrors the process cache; on upstream failure the rain page's
 // line chart still carries the view, so a 502 here is non-fatal to the page.
 func handleRadarMap(w http.ResponseWriter, r *http.Request) {
-	gif, err := getKNMIRadarMap()
+	dark, err := darkRadarRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	gif, err := getKNMIRadarMapTheme(dark)
 	if err != nil {
 		slog.Debug("knmi radar: fetch failed", "err", err)
 		http.Error(w, "radar map unavailable", http.StatusBadGateway)
@@ -67,4 +78,48 @@ func handleRadarMap(w http.ResponseWriter, r *http.Request) {
 	if _, werr := w.Write(gif); werr != nil {
 		slog.Log(r.Context(), LevelTrace, "write radar map", "err", werr)
 	}
+}
+
+func getKNMIRadarMapTheme(dark bool) ([]byte, error) {
+	body, err := getKNMIRadarMap()
+	if err != nil || !dark {
+		return body, err
+	}
+	id := fmt.Sprintf("%x", sha256.Sum256(body))
+	return memo(darkRadarMapCache, id, func() ([]byte, error) {
+		animation, err := gif.DecodeAll(bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("decode dark radar GIF: %w", err)
+		}
+		if animation.Config.Width != nationalRadarWidth || animation.Config.Height != nationalRadarHeight {
+			return body, nil
+		}
+		convertPalette := func(source color.Palette) color.Palette {
+			result := make(color.Palette, len(source))
+			for i, c := range source {
+				result[i] = darkNationalRadarColor(c)
+			}
+			return result
+		}
+		if palette, ok := animation.Config.ColorModel.(color.Palette); ok {
+			animation.Config.ColorModel = convertPalette(palette)
+		}
+		for i, source := range animation.Image {
+			frame := image.NewPaletted(source.Bounds(), convertPalette(source.Palette))
+			copy(frame.Pix, source.Pix)
+			for y := source.Bounds().Min.Y; y < source.Bounds().Max.Y; y++ {
+				for x := source.Bounds().Min.X; x < source.Bounds().Max.X; x++ {
+					if nationalRadarCaption(x, y, source.At(x, y)) {
+						frame.Set(x, y, darkRadarText)
+					}
+				}
+			}
+			animation.Image[i] = frame
+		}
+		var encoded bytes.Buffer
+		if err := gif.EncodeAll(&encoded, animation); err != nil {
+			return nil, fmt.Errorf("encode dark radar GIF: %w", err)
+		}
+		return encoded.Bytes(), nil
+	})
 }

@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.text.Spannable
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
 import net.surfly.weather.widget.location.LocationProvider
 import net.surfly.weather.widget.net.ErrKind
@@ -199,7 +201,9 @@ class RainWidgetWorker(
                 ctx.resources.configuration.fontScale,
             )
         ) {
-            val radar = RadarApi.fetch(cfg.serverUrl, response.location) ?: return
+            val dark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            val radar = RadarApi.fetch(cfg.serverUrl, response.location, dark) ?: return
+            kotlin.coroutines.coroutineContext.ensureActive()
             val radarViews = RemoteViews(ctx.packageName, R.layout.widget_rain_radar)
             radarViews.setTextViewText(R.id.location, response.location.description)
             val caption = applyBody(ctx, radarViews, options, response, radarPanel = true)

@@ -59,6 +59,7 @@ cmd/
   serve_radar_local.go            Cached, georeferenced 50 km radar images for web/widget
   serve_radar_local_timeline.go   Progressive local forecast frames and cached atlas
   serve_radar_basemap.go          PDOK tile composition, shared and persistent map caching
+  serve_radar_theme.go            Dark basemap/label styling that preserves weather colours
   outlook.go                     Calendar-day windows and ranked dry ride windows
   serve_outlook.go               /day, /tomorrow, /weekend and /api/v1/outlook
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
@@ -205,6 +206,8 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   they are semantic and must not drift with the wallpaper. System colors
   carry no baked alpha: hairlines (e.g. the chart baseline) apply alpha in
   `ChartRenderer` code instead of in the colour resource.
+  Radar cartography has a shared light/dark map palette for geographic
+  readability, separate from the native wallpaper-derived panels.
 - **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
   broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
   one-shots while the process is alive; keep the 15-minute WorkManager periodic
@@ -267,6 +270,23 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   load on demand once per page and survive coverage changes; switching views
   pauses playback. The widget’s `radar=play#radar-player` link plays the local
   forecast once; ordinary page visits keep the local observation paused.
+- **Radar follows the system theme.** The web sends `theme=light|dark` from
+  `prefers-color-scheme`; the widget sends its `uiMode` night setting. Local
+  maps darken only the basemap and labels before compositing unchanged rain
+  and the location marker. The embedded map fallback also has dark colours.
+  National GIF/atlas rendering replaces only KNMI's known map-fill colours
+  and footer caption ink on the supported 425×445 layout; weather colours,
+  temperatures, forecast timestamps, frame offsets and disposal are retained.
+  Observation detection runs on original frames before styling. Unknown
+  national layouts remain unchanged. The original GIF stays cached separately
+  from dark renders. Theme variants have separate bounded render-cache keys
+  and reuse the same upstream weather and PDOK caches.
+  Browser theme changes pause playback, preserve coverage/frame where possible,
+  and reuse per-theme observations and frames; late responses cannot overwrite
+  the active theme. The widget refreshes on application night-mode changes
+  while its process is alive, with the existing periodic floor after process
+  death. Android Force Dark is disabled on the map to preserve rain colours.
+  The CLI can export either PNG or GIF with `weather radar --dark --output ...`.
 - **Local playback uses a pinned forecast run.** `/api/v1/radar/local/timeline`
   starts with the actual latest observation, followed by KNMI
   `radar_forecast_2.0` five-minute frames through the following hour. The
@@ -299,7 +319,7 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   Now is hidden if dimensions, caption colours or chronological ordering are
   unrecognised. `/api/v1/radar` describes the
   GIF's frame dimensions and delays; `/radar/atlas.png?id=...` serves a composed
-  PNG atlas keyed by the GIF checksum. Two snapshots stay cached for six minutes;
+  PNG atlas keyed by the GIF checksum and theme. Four snapshots stay cached for six minutes;
   GIF fetches keep their three-minute cache, so scrubbing never calls KNMI.
   Frame disposal and offsets are preserved, including the baked-in timestamp
   and legend. Past and future frames share the slider; timestamps are read from

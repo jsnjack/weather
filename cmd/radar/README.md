@@ -20,3 +20,8 @@ frame. The first frame is the current observation; subsequent frames cover
 the next hour. The same basemap, labels and marker stay fixed throughout.
 
 Forecast data: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
+
+`theme=dark` styles the background and label layers before drawing the original
+rain overlay. Both themes share the raw weather/tile caches and use separate
+rendered snapshots. Embedded land geometry has a dark fallback palette.
+The CLI applies the same styling with `weather radar --dark`.

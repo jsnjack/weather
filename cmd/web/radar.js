@@ -16,7 +16,13 @@
   const note = player.querySelector(".radar-note");
   const credit = player.querySelector(".radar-credit");
   const localButton = player.querySelector('[data-view="local"]');
-  const states = {local: {frame: 0}, national: {frame: 0}};
+  const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const themedStates = {
+    light: {local: {frame: 0}, national: {frame: 0}},
+    dark: {local: {frame: 0}, national: {frame: 0}}
+  };
+  let theme = scheme.matches ? "dark" : "light";
+  let states = themedStates[theme];
   const widgetPlayback = new URLSearchParams(window.location.search).get("radar") === "play";
   let mode = "national";
   let chosen = false;
@@ -31,6 +37,7 @@
     ["lat", "lon", "name", "label"].forEach(function (key) {
       if (query.has(key)) params.set(key, query.get(key));
     });
+    params.set("theme", theme);
     return params;
   }
 
@@ -109,6 +116,7 @@
 
   function advance() {
     const state = states[mode];
+    if (state.frame === state.timeline.delays.length - 1) { pause(); return; }
     if (state.frames && !state.frames[state.frame + 1]) {
       timer = setTimeout(advance, 150);
       return;
@@ -122,6 +130,7 @@
     if (timer !== null || pendingPlay) { pause(); present(); return; }
     const view = mode;
     const state = states[view];
+    delete state.desiredFrame;
     const request = ++playRequest;
     pendingPlay = true;
     if (!canPlay(state)) await loadTimeline(view);
@@ -141,11 +150,12 @@
   slider.addEventListener("input", function () {
     pause();
     const state = states[mode];
+    delete state.desiredFrame;
     show(state.frames ? Math.min(Number(slider.value), state.frames.length - 1) : Number(slider.value));
     pause();
   });
   latest.addEventListener("click", function () { pause(); show(states[mode].timeline.delays.length - 1); pause(); });
-  now.addEventListener("click", function () { pause(); show(states[mode].timeline.latestObservation); pause(); });
+  now.addEventListener("click", function () { pause(); delete states[mode].desiredFrame; show(states[mode].timeline.latestObservation); pause(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden) pause(); });
   window.addEventListener("pagehide", pause);
 
@@ -162,7 +172,7 @@
       try {
         const params = locationParams();
         params.set("progressive", "1");
-        const path = view === "local" ? "/api/v1/radar/local/timeline?" + params.toString() : "/api/v1/radar";
+        const path = view === "local" ? "/api/v1/radar/local/timeline?" + params.toString() : "/api/v1/radar?theme=" + theme;
         const response = await fetch(path, {cache: "no-store", signal: controller.signal});
         if (!response.ok || response.status === 204) throw new Error("Radar timeline: HTTP " + response.status);
         if (view === "local" && (response.headers.get("Content-Type") || "").includes("application/x-ndjson")) {
@@ -182,8 +192,10 @@
         try { await image.decode(); } finally { URL.revokeObjectURL(blobURL); }
         state.timeline = candidate;
         state.atlas = image;
-        state.frame = view === "local" ? 0 : candidate.delays.length - 1;
+        state.frame = state.desiredFrame === undefined ? view === "local" ? 0 : candidate.delays.length - 1 : Math.min(state.desiredFrame, candidate.delays.length - 1);
+        delete state.desiredFrame;
         state.complete = true;
+        state.loadedAt = Date.now();
         if (ready) ready();
       } catch (error) {
         console.warn("Radar timeline", error);
@@ -191,9 +203,12 @@
         if (view === "local") {
           state.timeline = null;
           state.frames = null;
-          if (mode === view) pause();
+          if (mode === view && state === states[view]) pause();
         }
-        if (view === "national") fallback.src = "/radar.gif";
+        if (view === "national") {
+          state.fallbackURL = "/radar.gif?theme=" + (state === themedStates.dark.national ? "dark" : "light");
+          if (state === states.national) fallback.src = state.fallbackURL;
+        }
       } finally {
         clearTimeout(timeout);
         state.loading = false;
@@ -247,6 +262,10 @@
         if (image.naturalWidth !== 256 || image.naturalHeight !== 256) throw new Error("Invalid radar frame dimensions");
         state.frames.push(image);
         state.timeline = state.metadata;
+        if (state.desiredFrame !== undefined && state.frames.length > state.desiredFrame) {
+          state.frame = state.desiredFrame;
+          delete state.desiredFrame;
+        }
         if (canPlay(state)) ready();
       } else if (item.type === "complete") {
         if (!state.metadata || state.frames.length !== state.metadata.times.length) throw new Error("Incomplete radar frames");
@@ -282,33 +301,81 @@
   }
 
   async function loadLocal() {
+    const requestTheme = theme;
+    const state = states.local;
     const controller = new AbortController();
     const timeout = setTimeout(function () { controller.abort(); }, 15000);
     try {
-      const response = await fetch("/api/v1/radar/local?" + locationParams().toString(), {signal: controller.signal});
-      if (response.status === 204) { localButton.title = "No fresh nearby rain"; return; }
-      if (!response.ok) throw new Error("Local radar: HTTP " + response.status);
-      if (!fresh(new Date(response.headers.get("X-Radar-Observed-At")).getTime())) {
-        localButton.title = "Local observation is unavailable or stale";
-        return;
+      if (!state.observation || !fresh(state.observation.at)) {
+        if (!state.observationLoad) state.observationLoad = (async function () {
+          const response = await fetch("/api/v1/radar/local?" + locationParams().toString(), {signal: controller.signal});
+          if (response.status === 204) {
+            if (theme === requestTheme) localButton.title = "No fresh nearby rain";
+            return;
+          }
+          if (!response.ok) throw new Error("Local radar: HTTP " + response.status);
+          const at = new Date(response.headers.get("X-Radar-Observed-At")).getTime();
+          if (!fresh(at)) {
+            if (theme === requestTheme) localButton.title = "Local observation is unavailable or stale";
+            return;
+          }
+          const url = URL.createObjectURL(await response.blob());
+          const image = new Image();
+          image.src = url;
+          try { await image.decode(); } catch (error) { URL.revokeObjectURL(url); throw error; }
+          if (state.observation) URL.revokeObjectURL(state.observation.url);
+          state.observation = {url: url, at: at};
+        })().finally(function () { state.observationLoad = null; });
+        await state.observationLoad;
+        if (!state.observation || !fresh(state.observation.at)) return;
       }
-      const blobURL = URL.createObjectURL(await response.blob());
-      local.src = blobURL;
-      try { await local.decode(); } finally { URL.revokeObjectURL(blobURL); }
+      if (theme !== requestTheme || state !== states.local) return;
+      local.src = state.observation.url;
+      await local.decode();
+      if (theme !== requestTheme || state !== states.local) return;
       localReady = true;
       localButton.disabled = false;
       localButton.removeAttribute("title");
       if (!chosen) select("local");
+      else present();
       if (window.location.hash === "#local-radar" || widgetPlayback) player.scrollIntoView();
       if (widgetPlayback && !chosen) start();
     } catch (error) {
-      localButton.title = "Local radar unavailable";
+      if (theme === requestTheme) localButton.title = "Local radar unavailable";
       console.debug("Local radar unavailable", error);
     } finally {
       clearTimeout(timeout);
-      if (!localReady && !chosen) select("national");
+      if (theme === requestTheme && !localReady && (!chosen || mode === "local")) select("national");
     }
   }
+
+  scheme.addEventListener("change", function () {
+    const previous = states[mode];
+    pause();
+    theme = scheme.matches ? "dark" : "light";
+    states = themedStates[theme];
+    if (states.local.timeline && (!fresh(new Date(states.local.timeline.times[0]).getTime()) ||
+        !fresh(new Date(states.local.timeline.reference).getTime()))) {
+      states.local = {frame: 0, observation: states.local.observation};
+    }
+    if (states.national.loadedAt && Date.now() - states.national.loadedAt > 360000) states.national = {frame: 0};
+    chosen = true;
+    localReady = false;
+    localButton.disabled = true;
+    local.hidden = canvas.hidden = fallback.hidden = true;
+    if (previous.timeline) {
+      const state = states[mode];
+      if (state.timeline) state.frame = Math.min(previous.frame, state.frames ? state.frames.length - 1 : state.timeline.delays.length - 1);
+      else state.desiredFrame = previous.frame;
+    }
+    if (states.national.fallbackURL) fallback.src = states.national.fallbackURL;
+    const current = states;
+    present();
+    loadLocal().then(function () {
+      if (states === current && mode === "local" && localReady && previous.timeline) loadTimeline("local");
+    });
+    if (mode === "national") loadTimeline("national");
+  });
 
   function load() { loadLocal(); }
   if ("IntersectionObserver" in window) {

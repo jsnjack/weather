@@ -8,6 +8,12 @@ widget's own location in the browser.
 When nearby rain is present, a right-hand radar map shows the latest KNMI
 observation within a 50 km radius, with a location marker. The grey PDOK
 background includes town names, roads and water; place labels remain above rain.
+The map follows system dark mode: its basemap and labels are styled before
+rain is drawn, keeping rain colours and the location marker unchanged. The web
+player follows the browser's colour preference for both Local and Netherlands.
+Both themes share upstream caches. The CLI exports dark PNG/GIF maps with
+`weather radar --dark --output radar.png` or
+`weather radar --dark --animate --output radar.gif`.
 The square map has 16dp rounded corners and no surrounding panel or padding, so its aspect ratio stays
 accurate without coloured bands above and below it.
 All existing measurements remain in a compact native left panel. Radar taps
@@ -38,6 +44,10 @@ requests accordingly, retains the caches and honours rate-limit cooldowns.
 Keep the key on the server, outside the browser and widget configuration.
 
 Limits: https://developer.dataplatform.knmi.nl/wms
+
+Redeploy the server to enable `theme=dark` on the radar image and timeline APIs.
+While the app process is alive, a night-mode change queues an expedited widget
+refresh; the existing periodic refresh handles updates after process death.
 
 > **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).
 > `minSdk` is 31 (Android 12) — there are no compatibility shims for older

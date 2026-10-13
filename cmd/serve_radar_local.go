@@ -288,7 +288,11 @@ func hasLocalRadarRain(overlay image.Image) bool {
 }
 
 func renderLocalRadar(radar *localRadarImage, lat, lon float64) ([]byte, error) {
-	canvas, err := renderLocalRadarImage(radar, lat, lon)
+	return renderLocalRadarTheme(radar, lat, lon, false)
+}
+
+func renderLocalRadarTheme(radar *localRadarImage, lat, lon float64, dark bool) ([]byte, error) {
+	canvas, err := renderLocalRadarImageTheme(radar, lat, lon, dark)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +303,7 @@ func renderLocalRadar(radar *localRadarImage, lat, lon float64) ([]byte, error) 
 	return encoded.Bytes(), nil
 }
 
-func renderLocalRadarImage(radar *localRadarImage, lat, lon float64) (*image.RGBA, error) {
+func renderLocalRadarImageTheme(radar *localRadarImage, lat, lon float64, dark bool) (*image.RGBA, error) {
 	radarLandOnce.Do(func() {
 		body, err := radarLandFS.ReadFile("radar/land.json")
 		if err != nil {
@@ -316,6 +320,11 @@ func renderLocalRadarImage(radar *localRadarImage, lat, lon float64) (*image.RGB
 	canvas := image.NewRGBA(image.Rect(0, 0, localRadarSize, localRadarSize))
 	water := color.RGBA{186, 209, 216, 255}
 	land := color.RGBA{184, 194, 168, 255}
+	background, labels := radar.background, radar.labels
+	if dark {
+		water, land = color.RGBAModel.Convert(darkRadarWater).(color.RGBA), color.RGBAModel.Convert(darkRadarLand).(color.RGBA)
+		background, labels = darkRadarLayer(background, false), darkRadarLayer(labels, true)
+	}
 	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(water), image.Point{}, draw.Src)
 	project := func(lat, lon float64) (float64, float64) {
 		x, y := radarMercator(lat, lon)
@@ -346,12 +355,12 @@ func renderLocalRadarImage(radar *localRadarImage, lat, lon float64) (*image.RGB
 			}
 		}
 	}
-	if radar.background != nil {
-		draw.Draw(canvas, canvas.Bounds(), radar.background, image.Point{}, draw.Over)
+	if background != nil {
+		draw.Draw(canvas, canvas.Bounds(), background, image.Point{}, draw.Over)
 	}
 	draw.Draw(canvas, canvas.Bounds(), radar.overlay, image.Point{}, draw.Over)
-	if radar.labels != nil {
-		draw.Draw(canvas, canvas.Bounds(), radar.labels, image.Point{}, draw.Over)
+	if labels != nil {
+		draw.Draw(canvas, canvas.Bounds(), labels, image.Point{}, draw.Over)
 	}
 	centerX, centerY := project(lat, lon)
 	for y := 0; y < localRadarSize; y++ {
@@ -368,6 +377,11 @@ func renderLocalRadarImage(radar *localRadarImage, lat, lon float64) (*image.RGB
 }
 
 func handleLocalRadar(w http.ResponseWriter, r *http.Request) {
+	dark, err := darkRadarRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 	loc, _, err := resolveRequestLocation(r)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err)
@@ -383,7 +397,7 @@ func handleLocalRadar(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	body, err := renderLocalRadar(radar, loc.Latitude, loc.Longitude)
+	body, err := renderLocalRadarTheme(radar, loc.Latitude, loc.Longitude, dark)
 	if err != nil {
 		slog.Warn("render local radar", "err", err)
 		http.Error(w, "local radar unavailable", http.StatusBadGateway)

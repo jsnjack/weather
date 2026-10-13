@@ -29,16 +29,19 @@ type radarTimeline struct {
 	atlas             []byte
 }
 
-var radarTimelineCache = newTTLCache[*radarTimeline](6*time.Minute, 2)
+var radarTimelineCache = newTTLCache[*radarTimeline](6*time.Minute, 4)
 
-func getRadarTimeline() (*radarTimeline, error) {
+func getRadarTimelineTheme(dark bool) (*radarTimeline, error) {
 	body, err := getKNMIRadarMap()
 	if err != nil {
 		return nil, fmt.Errorf("fetch radar timeline: %w", err)
 	}
 	id := fmt.Sprintf("%x", sha256.Sum256(body))
+	if dark {
+		id = fmt.Sprintf("%x", sha256.Sum256([]byte("dark:"+id)))
+	}
 	return memo(radarTimelineCache, id, func() (*radarTimeline, error) {
-		timeline, err := decodeRadarTimeline(body)
+		timeline, err := decodeRadarTimelineTheme(body, dark)
 		if err != nil {
 			return nil, err
 		}
@@ -48,6 +51,10 @@ func getRadarTimeline() (*radarTimeline, error) {
 }
 
 func decodeRadarTimeline(body []byte) (*radarTimeline, error) {
+	return decodeRadarTimelineTheme(body, false)
+}
+
+func decodeRadarTimelineTheme(body []byte, dark bool) (*radarTimeline, error) {
 	config, err := gif.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("read radar GIF dimensions: %w", err)
@@ -89,8 +96,12 @@ func decodeRadarTimeline(body []byte) (*radarTimeline, error) {
 		}
 		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
 		observations[i] = radarObservationKind(canvas)
+		var picture image.Image = canvas
+		if dark {
+			picture = darkNationalRadarImage(canvas)
+		}
 		x, y := (i%columns)*config.Width, (i/columns)*config.Height
-		draw.Draw(atlas, image.Rect(x, y, x+config.Width, y+config.Height), canvas, image.Point{}, draw.Src)
+		draw.Draw(atlas, image.Rect(x, y, x+config.Width, y+config.Height), picture, image.Point{}, draw.Src)
 		timeline.Delays[i] = max(100, animation.Delay[i]*10)
 		switch disposal {
 		case gif.DisposalBackground:
@@ -167,7 +178,12 @@ func latestRadarObservation(frames []radarFrameKind) *int {
 }
 
 func handleRadarTimeline(w http.ResponseWriter, r *http.Request) {
-	timeline, err := getRadarTimeline()
+	dark, err := darkRadarRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	timeline, err := getRadarTimelineTheme(dark)
 	if err != nil {
 		slog.Warn("load radar timeline", "err", err)
 		http.Error(w, "radar timeline unavailable", http.StatusBadGateway)
