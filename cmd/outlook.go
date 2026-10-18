@@ -88,8 +88,13 @@ func buildDetailedOutlook(data *OpenMeteoData, period string, now time.Time) (de
 		return detailedOutlook{}, err
 	}
 	result := detailedOutlook{Period: period, Start: start, End: end, Hours: []HourlyForecast{}, Rides: []rideWindow{}}
+	// Hours that have already ended are hidden; the current hour stays.
+	from := start
+	if current := localHour(now); current.After(from) {
+		from = current
+	}
 	for _, hour := range data.Hourly {
-		if !hour.Time.Before(start) && hour.Time.Before(end) {
+		if !hour.Time.Before(from) && hour.Time.Before(end) {
 			result.Hours = append(result.Hours, hour)
 		}
 	}
@@ -120,7 +125,7 @@ func rankRideWindows(hours []HourlyForecast, days []DailyForecast, now time.Time
 		}
 		ride := rideWindow{Start: first.Time, End: end}
 		valid := true
-		for j := 0; j < rideWindowHours; j++ {
+		for j := range rideWindowHours {
 			hour := hours[i+j]
 			if !hour.Time.Equal(first.Time.Add(time.Duration(j)*time.Hour)) || hour.Precipitation >= DryThresholdMmH || hour.PrecipitationProbability > rideRainChanceMax || hour.WindSpeed >= WindCriticalKmh || hour.WindGusts >= WindCriticalKmh {
 				valid = false

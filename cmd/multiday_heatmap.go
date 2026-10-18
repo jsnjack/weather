@@ -13,10 +13,7 @@ import (
 // heatmapGridSize returns the effective grid size: the flag value, forced odd
 // so the start sits on a cell center, and clamped to a sensible minimum.
 func heatmapGridSize() int {
-	n := FlagMultidayHeatmapGrid
-	if n < 5 {
-		n = 5
-	}
+	n := max(FlagMultidayHeatmapGrid, 5)
 	if n%2 == 0 {
 		n++
 	}
@@ -116,7 +113,7 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 		Days:     make([]time.Time, days),
 		Cells:    make([][][]cellStatus, days),
 	}
-	for d := 0; d < days; d++ {
+	for d := range days {
 		out.Days[d] = startDate.AddDate(0, 0, d)
 		out.Cells[d] = make([][]cellStatus, gridSize)
 		for row := 0; row < gridSize; row++ {
@@ -126,13 +123,13 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 
 	for _, rd := range results {
 		if rd.Err != nil || rd.Data == nil || len(rd.Data.Hourly) == 0 {
-			for d := 0; d < days; d++ {
+			for d := range days {
 				out.Cells[d][rd.Row][rd.Col] = cellStatus{NoData: true}
 			}
 			continue
 		}
 		if rd.Data.IsSea() {
-			for d := 0; d < days; d++ {
+			for d := range days {
 				out.Cells[d][rd.Row][rd.Col] = cellStatus{Sea: true}
 			}
 			continue
@@ -143,7 +140,7 @@ func RunHeatmap(startLat, startLon float64, startDate time.Time, days int, cfg b
 			k := h.Time.Format("2006-01-02")
 			byDate[k] = append(byDate[k], h)
 		}
-		for d := 0; d < days; d++ {
+		for d := range days {
 			date := startDate.AddDate(0, 0, d).Format("2006-01-02")
 			ds := ScoreDayOmni(byDate[date], cfg.MinTemp)
 			status := cellStatus{
@@ -175,9 +172,9 @@ func renderHeatmap(h heatmapResult) {
 		fmt.Printf("%sDay %d  %s%s\n",
 			termplt.ColorBold, d+1, day.Format("2006-01-02"), termplt.ColorReset,
 		)
-		for row := 0; row < gridSize; row++ {
+		for row := range gridSize {
 			fmt.Print("  ")
-			for col := 0; col < gridSize; col++ {
+			for col := range gridSize {
 				cell := h.Cells[d][row][col]
 				isStart := row == mid && col == mid
 				fmt.Print(heatmapCellGlyph(cell, isStart))
@@ -193,14 +190,8 @@ func renderHeatmap(h heatmapResult) {
 		const mark = "start"
 		axisWidth := gridSize * 2
 		midStart := (axisWidth - len(mark)) / 2
-		leftGap := midStart - len(left)
-		if leftGap < 1 {
-			leftGap = 1
-		}
-		rightGap := axisWidth - midStart - len(mark) - len(right)
-		if rightGap < 1 {
-			rightGap = 1
-		}
+		leftGap := max(midStart-len(left), 1)
+		rightGap := max(axisWidth-midStart-len(mark)-len(right), 1)
 		fmt.Printf("%s%s%s%s%s\n", left, strings.Repeat(" ", leftGap), mark, strings.Repeat(" ", rightGap), right)
 		fmt.Println()
 	}

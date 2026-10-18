@@ -366,8 +366,8 @@ func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
 	}
 
 	// Cells.
-	for r := 0; r < rows; r++ {
-		for c := 0; c < cols; c++ {
+	for r := range rows {
+		for c := range cols {
 			cell := cells[r][c]
 			x := padL + c*opts.CellSize
 			y := padT + r*opts.CellSize
@@ -407,8 +407,8 @@ func RenderHeatGridSVG(cells [][]GridCell, opts GridOpts) template.HTML {
 		return cells[r][c].Water
 	}
 	const coast = "#06b6d4"
-	for r := 0; r < rows; r++ {
-		for c := 0; c < cols; c++ {
+	for r := range rows {
+		for c := range cols {
 			if !cells[r][c].Water {
 				continue
 			}

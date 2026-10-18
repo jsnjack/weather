@@ -52,8 +52,8 @@ func TestRadarBasemapAlignmentAndCache(t *testing.T) {
 			t.Fatal(err)
 		}
 		tile := image.NewRGBA(image.Rect(0, 0, radarTileSize, radarTileSize))
-		for y := 0; y < radarTileSize; y++ {
-			for x := 0; x < radarTileSize; x++ {
+		for y := range radarTileSize {
+			for x := range radarTileSize {
 				tile.SetRGBA(x, y, color.RGBA{uint8(col), uint8(row), 200, 255})
 			}
 		}
@@ -66,7 +66,7 @@ func TestRadarBasemapAlignmentAndCache(t *testing.T) {
 	x, y := radarMercator(52.37, 4.90)
 	radar := &localRadarImage{x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180)}
 	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		wg.Go(func() {
 			background := localRadarBasemap(context.Background(), radar, "grijs")
 			if background == nil {
@@ -104,7 +104,7 @@ func TestRadarBasemapFailureFallback(t *testing.T) {
 			})
 			x, y := radarMercator(52.37, 4.90)
 			radar := &localRadarImage{x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180)}
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				if localRadarBasemap(context.Background(), radar, "grijs") != nil {
 					t.Fatal("failed tiles should use embedded fallback")
 				}

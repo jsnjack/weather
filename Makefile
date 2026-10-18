@@ -68,19 +68,16 @@ bin/$(BINARY)_darwin_arm64: version
 build: bin/$(BINARY) bin/$(BINARY)_linux_amd64 bin/$(BINARY)_linux_arm64 bin/$(BINARY)_darwin_amd64 bin/$(BINARY)_darwin_arm64
 
 # Local APKs retain the existing debug certificate for update compatibility.
+# Gradle runs the build on JDK 25 (gradle/gradle-daemon-jvm.properties),
+# downloading it when missing, and installs the pinned SDK platform and build
+# tools once the SDK licence is recorded.
 ANDROID_GRADLE = set -e; \
-	if [ -z "$$JAVA_HOME" ]; then \
-	  JDK=$$(ls -d $$HOME/.jdks/jdk-21* $$HOME/.jdks/jdk-17* 2>/dev/null | head -1); \
-	  if [ -z "$$JDK" ]; then \
-	    JBR=$$(find /var/lib/flatpak/app/com.google.AndroidStudio -maxdepth 8 -type d -name jbr 2>/dev/null | head -1); \
-	    if [ -n "$$JBR" ] && "$$JBR/bin/java" -version 2>&1 | grep -qE 'version "(17|21)\.'; then JDK=$$JBR; fi; \
-	  fi; \
-	  if [ -z "$$JDK" ]; then echo "==> need JDK 17–21: set JAVA_HOME or unpack one into ~/.jdks (see android/README.md)"; exit 1; fi; \
-	  export JAVA_HOME=$$JDK; \
+	if [ -z "$$JAVA_HOME" ] && ! command -v java >/dev/null 2>&1; then \
+	  echo "Install a Java runtime to start Gradle with: sudo dnf install java-25-openjdk-headless"; exit 1; \
 	fi; \
 	SDK=$${ANDROID_HOME:-$$(sed -n 's/^sdk.dir=//p' android/local.properties 2>/dev/null)}; \
-	if [ ! -d "$$SDK/platforms/android-37.0" ] || [ ! -d "$$SDK/build-tools/37.0.0" ]; then \
-	  echo 'Install the Android SDK components with: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"'; exit 1; \
+	if [ ! -f "$$SDK/licenses/android-sdk-license" ]; then \
+	  echo 'Set up the Android SDK with: android --sdk="$$HOME/Android/Sdk" sdk install platform-tools (see android/README.md)'; exit 1; \
 	fi; \
 	cd android && ./gradlew --quiet -PappVersion=$(VERSION)
 

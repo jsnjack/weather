@@ -61,7 +61,7 @@
     latest.hidden = !state.timeline;
     now.hidden = !state.timeline || !Number.isInteger(state.timeline.latestObservation);
     help.hidden = !state.timeline || mode === "local";
-    help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after one hour." : "Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.";
+    help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after two hours." : "Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.";
     credit.hidden = mode !== "local" || !localReady;
     note.hidden = !state.failed;
     note.textContent = mode === "local" ? "Forecast unavailable; showing the current observation." : "Timeline unavailable; showing the original animation.";
@@ -107,7 +107,8 @@
     if (mode === "local") {
       const clock = new Date(timeline.times[index]).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", timeZone: player.dataset.timezone || "Europe/Amsterdam"});
       const minutes = Math.round((new Date(timeline.times[index]) - new Date(timeline.times[0])) / 60000);
-      output.textContent = (index === 0 ? "Now" : "+" + minutes + " min") + " · " + clock;
+      const offset = minutes < 60 ? minutes + " min" : Math.floor(minutes / 60) + " h" + (minutes % 60 ? " " + minutes % 60 + " min" : "");
+      output.textContent = (index === 0 ? "Now" : "+" + offset) + " · " + clock;
     } else output.textContent = (index + 1) + " / " + timeline.delays.length;
     slider.setAttribute("aria-valuetext", mode === "local" ? output.textContent : "Frame " + (index + 1) + " of " + timeline.delays.length);
     latest.disabled = (state.frames && !state.complete) || index === timeline.delays.length - 1;
@@ -232,7 +233,7 @@
     }
     candidate.times.forEach(function (at, index) {
       const instant = new Date(at).getTime();
-      if (!Number.isFinite(instant) || instant - new Date(candidate.times[0]) > 3600000 ||
+      if (!Number.isFinite(instant) || instant - new Date(candidate.times[0]) > 7200000 ||
           (index > 0 && instant <= new Date(candidate.times[index - 1]).getTime()) ||
           !Number.isFinite(candidate.delays[index]) || candidate.delays[index] < 100) {
         throw new Error("Invalid radar frame timing");

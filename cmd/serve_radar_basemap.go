@@ -176,15 +176,15 @@ func localRadarBasemap(ctx context.Context, radar *localRadarImage, style string
 func resampleRadarBasemap(source image.Image, left, top, span float64) image.Image {
 	result := image.NewRGBA(image.Rect(0, 0, localRadarSize, localRadarSize))
 	bounds := source.Bounds()
-	for y := 0; y < localRadarSize; y++ {
-		for x := 0; x < localRadarSize; x++ {
+	for y := range localRadarSize {
+		for x := range localRadarSize {
 			sx := left + (float64(x)+.5)*span/localRadarSize - .5
 			sy := top + (float64(y)+.5)*span/localRadarSize - .5
 			ix, iy := int(math.Floor(sx)), int(math.Floor(sy))
 			dx, dy := sx-float64(ix), sy-float64(iy)
 			var channels [4]float64
-			for j := 0; j < 2; j++ {
-				for i := 0; i < 2; i++ {
+			for j := range 2 {
+				for i := range 2 {
 					weight := []float64{1 - dx, dx}[i] * []float64{1 - dy, dy}[j]
 					r, g, b, a := source.At(max(bounds.Min.X, min(bounds.Max.X-1, ix+i)), max(bounds.Min.Y, min(bounds.Max.Y-1, iy+j))).RGBA()
 					for c, v := range []uint32{r, g, b, a} {

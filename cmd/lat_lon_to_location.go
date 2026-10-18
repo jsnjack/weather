@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -71,13 +72,7 @@ func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
 		parts = append(parts, country)
 	}
 
-	description := ""
-	for i, p := range parts {
-		if i > 0 {
-			description += ", "
-		}
-		description += p
-	}
+	description := strings.Join(parts, ", ")
 	if description == "" {
 		return "", fmt.Errorf("reverse geocoder returned no location name")
 	}

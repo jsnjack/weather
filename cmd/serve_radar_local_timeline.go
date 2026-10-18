@@ -22,9 +22,11 @@ const (
 	radarForecastInterval     = 5 * time.Minute
 	localRadarFrameDelay      = 750
 	localRadarTimelineTimeout = 45 * time.Second
-	// Every second KNMI forecast keeps the hour readable with half the WMS
+	// Every second KNMI forecast keeps playback readable with half the WMS
 	// requests.
 	localRadarForecastStep = 10 * time.Minute
+	// KNMI forecast runs end two hours after their reference time.
+	radarForecastHorizon = 2 * time.Hour
 )
 
 type localRadarTimeline struct {
@@ -46,12 +48,17 @@ var localRadarRenderedFrameCache = newTTLCache[[]byte](6*time.Minute, 256)
 
 // localRadarForecastTimes counts KNMI's forecast steps after the observation
 // and keeps every localRadarForecastStep, so frames sit at whole steps from
-// the observation whenever the run allows it.
+// the observation whenever the run allows it. Playback reaches two hours past
+// the observation or the end of the run, whichever comes first.
 func localRadarForecastTimes(observed, reference time.Time) []time.Time {
 	times := []time.Time{observed}
 	stride := int(localRadarForecastStep / radarForecastInterval)
+	last := observed.Add(radarForecastHorizon)
+	if end := reference.Add(radarForecastHorizon); end.Before(last) {
+		last = end
+	}
 	steps := 0
-	for at := reference; !at.After(observed.Add(time.Hour)); at = at.Add(radarForecastInterval) {
+	for at := reference; !at.After(last); at = at.Add(radarForecastInterval) {
 		if at.After(observed) {
 			steps++
 			if steps%stride == 0 {
@@ -140,7 +147,7 @@ func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64, dark bool)
 	if !freshRadarObservation(reference, time.Now()) || reference.After(radar.observed.Add(5*time.Minute)) {
 		return nil, nil, "", fmt.Errorf("radar forecast run is stale or ahead of the observation")
 	}
-	id := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%.17g,%.17g,%s,%s,%t", lat, lon, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339), dark))))
+	id := fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%.17g,%.17g,%s,%s,%t", lat, lon, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339), dark)))
 	times := localRadarForecastTimes(radar.observed, reference)
 	timeline := &localRadarTimeline{Width: localRadarSize, Height: localRadarSize, Columns: 4,
 		Times: times, Reference: reference, Delays: make([]int, len(times)), AtlasURL: "/radar/local-atlas.png?id=" + id}

@@ -109,14 +109,14 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 		Positions: []latLon{start},
 	}}
 
-	for day := 0; day < days; day++ {
+	for day := range days {
 		date := startDate.AddDate(0, 0, day)
 
 		// Phase 1: collect unique fetch points (midpoints of this day's legs).
 		uniq := map[string]fetchPoint{}
 		for _, node := range beam {
 			cur := node.Positions[len(node.Positions)-1]
-			for i := 0; i < multidayNumDirections; i++ {
+			for i := range multidayNumDirections {
 				bearing := float64(i) * (360.0 / multidayNumDirections)
 				midLat, midLon := DestinationPoint(cur.Lat, cur.Lon, bearing, cfg.KmPerDay/2)
 				key := hourlyCacheKey(midLat, midLon, date)
@@ -134,7 +134,7 @@ func RunBeamSearch(startLat, startLon float64, startDate time.Time, days int, cf
 		candidates := make([]beamNode, 0, len(beam)*multidayNumDirections)
 		for _, node := range beam {
 			cur := node.Positions[len(node.Positions)-1]
-			for i := 0; i < multidayNumDirections; i++ {
+			for i := range multidayNumDirections {
 				bearing := float64(i) * (360.0 / multidayNumDirections)
 				midLat, midLon := DestinationPoint(cur.Lat, cur.Lon, bearing, cfg.KmPerDay/2)
 				data, ok := cache.get(midLat, midLon, date)

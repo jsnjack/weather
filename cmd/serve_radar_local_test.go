@@ -99,7 +99,7 @@ func TestLocalRadarResponses(t *testing.T) {
 				calls++
 				var body []byte
 				if r.URL.Query().Get("REQUEST") == "GetCapabilities" {
-					body = []byte(fmt.Sprintf(`<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Capability><Layer><Layer><Name>precipitation</Name><Dimension name="time" default="%s"/></Layer></Layer></Capability></WMS_Capabilities>`, observed.Format(time.RFC3339)))
+					body = fmt.Appendf(nil, `<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Capability><Layer><Layer><Name>precipitation</Name><Dimension name="time" default="%s"/></Layer></Layer></Capability></WMS_Capabilities>`, observed.Format(time.RFC3339))
 				} else {
 					if got := r.URL.Query().Get("TIME"); got != observed.Format(time.RFC3339) {
 						t.Errorf("requested forecast time %s", got)
@@ -123,7 +123,7 @@ func TestLocalRadarResponses(t *testing.T) {
 				radarWMSGate.Unlock()
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body))}, nil
 			})
-			for i := 0; i < 2; i++ {
+			for i := range 2 {
 				if i == 1 {
 					radarObservationCache = newTTLCache[time.Time](time.Minute, 1)
 					localRadarCache = newTTLCache[*localRadarImage](time.Minute, 4)
@@ -166,7 +166,7 @@ func TestLocalRadarRateLimit(t *testing.T) {
 				calls++
 				return &http.Response{StatusCode: status, Header: http.Header{"Retry-After": {"120"}}, Body: io.NopCloser(bytes.NewReader(nil))}, nil
 			})
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				if _, err := radarWMSRequest(context.Background(), make(map[string][]string)); err == nil {
 					t.Fatal("accepted unavailable response")
 				}

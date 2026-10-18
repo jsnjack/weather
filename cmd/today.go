@@ -156,10 +156,7 @@ func resolveTodayStart(zone *time.Location) (time.Time, error) {
 }
 
 func todayGridSize() int {
-	n := FlagTodayGrid
-	if n < 5 {
-		n = 5
-	}
+	n := max(FlagTodayGrid, 5)
 	if n%2 == 0 {
 		n++
 	}
@@ -276,10 +273,7 @@ func runTodayGrid(ctx context.Context, startLat, startLon float64, startTime tim
 	// Which grid (row, col) positions are sector probes? Same 8 sampled in
 	// printTodayRecommendation: N, NE, E, SE, S, SW, W, NW at half-radius.
 	mid := gridSize / 2
-	half := mid / 2
-	if half < 1 {
-		half = 1
-	}
+	half := max(mid/2, 1)
 	sectorNames := []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW"}
 	sectorOffsets := [8][2]int{
 		{-half, 0}, {-half, half}, {0, half}, {half, half},
@@ -337,7 +331,7 @@ func extractHourlyWind(hourly []HourlyForecast, startTime time.Time, windowHours
 		byHour[h.Time.Unix()] = h
 	}
 	out := make([]hourlyWind, 0, windowHours)
-	for i := 0; i < windowHours; i++ {
+	for i := range windowHours {
 		target := rideHour(startTime.Add(time.Duration(i)*time.Hour), hourly).Unix()
 		if h, ok := byHour[target]; ok {
 			out = append(out, hourlyWind{
@@ -363,7 +357,7 @@ func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int
 	dryCount := 0
 	maxPrecip := 0.0
 	stillDry := true // counting consecutive dry hours from the start
-	for i := 0; i < windowHours; i++ {
+	for i := range windowHours {
 		target := rideHour(startTime.Add(time.Duration(i)*time.Hour), hourly).Unix()
 		h, ok := byHour[target]
 		if !ok {
@@ -403,9 +397,9 @@ func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int
 func renderToday(r todayResult) {
 	gridSize := r.Grid
 	mid := gridSize / 2
-	for row := 0; row < gridSize; row++ {
+	for row := range gridSize {
 		fmt.Print("  ")
-		for col := 0; col < gridSize; col++ {
+		for col := range gridSize {
 			isStart := row == mid && col == mid
 			fmt.Print(todayCellGlyph(r.Cells[row][col], isStart))
 		}
@@ -420,14 +414,8 @@ func renderToday(r todayResult) {
 	const mark = "start"
 	axisWidth := gridSize * 2
 	midStart := (axisWidth - len(mark)) / 2
-	leftGap := midStart - len(left)
-	if leftGap < 1 {
-		leftGap = 1
-	}
-	rightGap := axisWidth - midStart - len(mark) - len(right)
-	if rightGap < 1 {
-		rightGap = 1
-	}
+	leftGap := max(midStart-len(left), 1)
+	rightGap := max(axisWidth-midStart-len(mark)-len(right), 1)
 	fmt.Printf("%s%s%s%s%s\n", left, strings.Repeat(" ", leftGap), mark, strings.Repeat(" ", rightGap), right)
 }
 
@@ -539,10 +527,7 @@ func renderWindEvolution(r todayResult) {
 		return
 	}
 	gridSize := r.Grid
-	half := (gridSize / 2) / 2
-	if half < 1 {
-		half = 1
-	}
+	half := max((gridSize/2)/2, 1)
 	sampleKm := float64(half) * r.StepKm
 
 	b := termplt.ColorBold
@@ -642,10 +627,7 @@ type TodayRecommendation struct {
 // call this and present the result in their own way.
 func RecommendToday(r todayResult) TodayRecommendation {
 	mid := r.Grid / 2
-	half := mid / 2
-	if half < 1 {
-		half = 1
-	}
+	half := max(mid/2, 1)
 	probes := []TodaySectorScore{
 		{Name: "N", Bearing: 0, Cell: r.Cells[mid-half][mid]},
 		{Name: "NE", Bearing: 45, Cell: r.Cells[mid-half][mid+half]},

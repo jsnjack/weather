@@ -273,8 +273,8 @@ func freshRadarObservation(observed, now time.Time) bool {
 
 func hasLocalRadarRain(overlay image.Image) bool {
 	center := float64(localRadarSize) / 2
-	for y := 0; y < localRadarSize; y++ {
-		for x := 0; x < localRadarSize; x++ {
+	for y := range localRadarSize {
+		for x := range localRadarSize {
 			if math.Hypot(float64(x)+.5-center, float64(y)+.5-center) > center {
 				continue
 			}
@@ -339,7 +339,7 @@ func renderLocalRadarImageTheme(radar *localRadarImage, lat, lon float64, dark b
 				paths[i] = append(paths[i], [2]float64{x, y})
 			}
 		}
-		for y := 0; y < localRadarSize; y++ {
+		for y := range localRadarSize {
 			var crossings []float64
 			scan := float64(y) + .5
 			for _, path := range paths {
@@ -366,8 +366,8 @@ func renderLocalRadarImageTheme(radar *localRadarImage, lat, lon float64, dark b
 		draw.Draw(canvas, canvas.Bounds(), labels, image.Point{}, draw.Over)
 	}
 	centerX, centerY := project(lat, lon)
-	for y := 0; y < localRadarSize; y++ {
-		for x := 0; x < localRadarSize; x++ {
+	for y := range localRadarSize {
+		for x := range localRadarSize {
 			d := math.Hypot(float64(x)-centerX, float64(y)-centerY)
 			if d <= 5 {
 				canvas.SetRGBA(x, y, color.RGBA{6, 90, 130, 255})

@@ -76,7 +76,7 @@ func TestGeocodingCache(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 	})
 	t.Run("name cached across views", func(t *testing.T) {
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			loc, name, err := resolveRequestLocation(httptest.NewRequest("GET", "/day?name=Amsterdam", nil))
 			if err != nil || loc.Description != "Amsterdam, Nederland" || name != "Amsterdam" {
 				t.Fatalf("location=%+v name=%q error=%v", loc, name, err)
@@ -87,7 +87,7 @@ func TestGeocodingCache(t *testing.T) {
 		}
 	})
 	t.Run("coordinates cached without rounding", func(t *testing.T) {
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			loc, _, err := resolveRequestLocation(httptest.NewRequest("GET", "/day?lat=52.3730796&lon=4.8924534", nil))
 			if err != nil || loc.Description != "Centrum, Amsterdam, Netherlands" {
 				t.Fatalf("location=%+v error=%v", loc, err)

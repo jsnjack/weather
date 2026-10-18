@@ -130,10 +130,7 @@ func renderForecastTable(daily []DailyAggregate) {
 // the web table's coloured range bars.
 func tempRangeBar(minT, maxT, gMin, span float64, w int) string {
 	left := int((minT - gMin) / span * float64(w))
-	barLen := int((maxT-minT)/span*float64(w) + 0.5)
-	if barLen < 1 {
-		barLen = 1
-	}
+	barLen := max(int((maxT-minT)/span*float64(w)+0.5), 1)
 	if left < 0 {
 		left = 0
 	}
@@ -143,10 +140,7 @@ func tempRangeBar(minT, maxT, gMin, span float64, w int) string {
 	if left+barLen > w {
 		barLen = w - left
 	}
-	right := w - left - barLen
-	if right < 0 {
-		right = 0
-	}
+	right := max(w-left-barLen, 0)
 	return strings.Repeat("░", left) +
 		termplt.ColorYellow + strings.Repeat("█", barLen) + termplt.ColorReset +
 		strings.Repeat("░", right)

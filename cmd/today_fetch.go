@@ -35,7 +35,7 @@ const todayForecastBatchSize = 200
 func todayForecastBatches(n int) [][2]int {
 	count := (n + todayForecastBatchSize - 1) / todayForecastBatchSize
 	out := make([][2]int, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		out = append(out, [2]int{i * n / count, (i + 1) * n / count})
 	}
 	return out

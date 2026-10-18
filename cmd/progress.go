@@ -102,10 +102,7 @@ func (p *CLIProgress) render() {
 	const width = 24
 	var bar string
 	if total > 0 {
-		filled := int(n * int64(width) / total)
-		if filled > width {
-			filled = width
-		}
+		filled := min(int(n*int64(width)/total), width)
 		bar = "[" + strings.Repeat("#", filled) + strings.Repeat(" ", width-filled) + "]"
 	} else {
 		// Indeterminate — bounce a single # across the bar.

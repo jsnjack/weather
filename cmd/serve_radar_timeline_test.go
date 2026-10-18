@@ -137,7 +137,7 @@ func TestRadarTimelineRequests(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body)), Header: make(http.Header)}, nil
 	})
 	var timeline radarTimeline
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		w := httptest.NewRecorder()
 		handleRadarTimeline(w, httptest.NewRequest("GET", "/api/v1/radar", nil))
 		if w.Code != 200 {
@@ -147,7 +147,7 @@ func TestRadarTimelineRequests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		w := httptest.NewRecorder()
 		handleRadarAtlas(w, httptest.NewRequest("GET", timeline.AtlasURL, nil))
 		if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" {

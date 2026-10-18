@@ -129,8 +129,11 @@ re-uploading GitHub release assets. Publication is asynchronous and preserves
 Wahoo Share's published APKs; the publisher has no scheduled polling.
 The Go dependencies require Go 1.26 or newer. Android builds use Gradle 9.8.1,
 AGP 9.4.1 with built-in Kotlin 2.4.21, SDK 37 and build tools 37.0.0; the
-minimum SDK remains 31 and target SDK remains 34. Make reports missing SDK
-components before Gradle can download them automatically.
+minimum SDK remains 31 and target SDK remains 34. Gradle runs the build on
+JDK 25 from `gradle/gradle-daemon-jvm.properties` and downloads it when
+missing; any Java runtime on `PATH` starts the wrapper. The SDK comes from the
+Android CLI (`android sdk install`); once its licence is recorded, Gradle
+installs the pinned platform and build tools itself.
 `make apk` stamps the widget version from `monova` through `-PappVersion`, using
 the same major/minor/patch numeric mapping as the shared F-Droid publisher.
 
@@ -264,7 +267,8 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   Weekend includes the current Saturday/Sunday when already in the weekend,
   with Sunday showing Sunday only. Windows use location midnight and calendar
   arithmetic so DST does not force a 24-hour day. The three views share one
-  seven-day hourly response. Up to three non-overlapping two-hour ride windows
+  seven-day hourly response. Hours that have already ended are hidden; the
+  current hour stays. Up to three non-overlapping two-hour ride windows
   are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
   must be dry with rain chance at most 30%, wholly in daylight, start in the future, and have wind/gusts below
   the critical threshold. The Android widget opens `/day` when tapped.
@@ -301,8 +305,9 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   The CLI can export either PNG or GIF with `weather radar --dark --output ...`.
 - **Local playback uses a pinned forecast run.** `/api/v1/radar/local/timeline`
   starts with the actual latest observation, followed by KNMI
-  `radar_forecast_2.0` frames every ten minutes (every second KNMI step)
-  through the following hour, loaded in parallel. The
+  `radar_forecast_2.0` frames every ten minutes (every second KNMI step) for
+  two hours, capped where the run ends (two hours after its reference time),
+  loaded in parallel. The
   `precipitation_nowcast` layer's `reference_time`, not its future default
   `time`, establishes freshness; every frame sends `DIM_REFERENCE_TIME`.
   Frames share the observation's projection, basemap, labels and exact marker.

@@ -117,7 +117,7 @@ func TestRideWindows(t *testing.T) {
 }
 
 func TestBuildDetailedOutlook(t *testing.T) {
-	t.Run("location zone and exclusive midnight", func(t *testing.T) {
+	t.Run("location zone, exclusive midnight and hidden past hours", func(t *testing.T) {
 		zone, err := time.LoadLocation("Europe/Amsterdam")
 		if err != nil {
 			t.Fatal(err)
@@ -125,15 +125,23 @@ func TestBuildDetailedOutlook(t *testing.T) {
 		now := time.Date(2026, 10, 9, 23, 30, 0, 0, time.UTC)
 		start := time.Date(2026, 10, 10, 0, 0, 0, 0, zone)
 		data := &OpenMeteoData{}
-		for i := 0; i < 49; i++ {
+		for i := range 49 {
 			data.Hourly = append(data.Hourly, HourlyForecast{Time: start.Add(time.Duration(i) * time.Hour)})
 		}
 		result, err := buildDetailedOutlook(data, outlookToday, now)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(result.Hours) != 24 || !result.Start.Equal(start) {
-			t.Fatalf("outlook = %v, %d hours", result.Start, len(result.Hours))
+		// 01:30 local: midnight has ended, the current 01:00 hour stays.
+		if len(result.Hours) != 23 || !result.Start.Equal(start) || !result.Hours[0].Time.Equal(start.Add(time.Hour)) {
+			t.Fatalf("outlook = %v, %d hours from %v", result.Start, len(result.Hours), result.Hours[0].Time)
+		}
+		tomorrow, err := buildDetailedOutlook(data, outlookTomorrow, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tomorrow.Hours) != 24 || !tomorrow.Hours[0].Time.Equal(start.AddDate(0, 0, 1)) {
+			t.Fatalf("tomorrow lost hours: %d from %v", len(tomorrow.Hours), tomorrow.Hours[0].Time)
 		}
 	})
 	t.Run("invalid period", func(t *testing.T) {

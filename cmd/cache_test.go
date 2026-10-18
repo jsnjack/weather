@@ -23,14 +23,12 @@ func TestMemo(t *testing.T) {
 		}
 		var wg sync.WaitGroup
 		for range 32 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				value, err := memo(cache, "same", fetch)
 				if value != 42 || err != nil {
 					t.Errorf("memo = %d, %v", value, err)
 				}
-			}()
+			})
 		}
 		<-started
 		close(release)

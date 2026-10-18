@@ -128,7 +128,7 @@ func fetchOpenMeteoBody(url string, client *http.Client, gate *requestGate) ([]b
 	openMeteoRequests <- struct{}{}
 	defer func() { <-openMeteoRequests }()
 	var lastErr error
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := range 4 {
 		if err := gate.wait(); err != nil {
 			return nil, err
 		}
@@ -211,7 +211,7 @@ func validateOpenMeteoBody(requestURL string, body []byte) error {
 		if err := json.Unmarshal(section.fields["time"], &times); err != nil || len(times) == 0 {
 			return fmt.Errorf("open-meteo response has no %s times", section.name)
 		}
-		for _, field := range strings.Split(requested, ",") {
+		for field := range strings.SplitSeq(requested, ",") {
 			var values []json.RawMessage
 			if err := json.Unmarshal(section.fields[field], &values); err != nil || len(values) != len(times) {
 				return fmt.Errorf("open-meteo returned inconsistent %s array lengths (%s)", section.name, field)

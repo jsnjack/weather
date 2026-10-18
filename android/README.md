@@ -59,16 +59,17 @@ refresh; the existing periodic refresh handles updates after process death.
 
 ## Pinned versions
 
-`build.gradle.kts` and `gradle/wrapper/gradle-wrapper.properties` expect
-these. Bootstrap must satisfy them. The compile SDK is 37; the target SDK remains
-34 and the minimum supported Android version remains 12 (API 31).
+`build.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties` and
+`gradle/gradle-daemon-jvm.properties` pin these. The compile SDK is 37; the
+target SDK remains 34 and the minimum supported Android version remains 12
+(API 31).
 
 | Component | Version |
 |---|---|
-| JDK | 21 (tested; Make also accepts JDK 17) |
-| Android SDK platform | `android-37.0` |
-| Android build-tools | `37.0.0` |
-| Gradle | 9.8.1 (auto-fetched by `./gradlew` on first build) |
+| Build JDK | 25 (Gradle downloads it when no JDK 25 is installed) |
+| Android SDK platform | `android-37.0` (Gradle installs it when missing) |
+| Android build-tools | `37.0.0` (Gradle installs it when missing) |
+| Gradle | 9.8.1 (`./gradlew` downloads it on first build) |
 | Android Gradle Plugin | 9.4.1 |
 | Kotlin | 2.4.21 (AGP built-in Kotlin) |
 
@@ -78,49 +79,47 @@ Two install paths. **Path A** is the agent's default — no GUI, smallest
 footprint, fully scriptable. **Path B** is for humans who want Layout
 Inspector / Profiler.
 
-### Path A — cmdline-tools only (recommended for agents)
+### Path A — Android CLI (recommended for agents)
 
-Copy-paste, top-to-bottom. ~15 min on first run, dominated by the SDK
-download.
+Copy-paste, top-to-bottom. The first build downloads Gradle, JDK 25 and the
+pinned SDK packages, about 1 GB in total.
 
 ```bash
-# 1. JDK
-sudo dnf install -y java-21-openjdk-devel unzip
-export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v javac))))
+# 1. Any Java 17+ runtime starts ./gradlew; Gradle provisions the build JDK
+sudo dnf install -y java-25-openjdk-headless
 
-# 2. Android SDK command-line tools
-mkdir -p ~/Android/Sdk/cmdline-tools
-curl -fL -o /tmp/cmdline-tools.zip \
-    https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
-unzip -q /tmp/cmdline-tools.zip -d ~/Android/Sdk/cmdline-tools
-mv ~/Android/Sdk/cmdline-tools/cmdline-tools ~/Android/Sdk/cmdline-tools/latest
-rm /tmp/cmdline-tools.zip
+# 2. Android CLI (replaces the deprecated cmdline-tools sdkmanager)
+mkdir -p ~/.local/bin
+curl -fL -o ~/.local/bin/android \
+    https://dl.google.com/android/cli/latest/linux_x86_64/android-cli
+chmod +x ~/.local/bin/android
 
-# 3. SDK components pinned to this project
-export ANDROID_HOME=$HOME/Android/Sdk
-export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-yes | sdkmanager --licenses >/dev/null
-sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;37.0.0'
+# 3. SDK with platform-tools. The first run shows the SDK terms and records
+#    the licence, which lets Gradle install the pinned platform and build tools
+android --no-metrics --sdk="$HOME/Android/Sdk" sdk install platform-tools
 
 # 4. Tell Gradle where the SDK lives (local.properties is gitignored)
 echo "sdk.dir=$HOME/Android/Sdk" > /path/to/weather/android/local.properties
 
-# 5. Persist env vars for future shells (optional — agents can re-export)
-cat >> ~/.bashrc <<'EOF'
-export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v javac))))
+# 5. Put adb on PATH for future shells (optional)
+cat >> ~/.bashrc <<'BASHRC'
 export ANDROID_HOME=$HOME/Android/Sdk
-export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-EOF
+export PATH=$ANDROID_HOME/platform-tools:$PATH
+BASHRC
 
-# 6. First build
-cd /path/to/weather/android
-./gradlew :app:assembleDebug
+# 6. First build, from the repository root
+make apk
 ```
 
-After step 6 succeeds you have `app/build/outputs/apk/debug/app-debug.apk`.
-The Gradle 9.8.1 distribution (~150 MB) is now cached in
-`~/.gradle/wrapper/dists/` and is shared across all subsequent builds
-on this machine.
+After step 6 succeeds you have `bin/weather-widget.apk`. Gradle caches its
+distribution in `~/.gradle/wrapper/dists/` and the build JDK in
+`~/.gradle/jdks/`; every later build on this machine reuses both.
+`android update` updates the CLI itself; `android sdk update` updates the
+installed SDK packages.
+
+The CLI downloads from `dl.google.com` without falling back to IPv4. On a host
+with broken IPv6 routing, download the CLI with `curl -4` and avoid the
+`android` shim in cmdline-tools, which tries to fetch the CLI itself.
 
 ### Path B — Android Studio (humans only)
 
@@ -131,12 +130,7 @@ flatpak run com.google.AndroidStudio   # Open the project folder, let it sync
 
 Studio writes `local.properties` itself and installs the SDK
 automatically. After first sync you can close Studio and use the same
-`./gradlew` flow as Path A — set `JAVA_HOME` to the bundled JBR:
-
-```bash
-export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
-    -maxdepth 8 -type d -name jbr 2>/dev/null | head -1)
-```
+`make apk` / `./gradlew` flow as Path A; no `JAVA_HOME` is needed.
 
 ## Phone setup (one-time, per device)
 
@@ -153,15 +147,11 @@ export JAVA_HOME=$(find /var/lib/flatpak/app/com.google.AndroidStudio \
 
 ## Build + install + refresh loop
 
-> **JDK.** The terminal build is tested with JDK 21. Make respects `JAVA_HOME`
-> and otherwise looks for JDK 21 or 17 in `~/.jdks`. To unpack JDK 21 locally:
->
-> ```bash
-> mkdir -p ~/.jdks && curl -fL \
->     https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse \
->     | tar xz -C ~/.jdks
-> export JAVA_HOME=$(ls -d ~/.jdks/jdk-21* | head -1)   # for ./gradlew run by hand
-> ```
+> **JDK.** `./gradlew` needs any Java 17+ runtime on `PATH` (or in
+> `JAVA_HOME`) to start. The build itself runs on a JDK 25 found on the
+> machine, or one Gradle downloads into `~/.gradle/jdks/`. After changing the
+> JDK version, regenerate the download links with
+> `./gradlew updateDaemonJvm --jvm-version=<version>`.
 
 The standard dev loop, from `android/`:
 

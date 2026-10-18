@@ -107,11 +107,11 @@ func TestDarkNationalRadar(t *testing.T) {
 	observed.SetColorIndex(80, 400, 1)
 	observed.SetColorIndex(100, 100, 4)
 	observed.SetColorIndex(110, 110, 5)
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		observed.SetColorIndex(250+i%175, 429+i/175, 1)
 	}
 	predicted := image.NewPaletted(image.Rect(0, 409, 425, 445), palette)
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		predicted.SetColorIndex(250+i%175, 429+i/175, 2)
 	}
 	animation := &gif.GIF{Image: []*image.Paletted{observed, predicted}, Delay: []int{10, 15}, Disposal: []byte{gif.DisposalNone, gif.DisposalBackground}, Config: image.Config{ColorModel: palette, Width: 425, Height: 445}, LoopCount: 0}

@@ -61,7 +61,7 @@ func TestLocalRadarStream(t *testing.T) {
 				var body []byte
 				status := 200
 				if r.URL.Query().Get("REQUEST") == "GetCapabilities" {
-					body = []byte(fmt.Sprintf(`<WMS_Capabilities><Capability><Layer><Layer><Name>precipitation_nowcast</Name><Dimension name="reference_time" default="%s"/></Layer></Layer></Capability></WMS_Capabilities>`, observed.Format(time.RFC3339)))
+					body = fmt.Appendf(nil, `<WMS_Capabilities><Capability><Layer><Layer><Name>precipitation_nowcast</Name><Dimension name="reference_time" default="%s"/></Layer></Layer></Capability></WMS_Capabilities>`, observed.Format(time.RFC3339))
 				} else {
 					select {
 					case <-gate:
@@ -104,7 +104,7 @@ func TestLocalRadarStream(t *testing.T) {
 				Image string
 				Times []time.Time
 			}
-			if err := decoder.Decode(&event); err != nil || event.Type != "metadata" || len(event.Times) != 7 {
+			if err := decoder.Decode(&event); err != nil || event.Type != "metadata" || len(event.Times) != 13 {
 				t.Fatalf("missing early metadata: %v", err)
 			}
 			if err := decoder.Decode(&event); err != nil || event.Type != "frame" || event.Index != 0 {
@@ -130,7 +130,7 @@ func TestLocalRadarStream(t *testing.T) {
 					break
 				}
 				if event.Type == "complete" {
-					if tc.fail || frames != 7 {
+					if tc.fail || frames != 13 {
 						t.Fatal("incomplete stream claimed completion")
 					}
 					break
@@ -146,8 +146,8 @@ func TestLocalRadarStream(t *testing.T) {
 				}
 				return
 			}
-			if calls.Load() != 7 {
-				t.Fatalf("upstream requests=%d, want 7", calls.Load())
+			if calls.Load() != 13 {
+				t.Fatalf("upstream requests=%d, want 13", calls.Load())
 			}
 			response2, err := client.Get(server.URL + query)
 			if err != nil {
@@ -157,7 +157,7 @@ func TestLocalRadarStream(t *testing.T) {
 			if _, err := io.Copy(io.Discard, response2.Body); err != nil {
 				t.Fatal(err)
 			}
-			if calls.Load() != 7 {
+			if calls.Load() != 13 {
 				t.Fatal("replay refetched upstream frames")
 			}
 		})

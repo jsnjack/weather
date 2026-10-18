@@ -89,8 +89,8 @@ func darkNationalRadarImage(source image.Image) image.Image {
 		return source
 	}
 	result := image.NewRGBA(source.Bounds())
-	for y := 0; y < nationalRadarHeight; y++ {
-		for x := 0; x < nationalRadarWidth; x++ {
+	for y := range nationalRadarHeight {
+		for x := range nationalRadarWidth {
 			c := source.At(x, y)
 			if nationalRadarCaption(x, y, c) {
 				result.Set(x, y, darkRadarText)

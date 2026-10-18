@@ -153,10 +153,7 @@ func runMultiday(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	topN := FlagMultidayTopN
-	if topN > len(trips) {
-		topN = len(trips)
-	}
+	topN := min(FlagMultidayTopN, len(trips))
 	top := trips[:topN]
 
 	labelProg := NewCLIProgress("place labels")
