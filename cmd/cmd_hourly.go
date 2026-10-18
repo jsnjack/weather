@@ -35,15 +35,18 @@ func runHourly(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	now := time.Now()
-	start := now.Truncate(time.Hour)
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		return err
+	}
+	defer cliTimezone(zone)()
+	now := time.Now().In(zone)
+	start := localHour(now)
 	end := start.Add(time.Duration(hours) * time.Hour)
 
 	prog := NewCLIProgress("hourly forecast")
 	prog.AddTotal(1)
-	// Fetch a little past the window so the last hour is covered across the
-	// local-midnight boundary. Shares the cached Open-Meteo layer with /hourly.
-	data, err := GetOpenMeteoRange(loc.Latitude, loc.Longitude, now, end.Add(2*time.Hour))
+	data, err := getLocationForecast(loc.Latitude, loc.Longitude)
 	prog.Inc(1)
 	prog.Finish()
 	if err != nil || data == nil || len(data.Hourly) == 0 {

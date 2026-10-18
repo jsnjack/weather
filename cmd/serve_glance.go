@@ -107,13 +107,18 @@ func buildGlanceResponse(ctx context.Context, loc Location, prog Progress) (*gla
 	go func() {
 		defer wg.Done()
 		defer prog.Inc(1)
-		now := time.Now()
-		meteo, meteoErr = GetOpenMeteoRange(loc.Latitude, loc.Longitude, now, now.Add(24*time.Hour))
+		meteo, meteoErr = getLocationForecast(loc.Latitude, loc.Longitude)
 	}()
 	wg.Wait()
 
 	if alarm == nil && radar == nil && meteo == nil {
 		return nil, errors.Join(alarmErr, radarErr, meteoErr)
+	}
+
+	zone := nowcastZone(loc.Latitude, loc.Longitude)
+	alarm, radar = forecastInZone(alarm, zone), forecastInZone(radar, zone)
+	if alarm != nil {
+		alarm.Desc = formatNowcastMessage(alarm.nowcastMessage, zone)
 	}
 
 	resp := &glanceAPIResponse{

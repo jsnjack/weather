@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"math"
+	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jsnjack/termplt"
@@ -24,6 +27,7 @@ const (
 	todayDefaultHours  = 6
 	todayDefaultRadius = 75
 	todayDefaultGrid   = 21
+	todayMaxGrid       = 23
 )
 
 var todayCmd = &cobra.Command{
@@ -41,7 +45,7 @@ func init() {
 	todayCmd.Flags().IntVar(&FlagTodayHours, "hours", todayDefaultHours, "ride window length in hours (1–24)")
 	todayCmd.Flags().StringVar(&FlagTodayStart, "start", "", "ride start time HH:MM (default: now + 30 min rounded up)")
 	todayCmd.Flags().Float64Var(&FlagTodayRadius, "radius", todayDefaultRadius, "map radius in km")
-	todayCmd.Flags().IntVar(&FlagTodayGrid, "grid", todayDefaultGrid, "heatmap resolution (NxN; odd, clamped to ≥5)")
+	todayCmd.Flags().IntVar(&FlagTodayGrid, "grid", todayDefaultGrid, "heatmap resolution (NxN; odd, clamped to 5–23)")
 }
 
 // todayCell is the scored result for one grid cell over the ride window.
@@ -97,16 +101,19 @@ func runToday(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--radius must be positive")
 	}
 
-	startTime, err := resolveTodayStart()
-	if err != nil {
-		return err
-	}
-	endTime := startTime.Add(time.Duration(FlagTodayHours) * time.Hour)
-
 	loc, err := ResolveLocation()
 	if err != nil {
 		return err
 	}
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		return err
+	}
+	startTime, err := resolveTodayStart(zone)
+	if err != nil {
+		return err
+	}
+	endTime := startTime.Add(time.Duration(FlagTodayHours) * time.Hour)
 
 	fmt.Printf(termplt.ColorBold+"Today around %s"+termplt.ColorReset+
 		"  ·  %s–%s  ·  %.0f km radius\n\n",
@@ -116,8 +123,11 @@ func runToday(cmd *cobra.Command, args []string) error {
 	)
 
 	prog := NewCLIProgress("forecast cells")
-	result := runTodayGrid(loc.Latitude, loc.Longitude, startTime, FlagTodayHours, todayGridSize(), FlagTodayRadius, prog)
+	result, err := runTodayGrid(context.Background(), loc.Latitude, loc.Longitude, startTime, FlagTodayHours, todayGridSize(), FlagTodayRadius, prog)
 	prog.Finish()
+	if err != nil {
+		return err
+	}
 	renderToday(result)
 	fmt.Println()
 	renderWindEvolution(result)
@@ -130,11 +140,11 @@ func runToday(cmd *cobra.Command, args []string) error {
 
 // resolveTodayStart picks the ride start time from the --start flag or a
 // "next full hour at least 30 min in the future" default.
-func resolveTodayStart() (time.Time, error) {
-	now := time.Now()
+func resolveTodayStart(zone *time.Location) (time.Time, error) {
+	now := time.Now().In(zone)
 	if FlagTodayStart == "" {
 		t := now.Add(30 * time.Minute)
-		t = t.Truncate(time.Hour).Add(time.Hour)
+		t = localHour(t).Add(time.Hour)
 		return t, nil
 	}
 	parsed, err := time.Parse("15:04", FlagTodayStart)
@@ -157,22 +167,32 @@ func todayGridSize() int {
 }
 
 // runTodayGrid builds the sample grid, fetches hourly weather for every cell
-// across the ride window, and scores each cell.
-func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, gridSize int, radiusKm float64, prog Progress) todayResult {
+// across the ride window, and scores each cell. It fails only when no cell has
+// data; a partial failure leaves the affected cells marked NoData. When ctx
+// ends first it returns at once; the requests keep filling the cache.
+func runTodayGrid(ctx context.Context, startLat, startLon float64, startTime time.Time, windowHours, gridSize int, radiusKm float64, prog Progress) (todayResult, error) {
 	if gridSize < 5 {
 		gridSize = 5
 	}
 	if gridSize%2 == 0 {
 		gridSize++
 	}
+	// Open-Meteo allows 600 locations a minute; 23×23 = 529 is the largest
+	// odd grid that loads in one go.
+	gridSize = min(gridSize, todayMaxGrid)
 	stepKm := radiusKm / float64(gridSize/2)
 
+	// Centre the grid on the nearest point of a fixed lattice, at most half a
+	// step from the rider. Nearby positions then request identical cells and
+	// share the cache; GPS jitter would otherwise cost a full grid of calls.
 	latStep := stepKm / 111.0
-	lonFactor := 111.0 * math.Cos(startLat*math.Pi/180)
+	gridLat := math.Round(startLat/latStep) * latStep
+	lonFactor := 111.0 * math.Cos(gridLat*math.Pi/180)
 	if lonFactor < 1 {
 		lonFactor = 1
 	}
 	lonStep := stepKm / lonFactor
+	gridLon := math.Round(startLon/lonStep) * lonStep
 
 	type cellCoord struct {
 		Lat, Lon float64
@@ -184,20 +204,13 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, 
 			northCells := float64(gridSize/2 - row)
 			eastCells := float64(col - gridSize/2)
 			cells = append(cells, cellCoord{
-				Lat: startLat + northCells*latStep,
-				Lon: startLon + eastCells*lonStep,
+				Lat: gridLat + northCells*latStep,
+				Lon: gridLon + eastCells*lonStep,
 				Row: row,
 				Col: col,
 			})
 		}
 	}
-
-	// Fetch boundary dates — the window might cross midnight.
-	endTime := startTime.Add(time.Duration(windowHours) * time.Hour)
-	startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(),
-		0, 0, 0, 0, startTime.Location())
-	endDate := time.Date(endTime.Year(), endTime.Month(), endTime.Day(),
-		0, 0, 0, 0, endTime.Location())
 
 	type cellData struct {
 		Row, Col int
@@ -205,21 +218,46 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, 
 		Err      error
 	}
 	results := make([]cellData, len(cells))
-	sem := make(chan struct{}, multidayFetchWorkers)
-	var wg sync.WaitGroup
+	batches := todayForecastBatches(len(cells))
+	errs := make([]error, len(batches))
+	// Batches report their size here once their results are written, so only
+	// this goroutine touches prog.
+	done := make(chan int, len(batches))
 	prog.AddTotal(len(cells))
-	for i, c := range cells {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(i int, c cellCoord) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			defer prog.Inc(1)
-			data, err := GetOpenMeteoRange(c.Lat, c.Lon, startDate, endDate)
-			results[i] = cellData{Row: c.Row, Col: c.Col, Data: data, Err: err}
-		}(i, c)
+	// Batches share the Open-Meteo request slots and pacing in fetchOpenMeteoBody.
+	for b, bounds := range batches {
+		batch := cells[bounds[0]:bounds[1]]
+		go func() {
+			points := make([]latLon, len(batch))
+			for i, c := range batch {
+				points[i] = latLon{Lat: c.Lat, Lon: c.Lon}
+			}
+			data, err := getTodayForecastBatch(points)
+			if err != nil {
+				slog.Debug("ride forecast batch unavailable", "err", err)
+				errs[b] = err
+			}
+			for i, c := range batch {
+				result := cellData{Row: c.Row, Col: c.Col, Err: err}
+				if err == nil {
+					result.Data = data[i]
+				}
+				results[bounds[0]+i] = result
+			}
+			done <- len(batch)
+		}()
 	}
-	wg.Wait()
+	for range batches {
+		select {
+		case n := <-done:
+			prog.Inc(n)
+		case <-ctx.Done():
+			return todayResult{}, fmt.Errorf("ride forecast: %w", ctx.Err())
+		}
+	}
+	if !slices.ContainsFunc(errs, func(err error) bool { return err == nil }) {
+		return todayResult{}, fmt.Errorf("ride forecast: %w", errors.Join(errs...))
+	}
 
 	out := todayResult{
 		StepKm:      stepKm,
@@ -280,20 +318,27 @@ func runTodayGrid(startLat, startLon float64, startTime time.Time, windowHours, 
 			}
 		}
 	}
-	return out
+	return out, nil
+}
+
+func rideHour(at time.Time, hourly []HourlyForecast) time.Time {
+	if len(hourly) == 0 {
+		return localHour(at)
+	}
+	local := at.In(hourly[0].Time.Location())
+	return localHour(local)
 }
 
 // extractHourlyWind pulls per-hour wind for the ride window at one cell.
 // BlowsTo is converted from Open-Meteo's meteorological "comes-from" convention.
 func extractHourlyWind(hourly []HourlyForecast, startTime time.Time, windowHours int) []hourlyWind {
-	const hourKey = "2006-01-02T15"
-	byHour := make(map[string]HourlyForecast, len(hourly))
+	byHour := make(map[int64]HourlyForecast, len(hourly))
 	for _, h := range hourly {
-		byHour[h.Time.Format(hourKey)] = h
+		byHour[h.Time.Unix()] = h
 	}
 	out := make([]hourlyWind, 0, windowHours)
 	for i := 0; i < windowHours; i++ {
-		target := startTime.Add(time.Duration(i) * time.Hour).Format(hourKey)
+		target := rideHour(startTime.Add(time.Duration(i)*time.Hour), hourly).Unix()
 		if h, ok := byHour[target]; ok {
 			out = append(out, hourlyWind{
 				BlowsTo: math.Mod(h.WindDirection+180, 360),
@@ -308,21 +353,18 @@ func extractHourlyWind(hourly []HourlyForecast, startTime time.Time, windowHours
 
 // scoreRideCell walks the ride window hour-by-hour and counts consecutive dry
 // hours from the start. Also records midpoint-hour wind direction + speed.
-// Uses formatted "YYYY-MM-DDTHH" strings as keys so lookup is robust to
-// time.Time Location differences (Open-Meteo returns local times per grid
-// cell; user's startTime is in user local — same timezone for short radius).
+// Lookups use instants so timezone boundaries and repeated DST hours stay distinct.
 func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int) todayCell {
-	const hourKey = "2006-01-02T15"
-	byHour := make(map[string]HourlyForecast, len(hourly))
+	byHour := make(map[int64]HourlyForecast, len(hourly))
 	for _, h := range hourly {
-		byHour[h.Time.Format(hourKey)] = h
+		byHour[h.Time.Unix()] = h
 	}
 
 	dryCount := 0
 	maxPrecip := 0.0
 	stillDry := true // counting consecutive dry hours from the start
 	for i := 0; i < windowHours; i++ {
-		target := startTime.Add(time.Duration(i) * time.Hour).Format(hourKey)
+		target := rideHour(startTime.Add(time.Duration(i)*time.Hour), hourly).Unix()
 		h, ok := byHour[target]
 		if !ok {
 			// Data ran out mid-window. The first missing hour means we have
@@ -346,7 +388,7 @@ func scoreRideCell(hourly []HourlyForecast, startTime time.Time, windowHours int
 
 	cell := todayCell{DryHours: dryCount, MaxPrecip: maxPrecip}
 
-	mid := startTime.Add(time.Duration(windowHours/2) * time.Hour).Format(hourKey)
+	mid := rideHour(startTime.Add(time.Duration(windowHours/2)*time.Hour), hourly).Unix()
 	if h, ok := byHour[mid]; ok {
 		// Open-Meteo gives "wind direction" = where it's coming FROM.
 		// Convert to "blows to" so arrows intuitively indicate push.

@@ -71,13 +71,7 @@ func outlookBounds(period string, now time.Time) (time.Time, time.Time, error) {
 }
 
 func fetchDetailedOutlook(lat, lon float64, period string, now time.Time) (detailedOutlook, error) {
-	// Relative dates are evaluated upstream in timezone=auto, including a first visit.
-	url := fmt.Sprintf(openMeteoHourlyURL+"&forecast_days=7", lat, lon)
-	body, err := openMeteoGetBody(url)
-	if err != nil {
-		return detailedOutlook{}, err
-	}
-	data, err := parseOpenMeteoRange(body, lat, lon)
+	data, err := getLocationForecast(lat, lon)
 	if err != nil {
 		return detailedOutlook{}, err
 	}

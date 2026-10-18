@@ -96,20 +96,23 @@ func runMultiday(cmd *cobra.Command, args []string) error {
 		FlagMultidayTopN = 1
 	}
 
-	startDate := time.Now()
+	loc, err := ResolveLocation()
+	if err != nil {
+		return err
+	}
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		return err
+	}
+	startDate := time.Now().In(zone)
 	if FlagMultidayStartDate != "" {
-		parsed, err := time.Parse("2006-01-02", FlagMultidayStartDate)
+		parsed, err := time.ParseInLocation("2006-01-02", FlagMultidayStartDate, zone)
 		if err != nil {
 			return fmt.Errorf("invalid --start-date %q (want YYYY-MM-DD): %w", FlagMultidayStartDate, err)
 		}
 		startDate = parsed
 	}
 	endDate := startDate.AddDate(0, 0, FlagMultidayDays-1)
-
-	loc, err := ResolveLocation()
-	if err != nil {
-		return err
-	}
 
 	cfg := beamConfig{
 		KmPerDay:         FlagMultidayKmPerDay,

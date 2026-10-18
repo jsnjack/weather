@@ -19,8 +19,12 @@ import (
 
 const (
 	radarForecastDataset      = "radar_forecast_2.0"
+	radarForecastInterval     = 5 * time.Minute
 	localRadarFrameDelay      = 750
 	localRadarTimelineTimeout = 45 * time.Second
+	// Every second KNMI forecast keeps the hour readable with half the WMS
+	// requests.
+	localRadarForecastStep = 10 * time.Minute
 )
 
 type localRadarTimeline struct {
@@ -40,11 +44,19 @@ var radarForecastFrameCache = newTTLCache[image.Image](3*time.Minute, 256)
 var localRadarTimelineCache = newTTLCache[*localRadarTimeline](6*time.Minute, 16)
 var localRadarRenderedFrameCache = newTTLCache[[]byte](6*time.Minute, 256)
 
+// localRadarForecastTimes counts KNMI's forecast steps after the observation
+// and keeps every localRadarForecastStep, so frames sit at whole steps from
+// the observation whenever the run allows it.
 func localRadarForecastTimes(observed, reference time.Time) []time.Time {
 	times := []time.Time{observed}
-	for at := reference; !at.After(observed.Add(time.Hour)); at = at.Add(5 * time.Minute) {
+	stride := int(localRadarForecastStep / radarForecastInterval)
+	steps := 0
+	for at := reference; !at.After(observed.Add(time.Hour)); at = at.Add(radarForecastInterval) {
 		if at.After(observed) {
-			times = append(times, at)
+			steps++
+			if steps%stride == 0 {
+				times = append(times, at)
+			}
 		}
 	}
 	return times
@@ -86,8 +98,8 @@ func getLocalRadarTimelineTheme(ctx context.Context, lat, lon float64, dark bool
 	return memo(localRadarTimelineCache, id, func() (*localRadarTimeline, error) {
 		rows := (len(timeline.Times) + timeline.Columns - 1) / timeline.Columns
 		atlas := image.NewRGBA(image.Rect(0, 0, timeline.Columns*localRadarSize, rows*localRadarSize))
-		for i := range timeline.Times {
-			body, err := localRadarTimelineFrame(ctx, radar, timeline, id, i, lat, lon, dark)
+		for i, frame := range loadLocalRadarTimelineFrames(ctx, radar, timeline, id, lat, lon, dark) {
+			body, err := frame.wait(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -150,6 +162,37 @@ func localRadarTimelineFrame(ctx context.Context, radar *localRadarImage, timeli
 		}
 		return renderLocalRadarTheme(&frame, lat, lon, dark)
 	})
+}
+
+type localRadarFrameLoad struct {
+	done chan struct{}
+	body []byte
+	err  error
+}
+
+func (f *localRadarFrameLoad) wait(ctx context.Context) ([]byte, error) {
+	select {
+	case <-f.done:
+		return f.body, f.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("wait for radar frame: %w", ctx.Err())
+	}
+}
+
+// loadLocalRadarTimelineFrames starts every frame at once. The WMS gate still
+// paces upstream requests, but each frame no longer waits for the previous
+// frame's round trip.
+func loadLocalRadarTimelineFrames(ctx context.Context, radar *localRadarImage, timeline *localRadarTimeline, id string, lat, lon float64, dark bool) []*localRadarFrameLoad {
+	frames := make([]*localRadarFrameLoad, len(timeline.Times))
+	for i := range frames {
+		frame := &localRadarFrameLoad{done: make(chan struct{})}
+		frames[i] = frame
+		go func() {
+			defer close(frame.done)
+			frame.body, frame.err = localRadarTimelineFrame(ctx, radar, timeline, id, i, lat, lon, dark)
+		}()
+	}
+	return frames
 }
 
 func handleLocalRadarTimeline(w http.ResponseWriter, r *http.Request) {
@@ -229,11 +272,11 @@ func handleLocalRadarStream(w http.ResponseWriter, r *http.Request) {
 	}{"metadata", timeline}) {
 		return
 	}
-	for i := range timeline.Times {
+	for i, frame := range loadLocalRadarTimelineFrames(ctx, radar, timeline, id, loc.Latitude, loc.Longitude, dark) {
+		body, err := frame.wait(ctx)
 		if ctx.Err() != nil {
 			return
 		}
-		body, err := localRadarTimelineFrame(ctx, radar, timeline, id, i, loc.Latitude, loc.Longitude, dark)
 		if err != nil {
 			slog.Debug("local radar stream frame unavailable", "err", err)
 			send(struct {

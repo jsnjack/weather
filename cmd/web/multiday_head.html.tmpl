@@ -24,45 +24,4 @@
   </nav>
   <header>
     <h1>{{.Location.Description}}</h1>
-    <p class="sub">{{.Cfg.Days}} days × {{printf "%.0f" .Cfg.KmPerDay}} km/day · {{.StartLabel}} → {{.EndLabel}}{{if .Cfg.RoundTrip}} · round-trip{{end}}{{if .IsHeatmap}} · heatmap{{end}}</p>
   </header>
-
-  <details class="opts"{{if .Configure}} open{{end}}><summary>Location &amp; options</summary>
-  <form class="controls" method="get">
-    <input type="hidden" name="label" value="{{.Location.Description}}">
-    <input type="hidden" name="run" value="1">
-    <label class="loc-name">Name <input type="text" name="name" value="{{.NameInput}}" placeholder="e.g. Amsterdam"></label>
-    <label>Lat <input type="number" step="any" name="lat" value="{{coord .Location.Latitude}}"></label>
-    <label>Lon <input type="number" step="any" name="lon" value="{{coord .Location.Longitude}}"></label>
-    <label>Days <input type="number" name="days" min="1" max="14" value="{{.Cfg.Days}}"></label>
-    <label>km/day <input type="number" name="km-per-day" min="20" max="300" value="{{printf "%.0f" .Cfg.KmPerDay}}"></label>
-    <label>min °C <input type="number" name="min-temp" value="{{printf "%.0f" .Cfg.MinTemp}}"></label>
-    <label>start <input type="date" name="start-date" value="{{.StartInput}}"></label>
-    <label>top <input type="number" name="top" min="1" max="10" value="{{.Cfg.TopN}}"></label>
-    <label class="check"><input type="checkbox" name="round-trip" value="1"{{if .Cfg.RoundTrip}} checked{{end}}> round-trip</label>
-    <label class="check"><input type="hidden" name="heatmap" value="0"><input type="checkbox" name="heatmap" value="1"{{if .IsHeatmap}} checked{{end}}> heatmap</label>
-    <button type="submit">Run</button>
-  </form>
-  <p class="sub">Leave name and coordinates blank to use the server’s IP location.</p>
-  </details>
-
-  {{if .Configure}}
-  <section class="configure">
-    <p class="sub">Adjust the options above, then press <strong>Run</strong>. This fetches a forecast for each grid cell / trip leg — roughly <strong>{{.EstRequests}}</strong> upstream requests — so it is not run automatically.</p>
-  </section>
-  {{else}}
-  <section class="loading" id="loading">
-    <progress id="prog" max="1" value="0"></progress>
-    <span id="prog-label" class="sub">starting…</span>
-  </section>
-  <script>
-    window.__p = function(n, total) {
-      var p = document.getElementById('prog'), l = document.getElementById('prog-label');
-      if (p) { p.max = Math.max(1, total); p.value = n; }
-      if (l) l.textContent = total > 0 ? (n + ' / ' + total) : 'starting…';
-    };
-    window.__pDone = function() {
-      var s = document.getElementById('loading'); if (s) s.remove();
-    };
-  </script>
-  {{end}}

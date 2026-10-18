@@ -65,6 +65,7 @@ cmd/
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
   svgchart.go                    Inline SVG chart for the HTML pages
   today.go                       Short ride-window heatmap command
+  today_fetch.go                 Batched rain/wind grid fetch for the ride heatmap
   web/                           Embedded HTML templates, manifest, service worker, icon, CSS
 android/                         Native Android home-screen widget (Kotlin, separate Gradle build)
                                  Calls /api/v1/rain and mirrors svgchart.go on the device.
@@ -91,9 +92,10 @@ External APIs:
    `multiday_score.go` combines daytime dry hours, wind, and temperature; pivot
    and round-trip penalties prune the beam to `--beam-width`. Top-N plans
    rendered as a compass-direction table.
-3. **`today`.** Build an NxN lat/lon grid around the start, fetch each cell's
-   hourly forecast in parallel from Open-Meteo, compute consecutive dry-hours
-   from ride start, render coloured grid + per-sector wind evolution.
+3. **`today`.** Build an NxN lat/lon grid around the start, fetch rain and
+   wind for all cells in multi-location Open-Meteo batches (`today_fetch.go`),
+   compute consecutive dry-hours from ride start, render coloured grid +
+   per-sector wind evolution.
 4. **`serve`.** Embedded `web/*` templates streamed in two parts per page
    (`*_head` flushed immediately, `*_body` flushed after the work) so the
    browser paints the shell while forecasts fetch. JSON API mirrors the CLI
@@ -246,6 +248,16 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   responses retain the upstream timezone string for parsing after CLI restarts.
   Request pacing and in-flight deduplication are per process; separate running
   processes share stored responses but do not share a request limiter.
+- **The ride heatmap is one batched fetch.** Open-Meteo accepts a list of
+  coordinates per request but counts each location as one call against its
+  free limit of 600 a minute, so a 21×21 grid costs 441 and grids are capped
+  at 23×23 (529). `today` requests only
+  precipitation and wind, about 200 locations per request (its proxy returns
+  HTTP 414 near 450), with Unix times and hours relative to now; no request
+  depends on the location's zone. The grid centres on the nearest point of a
+  fixed lattice, so nearby positions reuse cached cells. Grid responses stay
+  cached for 30 minutes. Web views wait at most five seconds, then show a
+  retry note while the fetch keeps filling the cache; the CLI waits.
 - **Calendar-day detail complements the ride heatmap.** `today --forecast`,
   `tomorrow` and `weekend` share the data and ride ranking used by `/day`,
   `/tomorrow`, `/weekend` and `/api/v1/outlook?period=today|tomorrow|weekend`.
@@ -289,7 +301,8 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   The CLI can export either PNG or GIF with `weather radar --dark --output ...`.
 - **Local playback uses a pinned forecast run.** `/api/v1/radar/local/timeline`
   starts with the actual latest observation, followed by KNMI
-  `radar_forecast_2.0` five-minute frames through the following hour. The
+  `radar_forecast_2.0` frames every ten minutes (every second KNMI step)
+  through the following hour, loaded in parallel. The
   `precipitation_nowcast` layer's `reference_time`, not its future default
   `time`, establishes freshness; every frame sends `DIM_REFERENCE_TIME`.
   Frames share the observation's projection, basemap, labels and exact marker.
@@ -371,6 +384,6 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
 
 - Open-Meteo returns inconsistent array lengths if a column is missing;
   `GetOpenMeteoRange` rejects the response rather than silently zero-filling.
-- `multiday` and `today` issue 100+ parallel Open-Meteo requests. The shared retry loop
+- `multiday` issues 100+ parallel Open-Meteo requests. The shared retry loop
   in `openmeteo_http.go` exists because a single transient 5xx otherwise turns
   into a contiguous block of "no data" cells.

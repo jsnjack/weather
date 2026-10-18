@@ -24,23 +24,8 @@
   </nav>
   <header>
     <h1>{{.Location.Description}}</h1>
-    <p class="sub">{{.StartLabel}}–{{.EndLabel}} · {{printf "%.0f" .RadiusKm}} km radius</p>
+    <p class="sub">Rain timing and wind for your ride</p>
   </header>
-
-  <details class="opts"><summary>Location &amp; options</summary>
-  <form class="controls" method="get">
-    <input type="hidden" name="label" value="{{.Location.Description}}">
-    <label class="loc-name">Name <input type="text" name="name" value="{{.NameInput}}" placeholder="e.g. Amsterdam"></label>
-    <label>Lat <input type="number" step="any" name="lat" value="{{coord .Location.Latitude}}"></label>
-    <label>Lon <input type="number" step="any" name="lon" value="{{coord .Location.Longitude}}"></label>
-    <label>Hours <input type="number" name="hours" min="1" max="24" value="{{.WindowHours}}"></label>
-    <label>Start <input type="time" name="start" value="{{.StartInput}}"></label>
-    <label>Radius km <input type="number" name="radius" min="5" max="500" value="{{printf "%.0f" .RadiusKm}}"></label>
-    <label>Grid <input type="number" name="grid" min="5" max="41" step="2" value="{{.Grid}}"></label>
-    <button type="submit">Refresh</button>
-  </form>
-  <p class="sub">Leave name and coordinates blank to use the server’s IP location.</p>
-  </details>
 
   <section class="loading" id="loading">
     <progress id="prog" max="1" value="0"></progress>

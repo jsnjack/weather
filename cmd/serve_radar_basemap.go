@@ -62,6 +62,15 @@ func radarBasemapTile(ctx context.Context, style string, zoom, col, row int) (im
 		case <-ctx.Done():
 			return nil, fmt.Errorf("wait for radar basemap: %w", ctx.Err())
 		}
+		radarBasemapGate.Lock()
+		coolingDown = time.Now().Before(radarBasemapGate.cooldown)
+		radarBasemapGate.Unlock()
+		if coolingDown {
+			return nil, fmt.Errorf("basemap requests are cooling down")
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("load radar basemap: %w", err)
+		}
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create basemap request: %w", err)
@@ -136,16 +145,30 @@ func localRadarBasemap(ctx context.Context, radar *localRadarImage, style string
 	mosaic := image.NewRGBA(image.Rect(col0*radarTileSize, row0*radarTileSize, (col1+1)*radarTileSize, (row1+1)*radarTileSize))
 	ctx, cancel := context.WithTimeout(ctx, radarBasemapTimeout)
 	defer cancel()
+	type tileResult struct {
+		col, row int
+		image    image.Image
+		err      error
+	}
+	results := make([]tileResult, (row1-row0+1)*(col1-col0+1))
+	var wg sync.WaitGroup
 	for row := row0; row <= row1; row++ {
 		for col := col0; col <= col1; col++ {
-			tile, err := radarBasemapTile(ctx, style, zoom, col, row)
-			if err != nil {
-				slog.Debug("use embedded radar basemap", "err", err)
-				return nil
-			}
-			rect := image.Rect(col*radarTileSize, row*radarTileSize, (col+1)*radarTileSize, (row+1)*radarTileSize)
-			draw.Draw(mosaic, rect, tile, image.Point{}, draw.Src)
+			i := (row-row0)*(col1-col0+1) + col - col0
+			wg.Go(func() {
+				tile, err := radarBasemapTile(ctx, style, zoom, col, row)
+				results[i] = tileResult{col, row, tile, err}
+			})
 		}
+	}
+	wg.Wait()
+	for _, tile := range results {
+		if tile.err != nil {
+			slog.Debug("use embedded radar basemap", "err", tile.err)
+			return nil
+		}
+		rect := image.Rect(tile.col*radarTileSize, tile.row*radarTileSize, (tile.col+1)*radarTileSize, (tile.row+1)*radarTileSize)
+		draw.Draw(mosaic, rect, tile.image, image.Point{}, draw.Src)
 	}
 	return resampleRadarBasemap(mosaic, left, top, span)
 }

@@ -223,11 +223,8 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hours := parseHoursParam(r)
-	// Label the window in the location's wall clock (best-known zone; the
-	// head streams before any fetch, so a first visit falls back to the
-	// server zone).
 	now := time.Now().In(locationZone(loc.Latitude, loc.Longitude))
-	start := now.Truncate(time.Hour)
+	start := localHour(now)
 	end := start.Add(time.Duration(hours) * time.Hour)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -256,14 +253,11 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 		prog = NewHTTPProgress(w, flusher)
 	}
 	prog.AddTotal(1)
-	// Fetch a little past the window so the last requested hour is covered even
-	// across the local-midnight day boundary. GetOpenMeteoRange is date-granular
-	// so it returns whole local days spanning [now, end].
-	data, fetchErr := GetOpenMeteoRange(loc.Latitude, loc.Longitude, now, end.Add(2*time.Hour))
+	data, fetchErr := getLocationForecast(loc.Latitude, loc.Longitude)
 	prog.Inc(1)
 	prog.Finish()
 
-	page.Now = time.Now().Format("15:04:05")
+	page.Now = time.Now().In(locationZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 	if fetchErr != nil || data == nil || len(data.Hourly) == 0 {
 		page.Note = "Unable to fetch the hourly forecast right now."
 		if err := hourlyBodyTmpl.Execute(w, page); err != nil {
@@ -272,6 +266,10 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now = now.In(data.Hourly[0].Time.Location())
+	start = localHour(now)
+	end = start.Add(time.Duration(hours) * time.Hour)
+	page.StartLabel, page.EndLabel = start.Format("Mon 15:04"), end.Format("Mon 15:04")
 	rows := make([]HourlyForecast, 0, hours)
 	for _, hour := range data.Hourly {
 		if !hour.Time.Before(start) && !hour.Time.After(end) {
@@ -366,7 +364,7 @@ func handleForecast(w http.ResponseWriter, r *http.Request) {
 	prog.Inc(1)
 	prog.Finish()
 
-	page.Now = time.Now().Format("15:04:05")
+	page.Now = time.Now().In(locationZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 	if fetchErr != nil || len(daily) == 0 {
 		page.Note = "Unable to fetch the 14-day forecast right now."
 		if err := forecastBodyTmpl.Execute(w, page); err != nil {

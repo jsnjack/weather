@@ -50,6 +50,14 @@ func TestMemo(t *testing.T) {
 			t.Fatalf("memo = %d, %v", value, err)
 		}
 	})
+	t.Run("writes drop expired entries below the count limit", func(t *testing.T) {
+		cache := newTTLCache[int](time.Hour, 4)
+		cache.m["old"] = ttlEntry[int]{val: 1, exp: time.Now().Add(-time.Second)}
+		cache.put("new", 2)
+		if _, ok := cache.m["old"]; ok || len(cache.m) != 1 {
+			t.Fatalf("entries after write = %v", cache.m)
+		}
+	})
 	t.Run("expired results are fetched again", func(t *testing.T) {
 		cache := newTTLCache[int](time.Hour, 4)
 		cache.m["key"] = ttlEntry[int]{val: 1, exp: time.Now().Add(-time.Second)}

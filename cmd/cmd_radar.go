@@ -46,7 +46,7 @@ var radarCmd = &cobra.Command{
 			if err := os.WriteFile(radarOutput, body, 0644); err != nil {
 				return fmt.Errorf("save radar animation: %w", err)
 			}
-			if _, err := fmt.Fprintf(command.OutOrStdout(), "Saved %s · %s to %s\n", radarOutput, timeline.Times[0].Format("15:04 MST"), timeline.Times[len(timeline.Times)-1].Format("15:04 MST")); err != nil {
+			if _, err := fmt.Fprintf(command.OutOrStdout(), "Saved %s · %s to %s\n", radarOutput, timeline.Times[0].In(nowcastZone(loc.Latitude, loc.Longitude)).Format("15:04 MST"), timeline.Times[len(timeline.Times)-1].In(nowcastZone(loc.Latitude, loc.Longitude)).Format("15:04 MST")); err != nil {
 				return fmt.Errorf("write radar result: %w", err)
 			}
 			return nil
@@ -65,7 +65,7 @@ var radarCmd = &cobra.Command{
 		if err := os.WriteFile(radarOutput, body, 0644); err != nil {
 			return fmt.Errorf("save radar image: %w", err)
 		}
-		if _, err := fmt.Fprintf(command.OutOrStdout(), "Saved %s · observed %s\n", radarOutput, radar.observed.Format("15:04 MST")); err != nil {
+		if _, err := fmt.Fprintf(command.OutOrStdout(), "Saved %s · observed %s\n", radarOutput, radar.observed.In(nowcastZone(loc.Latitude, loc.Longitude)).Format("15:04 MST")); err != nil {
 			return fmt.Errorf("write radar result: %w", err)
 		}
 		return nil

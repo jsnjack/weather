@@ -65,6 +65,8 @@ User can also specify the location manually.`,
 			return fmt.Errorf("forecast: %w", glanceErr)
 		}
 
+		defer cliTimezone(nowcastZone(loc.Latitude, loc.Longitude))()
+
 		fmt.Printf(termplt.ColorBold+"Weather in %s\n"+termplt.ColorReset, loc.Description)
 		buinealarmForecast := glance.Buienalarm
 		buineradarForecast := glance.Buineradar
@@ -175,7 +177,7 @@ func printGlanceStats(g *glanceAPIResponse) {
 			kind = "sunset"
 		}
 		fmt.Printf("  %s%s %s %s%s\n",
-			termplt.ColorYellow, glyph, kind, t.In(time.Local).Format("15:04"),
+			termplt.ColorYellow, glyph, kind, t.Format("15:04"),
 			termplt.ColorReset)
 	}
 }

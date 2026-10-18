@@ -1,3 +1,4 @@
+  {{if and (not .Period) .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
   {{if .Period}}
   {{if .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
   <section class="island evolution">

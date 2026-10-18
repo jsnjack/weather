@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,7 +96,9 @@ func loadOpenMeteoBody(url string) (storedForecast, error) {
 		return storedForecast{}, err
 	}
 	ttl := openMeteoHourlyTTL
-	if !strings.Contains(url, "&hourly=") {
+	if strings.HasSuffix(url, todayForecastQuery) {
+		ttl = todayForecastTTL
+	} else if !strings.Contains(url, "&hourly=") {
 		ttl = openMeteoDailyTTL
 	}
 	expires := time.Now().Add(ttl)
@@ -160,6 +163,26 @@ func fetchOpenMeteoBody(url string, client *http.Client, gate *requestGate) ([]b
 }
 
 func validateOpenMeteoBody(requestURL string, body []byte) error {
+	if len(bytes.TrimSpace(body)) > 0 && bytes.TrimSpace(body)[0] == '[' {
+		var entries []json.RawMessage
+		if err := json.Unmarshal(body, &entries); err != nil {
+			return fmt.Errorf("decode open-meteo batch: %w", err)
+		}
+		parsed, err := url.Parse(requestURL)
+		if err != nil {
+			return fmt.Errorf("parse open-meteo batch URL: %w", err)
+		}
+		want := len(strings.Split(parsed.Query().Get("latitude"), ","))
+		if len(entries) != want {
+			return fmt.Errorf("open-meteo returned %d locations, want %d", len(entries), want)
+		}
+		for _, entry := range entries {
+			if err := validateOpenMeteoBody(requestURL, entry); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	var response struct {
 		Error  bool                       `json:"error"`
 		Reason string                     `json:"reason"`
@@ -184,7 +207,7 @@ func validateOpenMeteoBody(requestURL string, body []byte) error {
 		if requested == "" {
 			continue
 		}
-		var times []string
+		var times []json.RawMessage // ISO strings, or integers with timeformat=unixtime
 		if err := json.Unmarshal(section.fields["time"], &times); err != nil || len(times) == 0 {
 			return fmt.Errorf("open-meteo response has no %s times", section.name)
 		}

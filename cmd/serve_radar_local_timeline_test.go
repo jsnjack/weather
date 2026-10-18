@@ -26,7 +26,7 @@ func TestLocalRadarForecastTimes(t *testing.T) {
 		offset time.Duration
 		count  int
 	}{
-		{"same run", 0, 13}, {"newer observation", 5 * time.Minute, 13}, {"between steps", 2 * time.Minute, 13},
+		{"same run", 0, 7}, {"newer observation", 5 * time.Minute, 7}, {"between steps", 2 * time.Minute, 7},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			observed := reference.Add(tc.offset)
@@ -35,12 +35,15 @@ func TestLocalRadarForecastTimes(t *testing.T) {
 				t.Fatalf("unexpected timeline: %v", times)
 			}
 			for i, at := range times[1:] {
-				if !at.After(times[i]) || at.After(observed.Add(time.Hour)) || at.Sub(reference)%(5*time.Minute) != 0 {
+				if !at.After(times[i]) || at.After(observed.Add(time.Hour)) || at.Sub(reference)%radarForecastInterval != 0 {
 					t.Fatalf("invalid forecast time: %s", at)
 				}
 			}
-			if observed.Add(time.Hour).Sub(times[len(times)-1]) >= 5*time.Minute {
+			if observed.Add(time.Hour).Sub(times[len(times)-1]) >= radarForecastInterval {
 				t.Fatal("timeline ended too early")
+			}
+			if tc.offset%radarForecastInterval == 0 && times[1].Sub(observed) != localRadarForecastStep {
+				t.Fatalf("first forecast %s is not one step after the observation", times[1])
 			}
 		})
 	}
@@ -55,6 +58,8 @@ func TestLocalRadarForecast(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resetRadarBasemap(t)
+			// Frames load in parallel; authenticated pacing keeps the six requests short.
+			t.Setenv("KNMI_WMS_API_KEY", "test")
 			oldObs, oldMaps, oldRun, oldFrames, oldTimeline, oldRendered := radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarTimelineCache, localRadarRenderedFrameCache
 			t.Cleanup(func() {
 				radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarTimelineCache = oldObs, oldMaps, oldRun, oldFrames, oldTimeline
@@ -148,28 +153,28 @@ func TestLocalRadarForecast(t *testing.T) {
 				})
 			}
 			wg.Wait()
-			if calls.Load() != 13 {
-				t.Fatalf("concurrent viewers fetched %d calls, want one metadata + twelve frames", calls.Load())
+			if calls.Load() != 7 {
+				t.Fatalf("concurrent viewers fetched %d calls, want one metadata + six frames", calls.Load())
 			}
 			timeline, err := getLocalRadarTimeline(context.Background(), 52.37, 4.9)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(timeline.Times) != 13 || timeline.LatestObservation != 0 || !timeline.Reference.Equal(observed) {
+			if len(timeline.Times) != 7 || timeline.LatestObservation != 0 || !timeline.Reference.Equal(observed) {
 				t.Fatalf("wrong timeline metadata: %+v", timeline)
 			}
 			dark, err := getLocalRadarTimelineTheme(context.Background(), 52.37, 4.9, true)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if dark.AtlasURL == timeline.AtlasURL || calls.Load() != 13 {
+			if dark.AtlasURL == timeline.AtlasURL || calls.Load() != 7 {
 				t.Fatal("dark theme refetched weather or reused light snapshot identity")
 			}
 			atlas, err := png.Decode(bytes.NewReader(timeline.atlas))
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, origin := range []image.Point{{0, 0}, {256, 0}, {0, 768}} {
+			for _, origin := range []image.Point{{0, 0}, {256, 0}, {512, 256}} {
 				if got := color.RGBAModel.Convert(atlas.At(origin.X+128, origin.Y+128)); got != (color.RGBA{6, 90, 130, 255}) {
 					t.Fatalf("marker shifted: %v", got)
 				}
@@ -185,7 +190,7 @@ func TestLocalRadarForecast(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if animation.LoopCount != -1 || len(animation.Image) != 13 {
+			if animation.LoopCount != -1 || len(animation.Image) != 7 {
 				t.Fatal("GIF should play one complete hour once")
 			}
 			w := httptest.NewRecorder()
@@ -206,7 +211,7 @@ func TestLocalRadarForecast(t *testing.T) {
 			if _, err := getLocalRadarTimeline(context.Background(), 52.37, 4.9); err != nil {
 				t.Fatal(err)
 			}
-			if calls.Load() != 13 {
+			if calls.Load() != 7 {
 				t.Fatal("disk cache did not survive in-memory reset")
 			}
 		})

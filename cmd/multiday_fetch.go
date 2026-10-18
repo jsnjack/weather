@@ -176,11 +176,11 @@ func parseOpenMeteoRange(body []byte, lat, lon float64) (*OpenMeteoData, error) 
 
 // openMeteoZone resolves the timezone Open-Meteo used for a response's
 // wall-clock strings. Falls back to a fixed zone built from the reported
-// offset when the IANA name can't be loaded, and to the process zone when
+// offset when the IANA name can't be loaded, and to the reported offset when
 // the response carries no timezone at all.
 func openMeteoZone(name string, offsetSec int) *time.Location {
 	if name == "" {
-		return time.Local
+		return time.FixedZone("", offsetSec)
 	}
 	if loc, err := time.LoadLocation(name); err == nil {
 		return loc

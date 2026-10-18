@@ -10,6 +10,15 @@
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="stylesheet" href="/static/styles.css?v=12">
 <script src="/static/location.js?v=1"></script>
+<script>
+  (function () {
+    const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const query = new URLSearchParams({{.Q}});
+    query.set('theme', theme);
+    window.__radarObservation = {theme: theme, response: fetch('/api/v1/radar/local?' + query.toString())};
+    window.__radarObservation.response.catch(function (error) { console.debug('Local radar preload', error); });
+  })();
+</script>
 </head>
 <body>
 <main>

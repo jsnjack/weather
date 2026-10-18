@@ -40,12 +40,13 @@ var tmplFuncs = template.FuncMap{
 // starts (so the browser paints the shell + progress bar immediately) and a
 // "_body" template flushed after the work completes.
 var (
-	indexHeadTmpl    = template.Must(template.New("index_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_head.html.tmpl"))
-	indexBodyTmpl    = template.Must(template.New("index_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_body.html.tmpl"))
-	todayHeadTmpl    = template.Must(template.New("today_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_head.html.tmpl"))
-	todayBodyTmpl    = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
-	multidayHeadTmpl = template.Must(template.New("multiday_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_head.html.tmpl"))
-	multidayBodyTmpl = template.Must(template.New("multiday_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_body.html.tmpl"))
+	indexHeadTmpl       = template.Must(template.New("index_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_head.html.tmpl"))
+	indexBodyTmpl       = template.Must(template.New("index_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/index_body.html.tmpl"))
+	todayHeadTmpl       = template.Must(template.New("today_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_head.html.tmpl"))
+	todayBodyTmpl       = template.Must(template.New("today_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/today_body.html.tmpl"))
+	multidayHeadTmpl    = template.Must(template.New("multiday_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_head.html.tmpl"))
+	multidayOptionsTmpl = template.Must(template.New("multiday_options.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_options.html.tmpl"))
+	multidayBodyTmpl    = template.Must(template.New("multiday_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/multiday_body.html.tmpl"))
 
 	hourlyHeadTmpl   = template.Must(template.New("hourly_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_head.html.tmpl"))
 	hourlyBodyTmpl   = template.Must(template.New("hourly_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_body.html.tmpl"))
@@ -203,6 +204,7 @@ func fetchRain(ctx context.Context, lat, lon float64, prog Progress) (alarm, rad
 }
 
 type indexData struct {
+	Timezone        string
 	Location        Location
 	Description     string
 	ChartSVG        template.HTML
@@ -287,13 +289,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		// Total upstream failure — render the page with an empty chart and a
 		// short note. The shell + nav stay visible so the user can navigate.
 		data.Description = "Unable to fetch forecast right now."
-		data.Now = time.Now().Format("15:04:05")
+		data.Now = time.Now().In(nowcastZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 		if err := indexBodyTmpl.Execute(w, data); err != nil {
 			slog.Debug("template execute", "tmpl", "indexBody", "err", err)
 		}
 		return
 	}
 
+	data.Timezone = nowcastZone(loc.Latitude, loc.Longitude).String()
 	alarm, radar := glance.Buienalarm, glance.Buineradar
 
 	series := []SVGSeries{}
@@ -365,7 +368,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 			SunEvents:   sunMarkers,
 		})
 	}
-	data.Now = time.Now().Format("15:04:05")
+	data.Now = time.Now().In(nowcastZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 
 	if err := indexBodyTmpl.Execute(w, data); err != nil {
 		slog.Debug("template execute", "tmpl", "indexBody", "err", err)
@@ -503,13 +506,13 @@ func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start ti
 		radius = v
 	}
 	grid = todayDefaultGrid
-	if v, err := strconv.Atoi(q.Get("grid")); err == nil && v >= 5 {
+	if v, err := strconv.Atoi(q.Get("grid")); err == nil && v >= 5 && v <= todayMaxGrid {
 		grid = v
 	}
 	startInput = q.Get("start")
 	now := time.Now().In(zone)
 	if startInput == "" {
-		t := now.Add(30 * time.Minute).Truncate(time.Hour).Add(time.Hour)
+		t := localHour(now.Add(30 * time.Minute)).Add(time.Hour)
 		start = t
 		startInput = t.Format("15:04")
 		return
@@ -519,7 +522,7 @@ func parseTodayParams(r *http.Request, zone *time.Location) (hours int, start ti
 			parsed.Hour(), parsed.Minute(), 0, 0, now.Location())
 		return
 	}
-	t := now.Add(30 * time.Minute).Truncate(time.Hour).Add(time.Hour)
+	t := localHour(now.Add(30 * time.Minute)).Add(time.Hour)
 	start = t
 	startInput = t.Format("15:04")
 	return
@@ -531,8 +534,19 @@ func handleTodayJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	hours, start, radius, grid, _ := parseTodayParams(r, locationZone(loc.Latitude, loc.Longitude))
-	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius, NoProgress)
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, err)
+		return
+	}
+	hours, start, radius, grid, _ := parseTodayParams(r, zone)
+	ctx, cancel := context.WithTimeout(r.Context(), todayForecastWait)
+	defer cancel()
+	result, err := runTodayGrid(ctx, loc.Latitude, loc.Longitude, start, hours, grid, radius, NoProgress)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, err)
+		return
+	}
 	rec := RecommendToday(result)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -552,6 +566,7 @@ type todaySectorRow struct {
 }
 
 type todayPageData struct {
+	Note string
 	// inputs (set before head render)
 	Location    Location
 	Q           template.URL
@@ -608,8 +623,29 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 	if flusher != nil {
 		prog = NewHTTPProgress(w, flusher)
 	}
-	result := runTodayGrid(loc.Latitude, loc.Longitude, start, hours, grid, radius, prog)
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		prog.Finish()
+		page.Note = "Unable to fetch the ride forecast right now."
+		if err := todayBodyTmpl.Execute(w, page); err != nil {
+			slog.Debug("template execute", "tmpl", "todayBody", "err", err)
+		}
+		return
+	}
+	hours, start, radius, grid, startInput = parseTodayParams(r, zone)
+	page.StartInput, page.StartLabel, page.EndLabel = startInput, start.Format("15:04"), start.Add(time.Duration(hours)*time.Hour).Format("15:04")
+	ctx, cancel := context.WithTimeout(r.Context(), todayForecastWait)
+	defer cancel()
+	result, err := runTodayGrid(ctx, loc.Latitude, loc.Longitude, start, hours, grid, radius, prog)
 	prog.Finish()
+	if err != nil {
+		slog.Debug("ride forecast unavailable", "err", err)
+		page.Note = "Unable to fetch the ride forecast right now. Try again in a minute."
+		if err := todayBodyTmpl.Execute(w, page); err != nil {
+			slog.Debug("template execute", "tmpl", "todayBody", "err", err)
+		}
+		return
+	}
 
 	rec := RecommendToday(result)
 	gridCells := make([][]GridCell, len(result.Cells))
@@ -652,7 +688,7 @@ func handleToday(w http.ResponseWriter, r *http.Request) {
 		page.BestWind = describeWind(rec.Best.Tailwind, rec.Best.Cell.WindSpeed)
 		page.WorstDesc = describeDry(rec.Worst.DryHours, hours)
 	}
-	page.Now = time.Now().Format("15:04:05")
+	page.Now = time.Now().In(locationZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 
 	if err := todayBodyTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "todayBody", "err", err)
@@ -726,7 +762,7 @@ type multidayQuery struct {
 	HeatmapGrid      int
 }
 
-func parseMultidayParams(r *http.Request) multidayQuery {
+func parseMultidayParams(r *http.Request, zone *time.Location) multidayQuery {
 	q := r.URL.Query()
 	out := multidayQuery{
 		Days: 5, KmPerDay: 100, MinTemp: 15,
@@ -775,12 +811,12 @@ func parseMultidayParams(r *http.Request) multidayQuery {
 	}
 	out.StartDateInput = q.Get("start-date")
 	if out.StartDateInput != "" {
-		if t, err := time.Parse("2006-01-02", out.StartDateInput); err == nil {
+		if t, err := time.ParseInLocation("2006-01-02", out.StartDateInput, zone); err == nil {
 			out.StartDate = t
 		}
 	}
 	if out.StartDate.IsZero() {
-		out.StartDate = time.Now()
+		out.StartDate = time.Now().In(zone)
 		out.StartDateInput = out.StartDate.Format("2006-01-02")
 	}
 	return out
@@ -808,7 +844,12 @@ func handleMultidayJSON(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	sq := parseMultidayParams(r)
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, err)
+		return
+	}
+	sq := parseMultidayParams(r, zone)
 	cfg := sq.Config()
 
 	resp := map[string]any{
@@ -905,13 +946,26 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not resolve location: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	sq := parseMultidayParams(r)
-	cfg := sq.Config()
-	endDate := sq.StartDate.AddDate(0, 0, sq.Days-1)
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	flusher, _ := w.(http.Flusher)
+	if err := multidayHeadTmpl.Execute(w, multidayPageData{Location: loc, Q: locQuery(loc, name)}); err != nil {
+		slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
+		return
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+	zone, err := resolveForecastZone(loc.Latitude, loc.Longitude)
+	if err != nil {
+		if _, writeErr := fmt.Fprint(w, "<p>Unable to fetch the forecast right now.</p></main></body></html>"); writeErr != nil {
+			slog.Debug("write multiday error", "err", writeErr)
+		}
+		return
+	}
+	sq := parseMultidayParams(r, zone)
+	cfg := sq.Config()
+	endDate := sq.StartDate.AddDate(0, 0, sq.Days-1)
 
 	page := multidayPageData{
 		Location:  loc,
@@ -935,7 +989,7 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 	if !run {
 		page.Configure = true
 		page.EstRequests = estimateMultidayRequests(sq)
-		if err := multidayHeadTmpl.Execute(w, page); err != nil {
+		if err := multidayOptionsTmpl.Execute(w, page); err != nil {
 			slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
 			return
 		}
@@ -946,7 +1000,7 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := multidayHeadTmpl.Execute(w, page); err != nil {
+	if err := multidayOptionsTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "multidayHead", "err", err)
 		return
 	}
@@ -977,7 +1031,7 @@ func handleMultiday(w http.ResponseWriter, r *http.Request) {
 			page.RecommendationText = summarizeWinner(trips[0], labels[0], sq.RoundTrip)
 		}
 	}
-	page.Now = time.Now().Format("15:04:05")
+	page.Now = time.Now().In(locationZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 
 	if err := multidayBodyTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "multidayBody", "err", err)

@@ -51,6 +51,7 @@ func runForecast(cmd *cobra.Command, args []string) error {
 		len(daily), loc.Description,
 		daily[0].Date.Format("Mon 2 Jan"), daily[len(daily)-1].Date.Format("Mon 2 Jan"))
 
+	defer cliTimezone(daily[0].Date.Location())()
 	renderForecastTempChart(daily)
 	fmt.Println()
 	renderForecastTable(daily)

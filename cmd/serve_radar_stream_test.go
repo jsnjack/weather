@@ -29,6 +29,8 @@ func TestLocalRadarStream(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resetRadarBasemap(t)
+			// Frames load in parallel; authenticated pacing keeps the six requests short.
+			t.Setenv("KNMI_WMS_API_KEY", "test")
 			oldObs, oldMaps, oldRun, oldFrames, oldRendered := radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarRenderedFrameCache
 			t.Cleanup(func() {
 				radarObservationCache, localRadarCache, radarForecastRunCache, radarForecastFrameCache, localRadarRenderedFrameCache = oldObs, oldMaps, oldRun, oldFrames, oldRendered
@@ -102,7 +104,7 @@ func TestLocalRadarStream(t *testing.T) {
 				Image string
 				Times []time.Time
 			}
-			if err := decoder.Decode(&event); err != nil || event.Type != "metadata" || len(event.Times) != 13 {
+			if err := decoder.Decode(&event); err != nil || event.Type != "metadata" || len(event.Times) != 7 {
 				t.Fatalf("missing early metadata: %v", err)
 			}
 			if err := decoder.Decode(&event); err != nil || event.Type != "frame" || event.Index != 0 {
@@ -128,7 +130,7 @@ func TestLocalRadarStream(t *testing.T) {
 					break
 				}
 				if event.Type == "complete" {
-					if tc.fail || frames != 13 {
+					if tc.fail || frames != 7 {
 						t.Fatal("incomplete stream claimed completion")
 					}
 					break
@@ -144,8 +146,8 @@ func TestLocalRadarStream(t *testing.T) {
 				}
 				return
 			}
-			if calls.Load() != 13 {
-				t.Fatalf("upstream requests=%d, want 13", calls.Load())
+			if calls.Load() != 7 {
+				t.Fatalf("upstream requests=%d, want 7", calls.Load())
 			}
 			response2, err := client.Get(server.URL + query)
 			if err != nil {
@@ -155,7 +157,7 @@ func TestLocalRadarStream(t *testing.T) {
 			if _, err := io.Copy(io.Discard, response2.Body); err != nil {
 				t.Fatal(err)
 			}
-			if calls.Load() != 13 {
+			if calls.Load() != 7 {
 				t.Fatal("replay refetched upstream frames")
 			}
 		})

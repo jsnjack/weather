@@ -257,10 +257,10 @@ func getLocalRadar(ctx context.Context, lat, lon float64) (*localRadarImage, err
 		if hasLocalRadarRain(overlay) {
 			mapCtx, cancel := context.WithTimeout(ctx, radarBasemapTimeout)
 			defer cancel()
-			radar.background = localRadarBasemap(mapCtx, radar, "grijs")
-			if radar.background != nil {
-				radar.labels = localRadarBasemap(mapCtx, radar, "labels")
-			}
+			var wg sync.WaitGroup
+			wg.Go(func() { radar.background = localRadarBasemap(mapCtx, radar, "grijs") })
+			wg.Go(func() { radar.labels = localRadarBasemap(mapCtx, radar, "labels") })
+			wg.Wait()
 		}
 		return radar, nil
 	})
@@ -330,28 +330,31 @@ func renderLocalRadarImageTheme(radar *localRadarImage, lat, lon float64, dark b
 		x, y := radarMercator(lat, lon)
 		return (x - radar.x + radar.halfWidth) * localRadarSize / (2 * radar.halfWidth), (radar.y + radar.halfWidth - y) * localRadarSize / (2 * radar.halfWidth)
 	}
-	paths := make([][][2]float64, len(radarLand))
-	for i, ring := range radarLand {
-		for _, point := range ring {
-			x, y := project(point[1], point[0])
-			paths[i] = append(paths[i], [2]float64{x, y})
-		}
-	}
-	for y := 0; y < localRadarSize; y++ {
-		var crossings []float64
-		scan := float64(y) + .5
-		for _, path := range paths {
-			for i, b := range path {
-				a := path[(i+len(path)-1)%len(path)]
-				if (a[1] <= scan && b[1] > scan) || (b[1] <= scan && a[1] > scan) {
-					crossings = append(crossings, a[0]+(scan-a[1])*(b[0]-a[0])/(b[1]-a[1]))
-				}
+	opaque, ok := background.(interface{ Opaque() bool })
+	if !ok || !opaque.Opaque() {
+		paths := make([][][2]float64, len(radarLand))
+		for i, ring := range radarLand {
+			for _, point := range ring {
+				x, y := project(point[1], point[0])
+				paths[i] = append(paths[i], [2]float64{x, y})
 			}
 		}
-		slices.Sort(crossings)
-		for i := 0; i+1 < len(crossings); i += 2 {
-			for x := max(0, int(math.Ceil(crossings[i]-.5))); x < min(localRadarSize, int(math.Ceil(crossings[i+1]-.5))); x++ {
-				canvas.SetRGBA(x, y, land)
+		for y := 0; y < localRadarSize; y++ {
+			var crossings []float64
+			scan := float64(y) + .5
+			for _, path := range paths {
+				for i, b := range path {
+					a := path[(i+len(path)-1)%len(path)]
+					if (a[1] <= scan && b[1] > scan) || (b[1] <= scan && a[1] > scan) {
+						crossings = append(crossings, a[0]+(scan-a[1])*(b[0]-a[0])/(b[1]-a[1]))
+					}
+				}
+			}
+			slices.Sort(crossings)
+			for i := 0; i+1 < len(crossings); i += 2 {
+				for x := max(0, int(math.Ceil(crossings[i]-.5))); x < min(localRadarSize, int(math.Ceil(crossings[i+1]-.5))); x++ {
+					canvas.SetRGBA(x, y, land)
+				}
 			}
 		}
 	}

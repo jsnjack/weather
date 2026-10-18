@@ -76,7 +76,7 @@ func getBuinealarmForecastUncached(lat, long float64) (*Forecast, error) {
 		Type: PrecipitationForecast,
 	}
 	for _, data := range buinealarmResponse.Data {
-		t := time.Unix(data.Timestamp, 0)
+		t := time.Unix(data.Timestamp, 0).In(nowcastZone(lat, long))
 		// Filter out the data points from the past
 		if t.After(time.Now()) {
 			forecast.Data = append(forecast.Data, ForecastDataPoint{
@@ -85,7 +85,12 @@ func getBuinealarmForecastUncached(lat, long float64) (*Forecast, error) {
 			})
 		}
 	}
-	forecast.Desc = buinealarmResponse.NowcastMessage.En
+	forecast.nowcastMessage = buinealarmResponse.NowcastMessage.En
+	forecast.Desc = formatNowcastMessage(forecast.nowcastMessage, nowcastZone(lat, long))
+	return forecast, nil
+}
+
+func formatNowcastMessage(message string, zone *time.Location) string {
 	timestampRe := regexp.MustCompile(`\{(\d+)\}`)
 
 	// Replace function
@@ -96,8 +101,7 @@ func getBuinealarmForecastUncached(lat, long float64) (*Forecast, error) {
 			return s // Return original string if conversion fails
 		}
 		t := time.Unix(int64(timestamp), 0)
-		return t.Format("15:04")
+		return t.In(zone).Format("15:04")
 	}
-	forecast.Desc = timestampRe.ReplaceAllStringFunc(forecast.Desc, replaceFunc)
-	return forecast, nil
+	return timestampRe.ReplaceAllStringFunc(message, replaceFunc)
 }

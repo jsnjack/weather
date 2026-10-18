@@ -75,7 +75,7 @@ func getBuineradarForecastUncached(lat, long float64) (*Forecast, error) {
 		}
 		if t.After(time.Now()) {
 			forecast.Data = append(forecast.Data, ForecastDataPoint{
-				Time:  t,
+				Time:  t.In(nowcastZone(lat, long)),
 				Value: data.DataValue,
 			})
 		}

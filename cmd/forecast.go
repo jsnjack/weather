@@ -55,7 +55,8 @@ type ForecastDataPoint struct {
 }
 
 type Forecast struct {
-	Data []ForecastDataPoint `json:"data"`
-	Desc string              `json:"desc"`
-	Type ForecastType        `json:"type"`
+	nowcastMessage string
+	Data           []ForecastDataPoint `json:"data"`
+	Desc           string              `json:"desc"`
+	Type           ForecastType        `json:"type"`
 }

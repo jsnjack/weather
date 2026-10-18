@@ -105,7 +105,7 @@
     slider.value = index;
     slider.disabled = timeline.delays.length < 2;
     if (mode === "local") {
-      const clock = new Date(timeline.times[index]).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+      const clock = new Date(timeline.times[index]).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", timeZone: player.dataset.timezone || "Europe/Amsterdam"});
       const minutes = Math.round((new Date(timeline.times[index]) - new Date(timeline.times[0])) / 60000);
       output.textContent = (index === 0 ? "Now" : "+" + minutes + " min") + " · " + clock;
     } else output.textContent = (index + 1) + " / " + timeline.delays.length;
@@ -308,7 +308,10 @@
     try {
       if (!state.observation || !fresh(state.observation.at)) {
         if (!state.observationLoad) state.observationLoad = (async function () {
-          const response = await fetch("/api/v1/radar/local?" + locationParams().toString(), {signal: controller.signal});
+          const preload = window.__radarObservation;
+          window.__radarObservation = null;
+          const response = preload && preload.theme === requestTheme ? await preload.response :
+            await fetch("/api/v1/radar/local?" + locationParams().toString(), {signal: controller.signal});
           if (response.status === 204) {
             if (theme === requestTheme) localButton.title = "No fresh nearby rain";
             return;

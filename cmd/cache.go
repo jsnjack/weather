@@ -45,9 +45,9 @@ func (c *ttlCache[T]) get(key string) (T, bool) {
 func (c *ttlCache[T]) put(key string, v T) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(c.m) >= c.max {
-		c.evictLocked()
-	}
+	// Sweep on every write: entries differ in size, and a few large expired
+	// ride grids would otherwise stay in memory until the count limit.
+	c.evictLocked()
 	expires := time.Now().Add(c.ttl)
 	if c.expires != nil {
 		expires = c.expires(v)
@@ -55,8 +55,8 @@ func (c *ttlCache[T]) put(key string, v T) {
 	c.m[key] = ttlEntry[T]{val: v, exp: expires}
 }
 
-// evictLocked drops expired entries first; if that still leaves the map at the
-// cap it drops arbitrary entries (map order is random) until under it. Caller
+// evictLocked drops expired entries; if that still leaves the map at the cap
+// it drops arbitrary entries (map order is random) until under it. Caller
 // holds the lock.
 func (c *ttlCache[T]) evictLocked() {
 	now := time.Now()
@@ -111,27 +111,23 @@ const (
 	openMeteoDailyTTL  = 30 * time.Minute
 )
 
-// locationZones remembers the timezone Open-Meteo reported per rounded
-// coordinate, so pre-fetch UI — streamed page heads and HH:MM clock inputs —
-// can use the location's wall clock instead of the server's. The streaming
-// design flushes headers before any upstream call, so the first visit for an
-// area can only guess (server zone); every later view is exact.
+// locationZones remembers the timezone reported for each forecast location.
 var locationZones sync.Map // "lat|lon" (1 decimal ≈ 11 km) -> *time.Location
 
 func zoneKey(lat, lon float64) string { return fmt.Sprintf("%.1f|%.1f", lat, lon) }
 
 func rememberZone(lat, lon float64, zone *time.Location) {
-	if zone != time.Local {
+	if zone != nil {
 		locationZones.Store(zoneKey(lat, lon), zone)
 	}
 }
 
 // locationZone returns the best-known timezone for the coordinates: the one
 // Open-Meteo reported for a nearby point earlier in this process, else the
-// server's own zone.
+// UTC until a forecast supplies the zone.
 func locationZone(lat, lon float64) *time.Location {
 	if z, ok := locationZones.Load(zoneKey(lat, lon)); ok {
 		return z.(*time.Location)
 	}
-	return time.Local
+	return time.UTC
 }
