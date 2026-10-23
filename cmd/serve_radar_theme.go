@@ -101,3 +101,44 @@ func darkNationalRadarImage(source image.Image) image.Image {
 	}
 	return result
 }
+
+// localRadarRainColors replaces the six classes of KNMI's radar/nearest
+// style, lightest first. KNMI paints its lightest class white and the next
+// two grey, so light rain disappears on the light basemap. The replacements
+// run sky blue, blue, yellow, orange, red and magenta, and read on both
+// themes.
+var localRadarRainColors = map[color.NRGBA]color.NRGBA{
+	{255, 255, 255, 255}: {56, 189, 248, 255},
+	{170, 170, 170, 255}: {37, 99, 235, 255},
+	{85, 85, 85, 255}:    {250, 204, 21, 255},
+	{255, 128, 128, 255}: {249, 115, 22, 255},
+	{255, 0, 0, 255}:     {220, 38, 38, 255},
+	{0, 0, 0, 255}:       {192, 38, 211, 255},
+}
+
+func localRadarRainColor(c color.Color) color.Color {
+	if replacement, ok := localRadarRainColors[color.NRGBAModel.Convert(c).(color.NRGBA)]; ok {
+		return replacement
+	}
+	return c
+}
+
+// recolorLocalRadarRain applies localRadarRainColors to a KNMI overlay.
+// Unknown colours pass through unchanged.
+func recolorLocalRadarRain(source image.Image) image.Image {
+	if paletted, ok := source.(*image.Paletted); ok {
+		palette := make(color.Palette, len(paletted.Palette))
+		for i, c := range paletted.Palette {
+			palette[i] = localRadarRainColor(c)
+		}
+		return &image.Paletted{Pix: paletted.Pix, Stride: paletted.Stride, Rect: paletted.Rect, Palette: palette}
+	}
+	bounds := source.Bounds()
+	result := image.NewNRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			result.Set(x, y, localRadarRainColor(source.At(x, y)))
+		}
+	}
+	return result
+}

@@ -349,6 +349,14 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   precise location marked on a grey PDOK BRT basemap with town names, roads
   and water. A separate label layer sits above rain so town names stay readable.
   Embedded Natural Earth land is the fallback when tiles fail.
+  The web map zooms between 25, 50 and 100 km (`radius=` on the local
+  image and timeline endpoints; `weather radar --radius`); the widget stays
+  at 50 km. Only the 50 km map requires rain inside its circle; zoomed maps
+  may be dry because the web offers zoom only after that map appeared.
+  Each KNMI request covers 100 km at 512×512, and every zoom crops its
+  centre with nearest-neighbour sampling, so zooming adds no KNMI requests.
+  PDOK leaves the sea transparent below zoom 8, so the 100 km background
+  uses zoom 8 tiles at half size; its labels stay at zoom 7.
   PDOK tiles use shared in-flight deduplication and a seven-day memory/disk
   cache, with at most two network requests at once and a four-second map budget.
   Rain overlays and map tiles have separate lifetimes. WMS image
@@ -365,7 +373,11 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   map only after a successful fresh image. Missing images, older servers,
   cached forecast fallback and missing location retain the original layout.
   Radar observations older than 20 minutes are rejected on both server and
-  phone. `widget_rain_radar.xml` retains every measurement in native views,
+  phone. KNMI's `radar/nearest` classes are recoloured after decoding
+  (`localRadarRainColors`): KNMI draws light rain white and grey, which
+  vanished on the light basemap. Observation and forecast frames, web,
+  widget and CLI share the sky-blue → magenta scale in both themes.
+  `widget_rain_radar.xml` retains every measurement in native views,
   and requires at least 340dp width and 210dp height (scaled for larger fonts).
   Radar shows only the square map, with native bitmap corners matching the
   islands' 16dp radius and no surrounding panel or padding;

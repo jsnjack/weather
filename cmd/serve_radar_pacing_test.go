@@ -46,7 +46,7 @@ func TestRadarPublishedRateLimits(t *testing.T) {
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body.Bytes()))}, nil
 			})
 			for _, at := range []string{"2026-10-12T10:00:00Z", "2026-10-12T10:05:00Z"} {
-				if _, err := radarWMSRequest(context.Background(), url.Values{"REQUEST": {"GetMap"}, "TIME": {at}}); err != nil {
+				if _, err := radarWMSRequest(context.Background(), url.Values{"REQUEST": {"GetMap"}, "TIME": {at}, "WIDTH": {"256"}, "HEIGHT": {"256"}}); err != nil {
 					t.Fatal(err)
 				}
 			}

@@ -9,7 +9,7 @@ import (
 	"image/gif"
 	"image/png"
 	"os"
-	"time"
+	"slices"
 
 	"github.com/spf13/cobra"
 )
@@ -17,22 +17,26 @@ import (
 var radarOutput string
 var radarAnimate bool
 var radarDark bool
+var radarRadius int
 
 var radarCmd = &cobra.Command{
 	Use:   "radar",
-	Short: "Save local rain radar as a PNG or a one-hour animated GIF",
+	Short: "Save local rain radar as a PNG or a two-hour animated GIF",
 	Args:  cobra.NoArgs,
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
 		if radarOutput == "" {
 			return fmt.Errorf("--output must specify a destination file")
 		}
+		if !slices.Contains(localRadarRadiiKM, radarRadius) {
+			return fmt.Errorf("--radius must be 25, 50 or 100")
+		}
 		loc, err := ResolveLocation()
 		if err != nil {
 			return fmt.Errorf("resolve radar location: %w", err)
 		}
 		if radarAnimate {
-			timeline, err := getLocalRadarTimelineTheme(command.Context(), loc.Latitude, loc.Longitude, radarDark)
+			timeline, err := getLocalRadarTimelineRadius(command.Context(), loc.Latitude, loc.Longitude, radarRadius, radarDark)
 			if err != nil {
 				return fmt.Errorf("load radar animation: %w", err)
 			}
@@ -51,11 +55,11 @@ var radarCmd = &cobra.Command{
 			}
 			return nil
 		}
-		radar, err := getLocalRadar(command.Context(), loc.Latitude, loc.Longitude)
+		radar, err := getLocalRadarRadius(command.Context(), loc.Latitude, loc.Longitude, radarRadius)
 		if err != nil {
 			return fmt.Errorf("load local radar: %w", err)
 		}
-		if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
+		if !radar.shown() {
 			return fmt.Errorf("no fresh nearby radar rain is available")
 		}
 		body, err := renderLocalRadarTheme(radar, loc.Latitude, loc.Longitude, radarDark)
@@ -94,7 +98,8 @@ func encodeLocalRadarGIF(timeline *localRadarTimeline) ([]byte, error) {
 
 func init() {
 	radarCmd.Flags().StringVar(&radarOutput, "output", "", "destination PNG or animated GIF file")
-	radarCmd.Flags().BoolVar(&radarAnimate, "animate", false, "save a GIF from the current observation through the next hour, playing once")
+	radarCmd.Flags().BoolVar(&radarAnimate, "animate", false, "save a GIF from the current observation through the next two hours, playing once")
+	radarCmd.Flags().IntVar(&radarRadius, "radius", int(localRadarRadiusM/1000), "map radius in km: 25, 50 or 100; other than 50, dry maps are saved too")
 	radarCmd.Flags().BoolVar(&radarDark, "dark", false, "use a dark basemap while keeping rain colours unchanged")
 	if err := radarCmd.MarkFlagRequired("output"); err != nil {
 		panic(err)

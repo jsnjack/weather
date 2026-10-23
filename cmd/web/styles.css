@@ -69,6 +69,13 @@ header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden
 .radar-credit a { color: inherit; }
 .radar img, .radar canvas { display: block; width: 100%; max-width: 425px; height: auto; margin: 0 auto; border-radius: 16px; }
 .radar [hidden] { display: none; }
+/* Zoom sits over the map's top-right corner, like other map controls. */
+.radar-map { position: relative; max-width: 425px; margin: 0 auto; }
+.radar-zoom { position: absolute; top: .5rem; right: .5rem; display: flex; flex-direction: column; align-items: center; background: var(--surface); border: .5px solid var(--hairline); border-radius: 999px; box-shadow: 0 1px 3px rgb(0 0 0 / .15); }
+.radar-zoom button { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 1.25rem; line-height: 1; cursor: pointer; }
+.radar-zoom button:disabled { opacity: .35; cursor: default; }
+.radar-zoom span { font-size: .62rem; color: var(--muted); white-space: nowrap; }
+.radar-map.zooming img, .radar-map.zooming canvas { opacity: .6; }
 .radar-controls { max-width: 425px; margin: .25rem auto 0; }
 .radar-slider { display: block; color: var(--muted); font-size: .78rem; }
 .radar-slider input { display: block; width: 100%; height: 44px; margin: 0; padding: 0; accent-color: var(--accent); }

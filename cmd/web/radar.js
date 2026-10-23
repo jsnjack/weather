@@ -16,11 +16,22 @@
   const note = player.querySelector(".radar-note");
   const credit = player.querySelector(".radar-credit");
   const localButton = player.querySelector('[data-view="local"]');
+  const map = player.querySelector(".radar-map");
+  const zoomControls = player.querySelector(".radar-zoom");
+  const radiusLabel = zoomControls.querySelector("[data-radius]");
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-  const themedStates = {
-    light: {local: {frame: 0}, national: {frame: 0}},
-    dark: {local: {frame: 0}, national: {frame: 0}}
-  };
+  // Map radii in km, closest first; the server renders each one.
+  const radii = [25, 50, 100];
+  let radius = 50;
+  let zoomNote = "";
+  // Each theme keeps one local state per radius, so zooming back reuses
+  // frames that are already loaded.
+  function themeStates() {
+    const localByRadius = {};
+    radii.forEach(function (km) { localByRadius[km] = {frame: 0}; });
+    return {local: localByRadius[radius], localByRadius: localByRadius, national: {frame: 0}};
+  }
+  const themedStates = {light: themeStates(), dark: themeStates()};
   let theme = scheme.matches ? "dark" : "light";
   let states = themedStates[theme];
   const widgetPlayback = new URLSearchParams(window.location.search).get("radar") === "play";
@@ -38,6 +49,7 @@
       if (query.has(key)) params.set(key, query.get(key));
     });
     params.set("theme", theme);
+    params.set("radius", String(radius));
     return params;
   }
 
@@ -63,19 +75,37 @@
     help.hidden = !state.timeline || mode === "local";
     help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after two hours." : "Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.";
     credit.hidden = mode !== "local" || !localReady;
-    note.hidden = !state.failed;
-    note.textContent = mode === "local" ? "Forecast unavailable; showing the current observation." : "Timeline unavailable; showing the original animation.";
+    zoomControls.hidden = mode !== "local" || !localReady;
+    const zooming = !!states.local.observationLoad;
+    map.classList.toggle("zooming", zooming);
+    zoomControls.querySelectorAll("[data-zoom]").forEach(function (button) {
+      const next = radii.indexOf(radius) + Number(button.dataset.zoom);
+      button.disabled = zooming || next < 0 || next >= radii.length;
+    });
+    radiusLabel.textContent = radius + " km";
+    local.alt = "Observed rain within " + radius + " km of your location";
+    note.hidden = !state.failed && !(mode === "local" && zoomNote);
+    note.textContent = state.failed ? mode === "local" ? "Forecast unavailable; showing the current observation." : "Timeline unavailable; showing the original animation." : zoomNote;
     play.disabled = (!!state.loading && !canPlay(state) && !pendingPlay) || !!state.failed || (!!state.timeline && state.timeline.delays.length < 2);
     play.textContent = timer !== null || pendingPlay ? "Pause" : mode === "local" && state.timeline && state.frame === state.timeline.delays.length - 1 ? "Replay" : "Play";
     play.setAttribute("aria-pressed", String(timer !== null || pendingPlay));
     progress.hidden = mode !== "local" || !state.loading;
     progress.textContent = state.metadata ? "Loading " + (state.frames || []).length + " / " + state.metadata.delays.length + " frames" : "Loading forecast…";
-    latest.textContent = mode === "local" ? "+1h" : "Latest";
+    latest.textContent = mode === "local" ? localEndLabel(state.timeline) : "Latest";
     if (!state.timeline) output.textContent = state.loading ? "Loading forecast…" : mode === "local" ? "Current observation" : "";
     player.querySelectorAll("[data-view]").forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.dataset.view === mode));
     });
     if (state.timeline) show(state.frame);
+  }
+
+  // Names the last local frame by its real offset: a late forecast run ends
+  // before two hours.
+  function localEndLabel(timeline) {
+    if (!timeline) return "+2h";
+    const times = timeline.times;
+    const minutes = Math.round((new Date(times[times.length - 1]) - new Date(times[0])) / 60000);
+    return "+" + Math.floor(minutes / 60) + "h" + (minutes % 60 ? String(minutes % 60).padStart(2, "0") : "");
   }
 
   function select(view) {
@@ -100,7 +130,7 @@
       const y = Math.floor(index / timeline.columns) * timeline.height;
       context.drawImage(state.atlas, x, y, timeline.width, timeline.height, 0, 0, canvas.width, canvas.height);
     }
-    canvas.setAttribute("aria-label", mode === "local" ? "Rain within 50 km of your location" : "KNMI precipitation and lightning radar over the Netherlands");
+    canvas.setAttribute("aria-label", mode === "local" ? "Rain within " + radius + " km of your location" : "KNMI precipitation and lightning radar over the Netherlands");
     slider.max = timeline.delays.length - 1;
     slider.value = index;
     slider.disabled = timeline.delays.length < 2;
@@ -154,6 +184,9 @@
     delete state.desiredFrame;
     show(state.frames ? Math.min(Number(slider.value), state.frames.length - 1) : Number(slider.value));
     pause();
+  });
+  zoomControls.querySelectorAll("[data-zoom]").forEach(function (button) {
+    button.addEventListener("click", function () { zoom(Number(button.dataset.zoom)); });
   });
   latest.addEventListener("click", function () { pause(); show(states[mode].timeline.delays.length - 1); pause(); });
   now.addEventListener("click", function () { pause(); delete states[mode].desiredFrame; show(states[mode].timeline.latestObservation); pause(); });
@@ -301,9 +334,57 @@
     return Number.isFinite(age) && age >= -120000 && age <= 1200000;
   }
 
-  async function loadLocal() {
+  // Points states.local at the current radius, replacing a forecast that has
+  // gone stale while the radius or theme was not shown.
+  function useLocalRadius() {
+    const state = states.localByRadius[radius];
+    if (state.timeline && (!fresh(new Date(state.timeline.times[0]).getTime()) ||
+        !fresh(new Date(state.timeline.reference).getTime()))) {
+      states.localByRadius[radius] = {frame: 0, observation: state.observation};
+    }
+    states.local = states.localByRadius[radius];
+  }
+
+  // Switches the local map to the next radius. The current image stays,
+  // dimmed, until the new observation arrives; a failed load restores the
+  // previous radius. Playback position carries over like a theme change.
+  function zoom(step) {
+    const next = radii.indexOf(radius) + step;
+    if (mode !== "local" || !localReady || next < 0 || next >= radii.length) return;
+    const previous = states.local;
+    const previousRadius = radius;
+    pause();
+    chosen = true;
+    zoomNote = "";
+    radius = radii[next];
+    useLocalRadius();
+    const state = states.local;
+    // A zoom made while the forecast is still loading keeps its position too.
+    const frame = previous.timeline ? previous.frame : previous.desiredFrame;
+    const forecast = !!(previous.timeline || previous.loading);
+    if (frame !== undefined) {
+      if (state.timeline) state.frame = Math.min(frame, state.frames ? state.frames.length - 1 : state.timeline.delays.length - 1);
+      else state.desiredFrame = frame;
+    }
+    const current = states;
+    present();
+    loadLocal(true).then(function () {
+      if (states !== current || states.local !== state) return;
+      if (!state.observation || !fresh(state.observation.at)) {
+        radius = previousRadius;
+        states.local = previous;
+        zoomNote = radii[next] + " km map unavailable; showing " + previousRadius + " km.";
+        present();
+        return;
+      }
+      if (mode === "local" && forecast) loadTimeline("local");
+    });
+  }
+
+  async function loadLocal(zooming) {
     const requestTheme = theme;
     const state = states.local;
+    const params = locationParams();
     const controller = new AbortController();
     const timeout = setTimeout(function () { controller.abort(); }, 15000);
     try {
@@ -311,8 +392,8 @@
         if (!state.observationLoad) state.observationLoad = (async function () {
           const preload = window.__radarObservation;
           window.__radarObservation = null;
-          const response = preload && preload.theme === requestTheme ? await preload.response :
-            await fetch("/api/v1/radar/local?" + locationParams().toString(), {signal: controller.signal});
+          const response = preload && preload.theme === requestTheme && params.get("radius") === "50" ? await preload.response :
+            await fetch("/api/v1/radar/local?" + params.toString(), {signal: controller.signal});
           if (response.status === 204) {
             if (theme === requestTheme) localButton.title = "No fresh nearby rain";
             return;
@@ -330,6 +411,7 @@
           if (state.observation) URL.revokeObjectURL(state.observation.url);
           state.observation = {url: url, at: at};
         })().finally(function () { state.observationLoad = null; });
+        present();
         await state.observationLoad;
         if (!state.observation || !fresh(state.observation.at)) return;
       }
@@ -340,6 +422,7 @@
       localReady = true;
       localButton.disabled = false;
       localButton.removeAttribute("title");
+      if (zooming) { present(); return; }
       if (!chosen) select("local");
       else present();
       if (window.location.hash === "#local-radar" || widgetPlayback) player.scrollIntoView();
@@ -358,10 +441,7 @@
     pause();
     theme = scheme.matches ? "dark" : "light";
     states = themedStates[theme];
-    if (states.local.timeline && (!fresh(new Date(states.local.timeline.times[0]).getTime()) ||
-        !fresh(new Date(states.local.timeline.reference).getTime()))) {
-      states.local = {frame: 0, observation: states.local.observation};
-    }
+    useLocalRadius();
     if (states.national.loadedAt && Date.now() - states.national.loadedAt > 360000) states.national = {frame: 0};
     chosen = true;
     localReady = false;

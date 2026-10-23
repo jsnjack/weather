@@ -43,9 +43,12 @@
       <button type="button" data-view="local" aria-pressed="false" disabled title="Checking local radar">Local</button>
       <button type="button" data-view="national" aria-pressed="true">Netherlands</button>
     </div>
-    <img id="local-radar" data-local-map hidden alt="Observed rain within 50 km of your location" width="256" height="256">
-    <img data-national-fallback hidden alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445">
-    <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
+    <div class="radar-map">
+      <img id="local-radar" data-local-map hidden alt="Observed rain within 50 km of your location" width="256" height="256">
+      <img data-national-fallback hidden alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445">
+      <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
+      <div class="radar-zoom" role="group" aria-label="Map zoom" hidden><button type="button" data-zoom="-1" aria-label="Zoom in">+</button><span data-radius>50 km</span><button type="button" data-zoom="1" aria-label="Zoom out">−</button></div>
+    </div>
     <noscript><picture><source media="(prefers-color-scheme: dark)" srcset="/radar.gif?theme=dark"><img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445"></picture></noscript>
     <div class="radar-controls" hidden>
       <label class="radar-slider"><input type="range" min="0" max="0" value="0" aria-label="Radar frame"></label>
@@ -56,7 +59,7 @@
     <p class="sub radar-credit" hidden>Map: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-achtergrondkaarten-brt-a-">Kadaster / PDOK</a> · Rain: <a href="https://dataplatform.knmi.nl/dataset/radar-reflectivity-composites-2-0">KNMI</a></p>
     <p class="sub radar-note" hidden></p>
   </section>
-  <script src="/static/radar.js?v=9"></script>
+  <script src="/static/radar.js?v=11"></script>
 
   <footer>refreshed {{.Now}}</footer>
 </main>

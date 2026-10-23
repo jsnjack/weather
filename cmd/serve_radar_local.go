@@ -18,13 +18,20 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
 
 const (
-	localRadarSize             = 256
-	localRadarRadiusM          = 50_000.0
+	localRadarSize = 256
+	// localRadarRadiusM is the default map radius; the widget always uses it.
+	localRadarRadiusM = 50_000.0
+	// Every KNMI request covers the widest zoom at twice the map resolution;
+	// narrower maps are cut from its centre, so zooming costs no extra KNMI
+	// requests. KNMI's grid is about 1 km, coarser than either map's pixels.
+	localRadarSourceRadiusKM   = 100
+	localRadarSourceSize       = 512
 	radarEarthRadiusM          = 6_378_137.0
 	localRadarMaxAge           = 20 * time.Minute
 	knmiWMSURL                 = "https://anonymous.api.dataplatform.knmi.nl/wms/adaguc-server"
@@ -38,6 +45,7 @@ var radarLandFS embed.FS
 var (
 	radarObservationCache = newTTLCache[time.Time](3*time.Minute, 1)
 	localRadarCache       = newTTLCache[*localRadarImage](3*time.Minute, 64)
+	localRadarSourceCache = newTTLCache[image.Image](3*time.Minute, 32)
 	radarLandOnce         sync.Once
 	radarLand             [][][2]float64
 	radarLandErr          error
@@ -47,12 +55,62 @@ var (
 	}
 )
 
+// localRadarRadiiKM are the map radii the web zoom offers.
+var localRadarRadiiKM = []int{25, 50, 100}
+
 type localRadarImage struct {
 	overlay         image.Image
 	background      image.Image
 	labels          image.Image
 	observed        time.Time
 	x, y, halfWidth float64
+	radiusKM        int
+}
+
+// shown reports whether the map is worth returning: fresh, and either rainy
+// or zoomed. The default map needs rain inside its circle; the web offers
+// zoom only after that map appeared, so a dry zoomed map is still useful.
+func (r *localRadarImage) shown() bool {
+	return r != nil && freshRadarObservation(r.observed, time.Now()) &&
+		(r.radiusKM != int(localRadarRadiusM/1000) || hasLocalRadarRain(r.overlay))
+}
+
+// localRadarSourceBBox is the Web Mercator box of the KNMI request shared by
+// every zoom of the map centred at x, y.
+func localRadarSourceBBox(radar *localRadarImage) string {
+	half := radar.halfWidth * localRadarSourceRadiusKM / float64(radar.radiusKM)
+	return fmt.Sprintf("%.3f,%.3f,%.3f,%.3f", radar.x-half, radar.y-half, radar.x+half, radar.y+half)
+}
+
+// cropLocalRadarOverlay cuts the map's radius from the centre of a source
+// overlay and scales it to localRadarSize with nearest-neighbour sampling,
+// so KNMI's rain classes keep their exact colours.
+func cropLocalRadarOverlay(source image.Image, radiusKM int) image.Image {
+	bounds := source.Bounds()
+	span := float64(bounds.Dx()) * float64(radiusKM) / localRadarSourceRadiusKM
+	offset := (float64(bounds.Dx()) - span) / 2
+	result := image.NewNRGBA(image.Rect(0, 0, localRadarSize, localRadarSize))
+	for y := range localRadarSize {
+		sy := bounds.Min.Y + int(offset+(float64(y)+.5)*span/localRadarSize)
+		for x := range localRadarSize {
+			sx := bounds.Min.X + int(offset+(float64(x)+.5)*span/localRadarSize)
+			result.Set(x, y, source.At(sx, sy))
+		}
+	}
+	return result
+}
+
+func localRadarRadiusRequest(r *http.Request) (int, error) {
+	value := r.URL.Query().Get("radius")
+	if value == "" {
+		return int(localRadarRadiusM / 1000), nil
+	}
+	for _, radius := range localRadarRadiiKM {
+		if value == strconv.Itoa(radius) {
+			return radius, nil
+		}
+	}
+	return 0, fmt.Errorf("radar radius must be 25, 50 or 100 km")
 }
 
 func radarMercator(lat, lon float64) (float64, float64) {
@@ -156,7 +214,7 @@ func radarWMSRequest(ctx context.Context, query url.Values) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read KNMI radar PNG: %w", err)
 		}
-		if config.Width != localRadarSize || config.Height != localRadarSize {
+		if strconv.Itoa(config.Width) != query.Get("WIDTH") || strconv.Itoa(config.Height) != query.Get("HEIGHT") {
 			return nil, fmt.Errorf("unexpected KNMI radar image size")
 		}
 	}
@@ -221,6 +279,10 @@ func parseRadarDimensionTime(body []byte, layerName, dimensionName string) (time
 }
 
 func getLocalRadar(ctx context.Context, lat, lon float64) (*localRadarImage, error) {
+	return getLocalRadarRadius(ctx, lat, lon, int(localRadarRadiusM/1000))
+}
+
+func getLocalRadarRadius(ctx context.Context, lat, lon float64, radiusKM int) (*localRadarImage, error) {
 	// The composite's published geographic coverage; do not query unsupported locations.
 	if lat < 48.895305 || lat > 55.973601 || lon < 0 || lon > 10.856454 {
 		return nil, nil
@@ -233,28 +295,27 @@ func getLocalRadar(ctx context.Context, lat, lon float64) (*localRadarImage, err
 		return nil, nil
 	}
 	centerLat, centerLon := math.Round(lat*100)/100, math.Round(lon*100)/100
-	key := fmt.Sprintf("%.2f,%.2f,%s", centerLat, centerLon, observed.Format(time.RFC3339))
+	key := fmt.Sprintf("%.2f,%.2f,%d,%s", centerLat, centerLon, radiusKM, observed.Format(time.RFC3339))
 	return memo(localRadarCache, key, func() (*localRadarImage, error) {
 		x, y := radarMercator(centerLat, centerLon)
-		halfWidth := localRadarRadiusM / math.Cos(centerLat*math.Pi/180)
-		bbox := fmt.Sprintf("%.3f,%.3f,%.3f,%.3f", x-halfWidth, y-halfWidth, x+halfWidth, y+halfWidth)
-		body, err := radarWMSRequest(ctx, url.Values{"REQUEST": {"GetMap"}, "VERSION": {"1.3.0"}, "LAYERS": {"precipitation"}, "STYLES": {"radar/nearest"}, "FORMAT": {"image/png"}, "TRANSPARENT": {"TRUE"}, "CRS": {"EPSG:3857"}, "BBOX": {bbox}, "WIDTH": {"256"}, "HEIGHT": {"256"}, "TIME": {observed.Format(time.RFC3339)}})
+		radar := &localRadarImage{observed: observed, x: x, y: y, halfWidth: float64(radiusKM) * 1000 / math.Cos(centerLat*math.Pi/180), radiusKM: radiusKM}
+		bbox := localRadarSourceBBox(radar)
+		source, err := memo(localRadarSourceCache, bbox+":"+observed.Format(time.RFC3339), func() (image.Image, error) {
+			body, err := radarWMSRequest(ctx, url.Values{"REQUEST": {"GetMap"}, "VERSION": {"1.3.0"}, "LAYERS": {"precipitation"}, "STYLES": {"radar/nearest"}, "FORMAT": {"image/png"}, "TRANSPARENT": {"TRUE"}, "CRS": {"EPSG:3857"}, "BBOX": {bbox}, "WIDTH": {strconv.Itoa(localRadarSourceSize)}, "HEIGHT": {strconv.Itoa(localRadarSourceSize)}, "TIME": {observed.Format(time.RFC3339)}})
+			if err != nil {
+				return nil, err
+			}
+			overlay, err := png.Decode(bytes.NewReader(body))
+			if err != nil {
+				return nil, fmt.Errorf("decode KNMI radar PNG: %w", err)
+			}
+			return recolorLocalRadarRain(overlay), nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		config, err := png.DecodeConfig(bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("read KNMI radar PNG: %w", err)
-		}
-		if config.Width != localRadarSize || config.Height != localRadarSize {
-			return nil, fmt.Errorf("unexpected KNMI radar image size")
-		}
-		overlay, err := png.Decode(bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("decode KNMI radar PNG: %w", err)
-		}
-		radar := &localRadarImage{overlay: overlay, observed: observed, x: x, y: y, halfWidth: halfWidth}
-		if hasLocalRadarRain(overlay) {
+		radar.overlay = cropLocalRadarOverlay(source, radiusKM)
+		if radar.shown() {
 			mapCtx, cancel := context.WithTimeout(ctx, radarBasemapTimeout)
 			defer cancel()
 			var wg sync.WaitGroup
@@ -390,13 +451,18 @@ func handleLocalRadar(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	radar, err := getLocalRadar(r.Context(), loc.Latitude, loc.Longitude)
+	radiusKM, err := localRadarRadiusRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	radar, err := getLocalRadarRadius(r.Context(), loc.Latitude, loc.Longitude, radiusKM)
 	if err != nil {
 		slog.Debug("local radar unavailable", "err", err)
 		http.Error(w, "local radar unavailable", http.StatusBadGateway)
 		return
 	}
-	if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
+	if !radar.shown() {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

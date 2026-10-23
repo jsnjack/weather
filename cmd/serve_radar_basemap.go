@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	radarBasemapTTL     = 7 * 24 * time.Hour
-	radarBasemapTimeout = 4 * time.Second
-	radarTileSize       = 256
-	radarWorldWidth     = 2 * math.Pi * radarEarthRadiusM
-	pdokRadarTileURL    = "https://service.pdok.nl/kadaster/brt-achtergrondkaart/wmts/v2_0/%s/EPSG:3857/%02d/%d/%d.png"
+	radarBasemapTTL         = 7 * 24 * time.Hour
+	radarBasemapTimeout     = 4 * time.Second
+	radarTileSize           = 256
+	radarWorldWidth         = 2 * math.Pi * radarEarthRadiusM
+	radarBasemapMinFillZoom = 8
+	pdokRadarTileURL        = "https://service.pdok.nl/kadaster/brt-achtergrondkaart/wmts/v2_0/%s/EPSG:3857/%02d/%d/%d.png"
 )
 
 var radarBasemapSlots = make(chan struct{}, 2)
@@ -135,6 +136,11 @@ func localRadarBasemap(ctx context.Context, radar *localRadarImage, style string
 	resolution := 2 * radar.halfWidth / localRadarSize
 	zoom := int(math.Round(math.Log2(radarWorldWidth / (radarTileSize * resolution))))
 	zoom = max(0, min(zoom, 18))
+	// Below zoom 8 PDOK leaves the sea transparent, so the 100 km map's
+	// background comes from zoom 8 tiles, halved; labels keep their size.
+	if style != "labels" {
+		zoom = max(zoom, radarBasemapMinFillZoom)
+	}
 	tileCount := 1 << zoom
 	pixelsPerMetre := float64(radarTileSize*tileCount) / radarWorldWidth
 	left := (radar.x - radar.halfWidth + radarWorldWidth/2) * pixelsPerMetre

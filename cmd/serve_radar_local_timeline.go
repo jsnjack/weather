@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -70,14 +71,15 @@ func localRadarForecastTimes(observed, reference time.Time) []time.Time {
 }
 
 func localRadarForecastFrame(ctx context.Context, radar *localRadarImage, reference, at time.Time) (image.Image, error) {
-	bbox := fmt.Sprintf("%.3f,%.3f,%.3f,%.3f", radar.x-radar.halfWidth, radar.y-radar.halfWidth, radar.x+radar.halfWidth, radar.y+radar.halfWidth)
+	bbox := localRadarSourceBBox(radar)
 	key := bbox + ":" + reference.Format(time.RFC3339) + ":" + at.Format(time.RFC3339)
-	return memo(radarForecastFrameCache, key, func() (image.Image, error) {
+	source, err := memo(radarForecastFrameCache, key, func() (image.Image, error) {
+		size := strconv.Itoa(localRadarSourceSize)
 		body, err := radarWMSRequest(ctx, url.Values{
 			"DATASET": {radarForecastDataset}, "REQUEST": {"GetMap"}, "VERSION": {"1.3.0"},
 			"LAYERS": {"precipitation_nowcast"}, "STYLES": {"radar/nearest"},
 			"FORMAT": {"image/png"}, "TRANSPARENT": {"TRUE"}, "CRS": {"EPSG:3857"},
-			"BBOX": {bbox}, "WIDTH": {"256"}, "HEIGHT": {"256"},
+			"BBOX": {bbox}, "WIDTH": {size}, "HEIGHT": {size},
 			"TIME": {at.Format(time.RFC3339)}, "DIM_REFERENCE_TIME": {reference.Format(time.RFC3339)},
 		})
 		if err != nil {
@@ -87,8 +89,12 @@ func localRadarForecastFrame(ctx context.Context, radar *localRadarImage, refere
 		if err != nil {
 			return nil, fmt.Errorf("decode radar forecast: %w", err)
 		}
-		return overlay, nil
+		return recolorLocalRadarRain(overlay), nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cropLocalRadarOverlay(source, radar.radiusKM), nil
 }
 
 func getLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarTimeline, error) {
@@ -96,9 +102,13 @@ func getLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarTi
 }
 
 func getLocalRadarTimelineTheme(ctx context.Context, lat, lon float64, dark bool) (*localRadarTimeline, error) {
+	return getLocalRadarTimelineRadius(ctx, lat, lon, int(localRadarRadiusM/1000), dark)
+}
+
+func getLocalRadarTimelineRadius(ctx context.Context, lat, lon float64, radiusKM int, dark bool) (*localRadarTimeline, error) {
 	ctx, cancel := context.WithTimeout(ctx, localRadarTimelineTimeout)
 	defer cancel()
-	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, lat, lon, dark)
+	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, lat, lon, radiusKM, dark)
 	if err != nil || timeline == nil {
 		return nil, err
 	}
@@ -126,12 +136,12 @@ func getLocalRadarTimelineTheme(ctx context.Context, lat, lon float64, dark bool
 	})
 }
 
-func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64, dark bool) (*localRadarImage, *localRadarTimeline, string, error) {
-	radar, err := getLocalRadar(ctx, lat, lon)
+func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64, radiusKM int, dark bool) (*localRadarImage, *localRadarTimeline, string, error) {
+	radar, err := getLocalRadarRadius(ctx, lat, lon, radiusKM)
 	if err != nil {
 		return nil, nil, "", err
 	}
-	if radar == nil || !freshRadarObservation(radar.observed, time.Now()) || !hasLocalRadarRain(radar.overlay) {
+	if !radar.shown() {
 		return nil, nil, "", nil
 	}
 	reference, err := memo(radarForecastRunCache, "latest", func() (time.Time, error) {
@@ -147,7 +157,7 @@ func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64, dark bool)
 	if !freshRadarObservation(reference, time.Now()) || reference.After(radar.observed.Add(5*time.Minute)) {
 		return nil, nil, "", fmt.Errorf("radar forecast run is stale or ahead of the observation")
 	}
-	id := fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%.17g,%.17g,%s,%s,%t", lat, lon, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339), dark)))
+	id := fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%.17g,%.17g,%d,%s,%s,%t", lat, lon, radiusKM, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339), dark)))
 	times := localRadarForecastTimes(radar.observed, reference)
 	timeline := &localRadarTimeline{Width: localRadarSize, Height: localRadarSize, Columns: 4,
 		Times: times, Reference: reference, Delays: make([]int, len(times)), AtlasURL: "/radar/local-atlas.png?id=" + id}
@@ -217,7 +227,12 @@ func handleLocalRadarTimeline(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
-	timeline, err := getLocalRadarTimelineTheme(r.Context(), loc.Latitude, loc.Longitude, dark)
+	radiusKM, err := localRadarRadiusRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+	timeline, err := getLocalRadarTimelineRadius(r.Context(), loc.Latitude, loc.Longitude, radiusKM, dark)
 	if err != nil {
 		slog.Debug("local radar forecast unavailable", "err", err)
 		http.Error(w, "local radar forecast unavailable", http.StatusBadGateway)
@@ -245,9 +260,14 @@ func handleLocalRadarStream(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err)
 		return
 	}
+	radiusKM, err := localRadarRadiusRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), localRadarTimelineTimeout)
 	defer cancel()
-	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, loc.Latitude, loc.Longitude, dark)
+	radar, timeline, id, err := prepareLocalRadarTimeline(ctx, loc.Latitude, loc.Longitude, radiusKM, dark)
 	if err != nil {
 		slog.Debug("local radar stream unavailable", "err", err)
 		http.Error(w, "local radar forecast unavailable", http.StatusBadGateway)

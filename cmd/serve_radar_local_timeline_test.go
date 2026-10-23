@@ -87,8 +87,8 @@ func TestLocalRadarForecast(t *testing.T) {
 			labels := image.NewRGBA(overlay.Bounds())
 			labels.SetRGBA(150, 128, color.RGBA{0, 0, 0, 255})
 			radarObservationCache.put("latest", observed)
-			key := fmt.Sprintf("%.2f,%.2f,%s", 52.37, 4.9, observed.Format(time.RFC3339))
-			localRadarCache.put(key, &localRadarImage{overlay: overlay, background: background, labels: labels, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180)})
+			key := fmt.Sprintf("%.2f,%.2f,50,%s", 52.37, 4.9, observed.Format(time.RFC3339))
+			localRadarCache.put(key, &localRadarImage{overlay: overlay, background: background, labels: labels, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180), radiusKM: 50})
 			var calls atomic.Int32
 			http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {
 				calls.Add(1)
@@ -113,8 +113,8 @@ func TestLocalRadarForecast(t *testing.T) {
 					if !at.After(observed) || at.After(observed.Add(radarForecastHorizon)) {
 						t.Errorf("forecast outside two hours: %s", at)
 					}
-					frame := image.NewRGBA(overlay.Bounds())
-					frame.SetRGBA(150, 128, color.RGBA{0, 255, 0, 255})
+					frame := image.NewRGBA(image.Rect(0, 0, localRadarSourceSize, localRadarSourceSize))
+					frame.SetRGBA(278, 256, color.RGBA{0, 255, 0, 255})
 					var b bytes.Buffer
 					if err := png.Encode(&b, frame); err != nil {
 						return nil, err

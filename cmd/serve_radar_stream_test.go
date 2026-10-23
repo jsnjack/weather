@@ -49,8 +49,8 @@ func TestLocalRadarStream(t *testing.T) {
 			overlay := image.NewRGBA(image.Rect(0, 0, 256, 256))
 			overlay.SetRGBA(150, 128, color.RGBA{255, 0, 0, 255})
 			radarObservationCache.put("latest", observed)
-			localRadarCache.put(fmt.Sprintf("%.2f,%.2f,%s", 52.37, 4.9, observed.Format(time.RFC3339)), &localRadarImage{
-				overlay: overlay, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180),
+			localRadarCache.put(fmt.Sprintf("%.2f,%.2f,50,%s", 52.37, 4.9, observed.Format(time.RFC3339)), &localRadarImage{
+				overlay: overlay, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180), radiusKM: 50,
 			})
 			gate := make(chan struct{})
 			var release sync.Once
@@ -72,7 +72,9 @@ func TestLocalRadarStream(t *testing.T) {
 						status = 429
 					} else {
 						var encoded bytes.Buffer
-						if err := png.Encode(&encoded, overlay); err != nil {
+						source := image.NewRGBA(image.Rect(0, 0, localRadarSourceSize, localRadarSourceSize))
+						source.SetRGBA(278, 256, color.RGBA{255, 0, 0, 255})
+						if err := png.Encode(&encoded, source); err != nil {
 							return nil, err
 						}
 						body = encoded.Bytes()

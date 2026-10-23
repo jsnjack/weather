@@ -211,3 +211,26 @@ func TestDarkRadarPNGEncoding(t *testing.T) {
 		t.Fatal("dark theme broke unsupported-coverage fallback")
 	}
 }
+
+func TestRecolorLocalRadarRain(t *testing.T) {
+	transparent := color.NRGBA{}
+	unknown := color.NRGBA{12, 34, 56, 255}
+	paletted := image.NewPaletted(image.Rect(0, 0, 3, 1), color.Palette{transparent, color.RGBA{255, 255, 255, 255}, unknown})
+	paletted.Pix = []uint8{0, 1, 2}
+	rgba := image.NewRGBA(image.Rect(0, 0, 3, 1))
+	rgba.Set(1, 0, color.RGBA{255, 255, 255, 255})
+	rgba.Set(2, 0, unknown)
+	for name, source := range map[string]image.Image{"paletted": paletted, "rgba": rgba} {
+		t.Run(name, func(t *testing.T) {
+			got := recolorLocalRadarRain(source)
+			for x, want := range []color.NRGBA{transparent, {56, 189, 248, 255}, unknown} {
+				if c := color.NRGBAModel.Convert(got.At(x, 0)).(color.NRGBA); c != want {
+					t.Errorf("pixel %d = %v, want %v", x, c, want)
+				}
+			}
+		})
+	}
+	if c := paletted.Palette[1]; c != (color.RGBA{255, 255, 255, 255}) {
+		t.Errorf("source palette changed to %v", c)
+	}
+}

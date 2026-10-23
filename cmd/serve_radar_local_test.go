@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"io"
 	"math"
@@ -80,9 +81,9 @@ func TestLocalRadarResponses(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resetRadarBasemap(t)
-			oldTransport, oldObservations, oldMaps := http.DefaultTransport, radarObservationCache, localRadarCache
+			oldTransport, oldObservations, oldMaps, oldSources := http.DefaultTransport, radarObservationCache, localRadarCache, localRadarSourceCache
 			t.Cleanup(func() {
-				http.DefaultTransport, radarObservationCache, localRadarCache = oldTransport, oldObservations, oldMaps
+				http.DefaultTransport, radarObservationCache, localRadarCache, localRadarSourceCache = oldTransport, oldObservations, oldMaps, oldSources
 				radarWMSGate.Lock()
 				radarWMSGate.next = time.Time{}
 				radarWMSGate.cooldown = time.Time{}
@@ -90,6 +91,7 @@ func TestLocalRadarResponses(t *testing.T) {
 			})
 			radarObservationCache = newTTLCache[time.Time](time.Minute, 1)
 			localRadarCache = newTTLCache[*localRadarImage](time.Minute, 4)
+			localRadarSourceCache = newTTLCache[image.Image](time.Minute, 4)
 			calls := 0
 			observed := time.Now().Add(-tc.age).UTC().Truncate(time.Second)
 			http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {
@@ -107,9 +109,10 @@ func TestLocalRadarResponses(t *testing.T) {
 					if got := r.URL.Query().Get("CRS"); got != "EPSG:3857" {
 						t.Errorf("projection=%s", got)
 					}
-					overlay := image.NewRGBA(image.Rect(0, 0, localRadarSize, localRadarSize))
+					// The 100 km source pixel that the 50 km map shows at (150, 128).
+					overlay := image.NewRGBA(image.Rect(0, 0, localRadarSourceSize, localRadarSourceSize))
 					if tc.rain {
-						overlay.SetRGBA(150, 128, color.RGBA{255, 0, 0, 255})
+						overlay.SetRGBA(278, 256, color.RGBA{255, 0, 0, 255})
 					}
 					var encoded bytes.Buffer
 					if err := png.Encode(&encoded, overlay); err != nil {
@@ -127,6 +130,7 @@ func TestLocalRadarResponses(t *testing.T) {
 				if i == 1 {
 					radarObservationCache = newTTLCache[time.Time](time.Minute, 1)
 					localRadarCache = newTTLCache[*localRadarImage](time.Minute, 4)
+					localRadarSourceCache = newTTLCache[image.Image](time.Minute, 4)
 				}
 				w := httptest.NewRecorder()
 				handleLocalRadar(w, httptest.NewRequest("GET", "/api/v1/radar/local?"+tc.query, nil))
@@ -181,5 +185,108 @@ func TestLocalRadarRateLimit(t *testing.T) {
 				t.Fatal("ignored Retry-After")
 			}
 		})
+	}
+}
+
+func TestLocalRadarRadiusRequest(t *testing.T) {
+	for query, want := range map[string]int{"": 50, "radius=25": 25, "radius=50": 50, "radius=100": 100} {
+		got, err := localRadarRadiusRequest(httptest.NewRequest(http.MethodGet, "/api/v1/radar/local?"+query, nil))
+		if err != nil || got != want {
+			t.Errorf("%q = %d, %v; want %d", query, got, err, want)
+		}
+	}
+	for _, query := range []string{"radius=0", "radius=75", "radius=50.0", "radius=abc"} {
+		if _, err := localRadarRadiusRequest(httptest.NewRequest(http.MethodGet, "/api/v1/radar/local?"+query, nil)); err == nil {
+			t.Errorf("%q accepted", query)
+		}
+	}
+}
+
+func TestLocalRadarShown(t *testing.T) {
+	dry := image.NewRGBA(image.Rect(0, 0, 256, 256))
+	rainy := image.NewRGBA(image.Rect(0, 0, 256, 256))
+	rainy.SetRGBA(128, 128, color.RGBA{56, 189, 248, 255})
+	now := time.Now()
+	for name, test := range map[string]struct {
+		radar *localRadarImage
+		want  bool
+	}{
+		"missing":       {nil, false},
+		"default dry":   {&localRadarImage{overlay: dry, observed: now, radiusKM: 50}, false},
+		"default rainy": {&localRadarImage{overlay: rainy, observed: now, radiusKM: 50}, true},
+		"zoomed dry":    {&localRadarImage{overlay: dry, observed: now, radiusKM: 25}, true},
+		"zoomed stale":  {&localRadarImage{overlay: rainy, observed: now.Add(-time.Hour), radiusKM: 100}, false},
+	} {
+		if got := test.radar.shown(); got != test.want {
+			t.Errorf("%s = %t, want %t", name, got, test.want)
+		}
+	}
+}
+
+func TestCropLocalRadarOverlay(t *testing.T) {
+	source := image.NewRGBA(image.Rect(0, 0, localRadarSourceSize, localRadarSourceSize))
+	rain := color.RGBA{56, 189, 248, 255}
+	// A 1 km KNMI cell 10 km east of the centre, at 2.56 source pixels per km.
+	draw.Draw(source, image.Rect(281, 255, 284, 258), image.NewUniform(rain), image.Point{}, draw.Src)
+	for radius, x := range map[int]int{25: 179, 50: 153, 100: 140} {
+		got := cropLocalRadarOverlay(source, radius)
+		if got.Bounds() != image.Rect(0, 0, localRadarSize, localRadarSize) {
+			t.Fatalf("%d km bounds=%v", radius, got.Bounds())
+		}
+		if c := color.RGBAModel.Convert(got.At(x, 128)); c != rain {
+			t.Errorf("%d km pixel (%d, 128)=%v, want rain", radius, x, c)
+		}
+	}
+}
+
+func TestLocalRadarZoomSharesKNMIRequest(t *testing.T) {
+	resetRadarBasemap(t)
+	oldTransport, oldObservations, oldMaps, oldSources := http.DefaultTransport, radarObservationCache, localRadarCache, localRadarSourceCache
+	t.Cleanup(func() {
+		http.DefaultTransport, radarObservationCache, localRadarCache, localRadarSourceCache = oldTransport, oldObservations, oldMaps, oldSources
+		radarWMSGate.Lock()
+		radarWMSGate.next = time.Time{}
+		radarWMSGate.Unlock()
+	})
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	radarObservationCache = newTTLCache[time.Time](time.Minute, 1)
+	localRadarCache = newTTLCache[*localRadarImage](time.Minute, 4)
+	localRadarSourceCache = newTTLCache[image.Image](time.Minute, 4)
+	observed := time.Now().Add(-5 * time.Minute).UTC().Truncate(time.Second)
+	maps := 0
+	http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "service.pdok.nl" {
+			return &http.Response{StatusCode: 503, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(nil))}, nil
+		}
+		var body []byte
+		if r.URL.Query().Get("REQUEST") == "GetCapabilities" {
+			body = fmt.Appendf(nil, `<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Capability><Layer><Layer><Name>precipitation</Name><Dimension name="time" default="%s"/></Layer></Layer></Capability></WMS_Capabilities>`, observed.Format(time.RFC3339))
+		} else {
+			maps++
+			if r.URL.Query().Get("WIDTH") != "512" {
+				t.Errorf("source width=%s", r.URL.Query().Get("WIDTH"))
+			}
+			var encoded bytes.Buffer
+			if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, localRadarSourceSize, localRadarSourceSize))); err != nil {
+				return nil, err
+			}
+			body = encoded.Bytes()
+		}
+		radarWMSGate.Lock()
+		radarWMSGate.next = time.Time{}
+		radarWMSGate.Unlock()
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body))}, nil
+	})
+	for _, radius := range localRadarRadiiKM {
+		radar, err := getLocalRadarRadius(context.Background(), 52.37, 4.9, radius)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if radar.radiusKM != radius || radar.shown() != (radius != 50) {
+			t.Errorf("%d km: radius=%d shown=%t", radius, radar.radiusKM, radar.shown())
+		}
+	}
+	if maps != 1 {
+		t.Errorf("KNMI map requests=%d, want one shared by every zoom", maps)
 	}
 }
