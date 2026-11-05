@@ -164,8 +164,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   under 110 dp; ROW (`widget_stacked_row.xml`) puts everything in one row for
   short 4×1 widgets. Rain and dry fill the same boxes: the lane's first line
   is always the nowcast sentence (Buienalarm's message, else the peak label or
-  "Dry for the next 2 hours"), and below it the dual-provider chart (rain), the
-  RADAR and SUNSET rows (dry) or a note (no nowcast, no location, error). Each
+  "Dry for the next 2 hours"), and below it the dual-provider chart (rain), an
+  hour strip (dry) or a note (no nowcast, no location, error). The strip shows
+  the next five hours (time, sky with a moon after dark, temperature) from
+  `/api/v1/glance`'s `hours`, then "Next rain …" from `next_rain` (the first
+  Open-Meteo hour from now+2h with ≥0.1 mm; amounts only, never probability)
+  and the sunset; servers without `hours` get the older RADAR and SUNSET rows.
+  The glance API's `night` flag gives the hero icon its moon. Each
   refresh calls `updateAppWidget` **once**, after the forecast and both map
   themes have loaded. "Refreshing…", resizes (`KEY_RENDER_ONLY`) and offline
   fallbacks redraw from `WidgetStore` (last forecast JSON and last light/dark

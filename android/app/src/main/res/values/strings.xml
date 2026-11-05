@@ -63,6 +63,9 @@
     <string name="sunset_label">SUNSET</string>
     <string name="dry_radar_nearby">Showers within 50 km</string>
     <string name="dry_radar_none">No rain within 50 km</string>
+    <string name="dry_next_rain">Next rain %1$s</string>
+    <string name="dry_no_rain">No rain in the forecast</string>
+    <string name="sunset_description">Sunset</string>
     <string name="map_outline">Line: in 30 min</string>
     <string name="map_play">▶ 2 h</string>
     <string name="map_stored">Radar %1$s</string>

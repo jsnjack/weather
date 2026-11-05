@@ -690,14 +690,7 @@ func glanceTraceSVG(hours []HourlyForecast, scale glanceTempScale) template.HTML
 // glanceNight reports whether most of the hour starting at t falls between
 // that day's sunset and sunrise. Unknown sun times count as day.
 func glanceNight(days []DailyForecast, t time.Time) bool {
-	mid := t.Add(30 * time.Minute)
-	for _, day := range days {
-		if day.Sunrise.IsZero() || day.Sunset.IsZero() || day.Sunrise.Format(glanceDateKey) != mid.Format(glanceDateKey) {
-			continue
-		}
-		return mid.Before(day.Sunrise) || !mid.Before(day.Sunset)
-	}
-	return false
+	return nightAt(days, t.Add(30*time.Minute))
 }
 
 // glanceConditionIcon swaps the sun for a moon in clear and partly cloudy

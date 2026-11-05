@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Rain lane contents, shared by both widget layouts. The title is always the
-  nowcast sentence; below it exactly one of chart, dry_rows or lane_note shows.
+  nowcast sentence; below it exactly one of chart, dry_strip, dry_rows or
+  lane_note shows.
 -->
-<merge xmlns:android="http://schemas.android.com/apk/res/android">
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <TextView
         android:id="@+id/lane_title"
@@ -62,6 +64,161 @@
             <TextView style="@style/WidgetDryKey" android:text="@string/sunset_label" />
 
             <TextView android:id="@+id/dry_sunset" style="@style/WidgetDryValue" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Dry with hours from the server: the next five hours, then when rain
+         is next expected and the sunset. Older servers fall back to dry_rows. -->
+    <LinearLayout
+        android:id="@+id/dry_strip"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="5dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/hour1"
+                style="@style/WidgetHourCell">
+
+                <TextView android:id="@+id/hour1_time" style="@style/WidgetHourTime" />
+
+                <ImageView
+                    android:id="@+id/hour1_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cond_clear"
+                    android:tint="@color/widget_text"
+                    tools:ignore="UseAppTint" />
+
+                <TextView android:id="@+id/hour1_temp" style="@style/WidgetHourTemp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/hour2"
+                style="@style/WidgetHourCell">
+
+                <TextView android:id="@+id/hour2_time" style="@style/WidgetHourTime" />
+
+                <ImageView
+                    android:id="@+id/hour2_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cond_clear"
+                    android:tint="@color/widget_text"
+                    tools:ignore="UseAppTint" />
+
+                <TextView android:id="@+id/hour2_temp" style="@style/WidgetHourTemp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/hour3"
+                style="@style/WidgetHourCell">
+
+                <TextView android:id="@+id/hour3_time" style="@style/WidgetHourTime" />
+
+                <ImageView
+                    android:id="@+id/hour3_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cond_clear"
+                    android:tint="@color/widget_text"
+                    tools:ignore="UseAppTint" />
+
+                <TextView android:id="@+id/hour3_temp" style="@style/WidgetHourTemp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/hour4"
+                style="@style/WidgetHourCell">
+
+                <TextView android:id="@+id/hour4_time" style="@style/WidgetHourTime" />
+
+                <ImageView
+                    android:id="@+id/hour4_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cond_clear"
+                    android:tint="@color/widget_text"
+                    tools:ignore="UseAppTint" />
+
+                <TextView android:id="@+id/hour4_temp" style="@style/WidgetHourTemp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/hour5"
+                style="@style/WidgetHourCell">
+
+                <TextView android:id="@+id/hour5_time" style="@style/WidgetHourTime" />
+
+                <ImageView
+                    android:id="@+id/hour5_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cond_clear"
+                    android:tint="@color/widget_text"
+                    tools:ignore="UseAppTint" />
+
+                <TextView android:id="@+id/hour5_temp" style="@style/WidgetHourTemp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/dry_next_rain"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text=""
+                android:textColor="@color/widget_text"
+                android:textFontWeight="600"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/dry_strip_sunset"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:contentDescription="@string/sunset_description"
+                android:drawableStart="@drawable/ic_sunset"
+                android:drawablePadding="3dp"
+                android:drawableTint="@color/widget_subtle"
+                android:gravity="center_vertical"
+                android:singleLine="true"
+                android:text=""
+                android:textColor="@color/widget_subtle"
+                android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>
 

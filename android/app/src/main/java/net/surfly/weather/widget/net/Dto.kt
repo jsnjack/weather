@@ -67,4 +67,24 @@ data class GlanceResponse(
     val sun: List<SunEventDto> = emptyList(),
     val sunset: String? = null,
     val condition: String = "clear",
+    /** Now is after sunset or before sunrise. */
+    val night: Boolean = false,
+    /** The next full hours, for the dry lane's hour strip. Empty from older servers. */
+    val hours: List<GlanceHourDto> = emptyList(),
+    /** First forecast hour with rain from two hours ahead; null when none is forecast. */
+    @SerialName("next_rain") val nextRain: NextRainDto? = null,
+)
+
+@Serializable
+data class GlanceHourDto(
+    val time: String = "",   // RFC3339 with offset, local zone
+    val condition: String = "clear",
+    val temperature: Int = 0,
+    val night: Boolean = false,
+)
+
+@Serializable
+data class NextRainDto(
+    val time: String = "",   // RFC3339 with offset, local zone
+    val mm: Double = 0.0,
 )

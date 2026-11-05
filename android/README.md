@@ -11,8 +11,9 @@ and images. At the default 4×2 size it shows a header with the place and the
 refresh time, a conditions panel (temperature now and in two hours, plus a
 NOW / +2H table of feels-like, wind and UV), a rain lane underneath and a
 square radar map on the right. The rain lane starts with the nowcast sentence;
-below it is the two-provider chart when rain is due, or the radar and sunset
-rows when it's dry. Narrow widgets drop the map, and short (4×1) widgets put
+below it is the two-provider chart when rain is due, or, when it's dry, the
+next five hours (sky and temperature, with a moon after dark), when rain is
+next expected and the sunset. Narrow widgets drop the map, and short (4×1) widgets put
 everything in one row. Each refresh draws the widget once, after the forecast
 and both map themes have arrived; "Refreshing…", resizes and offline fallbacks
 redraw the stored forecast and map in the same layout.

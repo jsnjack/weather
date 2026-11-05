@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** What the map slot shows. The slot itself never disappears for a given size. */
 sealed interface MapState {
@@ -38,9 +39,18 @@ sealed interface MapState {
 
 sealed interface Lane {
     data class Chart(val data: ChartRenderer.Data) : Lane
-    data class Dry(val radar: String?, val sunset: String?) : Lane
+    /** Dry: the hour strip and next rain when the server sends hours, else the radar and sunset rows. */
+    data class Dry(
+        val radar: String?,
+        val sunset: String?,
+        val hours: List<HourCell> = emptyList(),
+        val nextRain: String? = null,
+    ) : Lane
     data class Note(val text: String) : Lane
 }
+
+/** One column of the dry lane's hour strip. */
+data class HourCell(val time: String, val icon: Int, val temp: String)
 
 /** Tap targets; null for previews, which aren't interactive. */
 class Links(val open: PendingIntent, val refresh: PendingIntent, val radar: PendingIntent?)
@@ -58,6 +68,15 @@ class WidgetContent(
 
 object WidgetRenderer {
     private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    private val dayHhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE HH:mm", Locale.ENGLISH)
+    private const val MIN_STRIP_HOURS = 3
+    private val HOUR_IDS = listOf(
+        listOf(R.id.hour1, R.id.hour1_time, R.id.hour1_icon, R.id.hour1_temp),
+        listOf(R.id.hour2, R.id.hour2_time, R.id.hour2_icon, R.id.hour2_temp),
+        listOf(R.id.hour3, R.id.hour3_time, R.id.hour3_icon, R.id.hour3_temp),
+        listOf(R.id.hour4, R.id.hour4_time, R.id.hour4_icon, R.id.hour4_temp),
+        listOf(R.id.hour5, R.id.hour5_time, R.id.hour5_icon, R.id.hour5_temp),
+    )
 
     /** Builds one layout per size the launcher reported, so it never has to stretch one. */
     fun build(ctx: Context, content: WidgetContent, sizes: List<SizeF>): RemoteViews {
@@ -82,7 +101,7 @@ object WidgetRenderer {
 
         v.setTextViewText(R.id.location, c.location)
         v.setTextViewText(R.id.updated, c.pill)
-        v.setImageViewResource(R.id.condition, conditionDrawable(r?.condition))
+        v.setImageViewResource(R.id.condition, conditionDrawable(r?.condition, r?.night == true))
         v.setTextViewText(R.id.temp_now, r?.let { "${it.temperature.now}°" } ?: "–°")
         v.setTextViewText(R.id.temp_end, r?.let { "${it.temperature.end}°" } ?: "–")
         if (!row) {
@@ -127,6 +146,7 @@ object WidgetRenderer {
         v.setTextViewText(R.id.lane_title, c.laneTitle)
         var chart = View.GONE
         var dry = View.GONE
+        var strip = View.GONE
         var note = View.GONE
         when (val lane = c.lane) {
             is Lane.Chart -> {
@@ -140,7 +160,10 @@ object WidgetRenderer {
                     chart = View.VISIBLE
                 }
             }
-            is Lane.Dry -> {
+            is Lane.Dry -> if (lane.hours.size >= MIN_STRIP_HOURS) {
+                strip = View.VISIBLE
+                populateStrip(v, lane)
+            } else {
                 dry = View.VISIBLE
                 v.setViewVisibility(R.id.dry_radar_row, if (lane.radar != null) View.VISIBLE else View.GONE)
                 lane.radar?.let { v.setTextViewText(R.id.dry_radar, it) }
@@ -154,7 +177,23 @@ object WidgetRenderer {
         }
         v.setViewVisibility(R.id.chart, chart)
         v.setViewVisibility(R.id.dry_rows, dry)
+        v.setViewVisibility(R.id.dry_strip, strip)
         v.setViewVisibility(R.id.lane_note, note)
+    }
+
+    private fun populateStrip(v: RemoteViews, lane: Lane.Dry) {
+        HOUR_IDS.forEachIndexed { i, (cell, time, icon, temp) ->
+            val hour = lane.hours.getOrNull(i)
+            v.setViewVisibility(cell, if (hour != null) View.VISIBLE else View.INVISIBLE)
+            if (hour != null) {
+                v.setTextViewText(time, hour.time)
+                v.setImageViewResource(icon, hour.icon)
+                v.setTextViewText(temp, hour.temp)
+            }
+        }
+        v.setTextViewText(R.id.dry_next_rain, lane.nextRain ?: "")
+        v.setViewVisibility(R.id.dry_strip_sunset, if (lane.sunset != null) View.VISIBLE else View.GONE)
+        lane.sunset?.let { v.setTextViewText(R.id.dry_strip_sunset, it) }
     }
 
     private fun populateMap(ctx: Context, v: RemoteViews, c: WidgetContent, plan: WidgetPlan, icons: Pair<Icon, Icon>?) {
@@ -224,7 +263,12 @@ object WidgetRenderer {
             return ctx.getString(R.string.state_no_data) to Lane.Note(ctx.getString(R.string.note_no_nowcast))
         }
         if (ChartRenderer.isDryWindow(alarm, radar)) {
-            return (message ?: ctx.getString(R.string.dry_fallback)) to Lane.Dry(dryRadarNote(ctx, map), sunset(r))
+            val hours = r.hours.mapNotNull { h ->
+                val at = runCatching { OffsetDateTime.parse(h.time) }.getOrNull() ?: return@mapNotNull null
+                HourCell(at.format(hhmm), conditionDrawable(h.condition, h.night), "${h.temperature}°")
+            }
+            return (message ?: ctx.getString(R.string.dry_fallback)) to
+                Lane.Dry(dryRadarNote(ctx, map), sunset(r), hours, nextRainLabel(ctx, r))
         }
         return (message ?: peakLabel(alarm, radar)) to Lane.Chart(chartData(r, message))
     }
@@ -241,6 +285,16 @@ object WidgetRenderer {
             meta.rainNearby == false -> ctx.getString(R.string.dry_radar_none)
             else -> null
         }
+    }
+
+    /** "Next rain 21:00" today, "Next rain Thu 07:00" on a later day; null from older servers. */
+    private fun nextRainLabel(ctx: Context, r: GlanceResponse): String? {
+        val first = r.hours.firstOrNull()?.let { runCatching { OffsetDateTime.parse(it.time) }.getOrNull() } ?: return null
+        val next = r.nextRain?.let { runCatching { OffsetDateTime.parse(it.time) }.getOrNull() }
+            ?: return ctx.getString(R.string.dry_no_rain)
+        // The first strip hour is the next full hour, so one hour earlier is "today".
+        val sameDay = next.toLocalDate() == first.minusHours(1).toLocalDate()
+        return ctx.getString(R.string.dry_next_rain, next.format(if (sameDay) hhmm else dayHhmm))
     }
 
     private fun sunset(r: GlanceResponse): String? =
@@ -299,7 +353,14 @@ object WidgetRenderer {
         return arrayOf("↑", "↗", "→", "↘", "↓", "↙", "←", "↖")[((toDeg + 22) / 45) % 8]
     }
 
-    fun conditionDrawable(token: String?): Int = when (token) {
+    /** At night, clear shows a moon and partly cloudy shows plain cloud, like the glance page. */
+    fun conditionDrawable(token: String?, night: Boolean = false): Int = when {
+        night && token == "partly_cloudy" -> R.drawable.ic_cond_overcast
+        night && (token == null || token == "clear") -> R.drawable.ic_cond_night
+        else -> dayDrawable(token)
+    }
+
+    private fun dayDrawable(token: String?): Int = when (token) {
         "partly_cloudy" -> R.drawable.ic_cond_partly_cloudy
         "overcast" -> R.drawable.ic_cond_overcast
         "fog" -> R.drawable.ic_cond_fog

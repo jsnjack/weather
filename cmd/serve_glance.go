@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -42,6 +43,78 @@ type glanceAPIResponse struct {
 	Condition   string         `json:"condition"`
 	Sun         []sunEvent     `json:"sun"`    // events within [now, now+2h], empty if none
 	Sunset      string         `json:"sunset"` // next sunset, RFC3339 local; "" if unknown
+	// Hours are the next full hours for the widget's dry lane; NextRain is
+	// the first Open-Meteo hour from now+2h with rain (amounts only, never
+	// probability), nil when none is forecast.
+	Night    bool            `json:"night"` // now is after sunset or before sunrise
+	Hours    []glanceHour    `json:"hours"`
+	NextRain *glanceNextRain `json:"next_rain,omitempty"`
+}
+
+// glanceHour is one column of the widget's dry-lane hour strip.
+type glanceHour struct {
+	Time        string `json:"time"`        // start of the hour, RFC3339 local
+	Condition   string `json:"condition"`   // wmoCondition token
+	Temperature int    `json:"temperature"` // °C
+	Night       bool   `json:"night"`       // most of the hour is after sunset or before sunrise
+}
+
+// glanceNextRain is the first forecast hour with measurable rain.
+type glanceNextRain struct {
+	Time string  `json:"time"` // start of the hour, RFC3339 local
+	MM   float64 `json:"mm"`   // precipitation in that hour
+}
+
+const (
+	glanceHourCount = 5
+	// glanceRainMM is the smallest hourly amount that counts as rain.
+	glanceRainMM = 0.1
+)
+
+// nextGlanceHours returns the first full hours after now.
+func nextGlanceHours(hourly []HourlyForecast, daily []DailyForecast, now time.Time) []glanceHour {
+	hours := make([]glanceHour, 0, glanceHourCount)
+	for _, h := range hourly {
+		if !h.Time.After(now) {
+			continue
+		}
+		hours = append(hours, glanceHour{
+			Time:        h.Time.Format(time.RFC3339),
+			Condition:   wmoCondition(h.WeatherCode),
+			Temperature: int(round(h.Temperature)),
+			Night:       glanceNight(daily, h.Time),
+		})
+		if len(hours) == glanceHourCount {
+			break
+		}
+	}
+	return hours
+}
+
+// nightAt reports whether t falls between that day's sunset and sunrise.
+// Unknown sun times count as day.
+func nightAt(daily []DailyForecast, t time.Time) bool {
+	key := t.Format("2006-01-02")
+	for _, day := range daily {
+		if day.Sunrise.IsZero() || day.Sunset.IsZero() || day.Sunrise.Format("2006-01-02") != key {
+			continue
+		}
+		return t.Before(day.Sunrise) || !t.Before(day.Sunset)
+	}
+	return false
+}
+
+// nextGlanceRain returns the first hour starting at or after from with
+// measurable rain, or nil when the forecast stays dry.
+func nextGlanceRain(hourly []HourlyForecast, from time.Time) *glanceNextRain {
+	start := from.Truncate(time.Hour)
+	for _, h := range hourly {
+		if h.Time.Before(start) || h.Precipitation < glanceRainMM {
+			continue
+		}
+		return &glanceNextRain{Time: h.Time.Format(time.RFC3339), MM: math.Round(h.Precipitation*10) / 10}
+	}
+	return nil
 }
 
 type sunEvent struct {
@@ -155,6 +228,9 @@ func buildGlanceResponse(ctx context.Context, loc Location, prog Progress) (*gla
 		resp.Condition = wmoCondition(weatherCodeAt(meteo.Hourly, now))
 		resp.Sun = sunEventsInWindow(meteo.Daily, now, end)
 		resp.Sunset = nextSunset(meteo.Daily, now)
+		resp.Night = nightAt(meteo.Daily, now)
+		resp.Hours = nextGlanceHours(meteo.Hourly, meteo.Daily, now)
+		resp.NextRain = nextGlanceRain(meteo.Hourly, end)
 	}
 	return resp, nil
 }
