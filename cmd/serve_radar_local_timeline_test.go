@@ -87,7 +87,7 @@ func TestLocalRadarForecast(t *testing.T) {
 			labels := image.NewRGBA(overlay.Bounds())
 			labels.SetRGBA(150, 128, color.RGBA{0, 0, 0, 255})
 			radarObservationCache.put("latest", observed)
-			key := fmt.Sprintf("%.2f,%.2f,50,%s", 52.37, 4.9, observed.Format(time.RFC3339))
+			key := localRadarCacheKey(52.37, 4.9, 50, localRadarSize, observed)
 			localRadarCache.put(key, &localRadarImage{overlay: overlay, background: background, labels: labels, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180), radiusKM: 50})
 			var calls atomic.Int32
 			http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {

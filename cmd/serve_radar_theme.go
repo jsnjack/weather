@@ -31,11 +31,11 @@ func darkRadarRequest(r *http.Request) (bool, error) {
 	}
 }
 
-func darkRadarLayer(source image.Image, labels bool) image.Image {
+func darkRadarLayer(source image.Image, labels bool, bounds image.Rectangle) image.Image {
 	if source == nil {
 		return nil
 	}
-	result := image.NewNRGBA(source.Bounds().Intersect(image.Rect(0, 0, localRadarSize, localRadarSize)))
+	result := image.NewNRGBA(source.Bounds().Intersect(bounds))
 	for y := result.Bounds().Min.Y; y < result.Bounds().Max.Y; y++ {
 		for x := result.Bounds().Min.X; x < result.Bounds().Max.X; x++ {
 			c := color.NRGBAModel.Convert(source.At(x, y)).(color.NRGBA)

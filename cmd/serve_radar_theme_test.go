@@ -73,7 +73,7 @@ func TestDarkRadarLayerAlpha(t *testing.T) {
 				source.SetNRGBA(x, 0, color.NRGBA{40, 120, 150, a})
 			}
 			before := bytes.Clone(source.Pix)
-			result := darkRadarLayer(source, labels)
+			result := darkRadarLayer(source, labels, source.Bounds())
 			for x, a := range []uint8{0, 128, 255} {
 				if got := color.NRGBAModel.Convert(result.At(x, 0)).(color.NRGBA).A; got != a {
 					t.Errorf("alpha=%d, want %d", got, a)
@@ -90,7 +90,7 @@ func TestDarkBakedMapLabels(t *testing.T) {
 	source := image.NewNRGBA(image.Rect(0, 0, 2, 1))
 	source.SetNRGBA(0, 0, color.NRGBA{0, 0, 0, 255})
 	source.SetNRGBA(1, 0, color.NRGBA{165, 194, 225, 255})
-	result := darkRadarLayer(source, false)
+	result := darkRadarLayer(source, false, source.Bounds())
 	if color.NRGBAModel.Convert(result.At(0, 0)).(color.NRGBA).R < 200 {
 		t.Fatal("baked town names remain too dim")
 	}

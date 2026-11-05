@@ -49,7 +49,7 @@ func TestLocalRadarStream(t *testing.T) {
 			overlay := image.NewRGBA(image.Rect(0, 0, 256, 256))
 			overlay.SetRGBA(150, 128, color.RGBA{255, 0, 0, 255})
 			radarObservationCache.put("latest", observed)
-			localRadarCache.put(fmt.Sprintf("%.2f,%.2f,50,%s", 52.37, 4.9, observed.Format(time.RFC3339)), &localRadarImage{
+			localRadarCache.put(localRadarCacheKey(52.37, 4.9, 50, localRadarSize, observed), &localRadarImage{
 				overlay: overlay, observed: observed, x: x, y: y, halfWidth: localRadarRadiusM / math.Cos(52.37*math.Pi/180), radiusKM: 50,
 			})
 			gate := make(chan struct{})

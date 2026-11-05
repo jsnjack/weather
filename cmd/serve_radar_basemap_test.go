@@ -20,14 +20,17 @@ import (
 func resetRadarBasemap(t *testing.T) {
 	t.Helper()
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	oldTransport, oldCache := http.DefaultTransport, radarBasemapCache
+	oldTransport, oldCache, oldLayers, oldRenders := http.DefaultTransport, radarBasemapCache, localRadarLayerCache, localRadarRenderCache
 	radarBasemapGate.Lock()
 	oldCooldown := radarBasemapGate.cooldown
 	radarBasemapGate.cooldown = time.Time{}
 	radarBasemapGate.Unlock()
 	radarBasemapCache = newTTLCache[image.Image](radarBasemapTTL, 128)
+	localRadarLayerCache = newTTLCache[image.Image](time.Minute, 32)
+	localRadarRenderCache = newTTLCache[*localRadarMap](time.Minute, 64)
 	t.Cleanup(func() {
 		http.DefaultTransport, radarBasemapCache = oldTransport, oldCache
+		localRadarLayerCache, localRadarRenderCache = oldLayers, oldRenders
 		radarBasemapGate.Lock()
 		radarBasemapGate.cooldown = oldCooldown
 		radarBasemapGate.Unlock()

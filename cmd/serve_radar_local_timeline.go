@@ -94,7 +94,26 @@ func localRadarForecastFrame(ctx context.Context, radar *localRadarImage, refere
 	if err != nil {
 		return nil, err
 	}
-	return cropLocalRadarOverlay(source, radar.radiusKM), nil
+	return cropLocalRadarOverlay(source, radar.radiusKM, radar.mapSize()), nil
+}
+
+// latestRadarForecastRun returns the reference time of KNMI's newest
+// nowcast run, which pins every forecast frame to that run.
+func latestRadarForecastRun(ctx context.Context, observed time.Time) (time.Time, error) {
+	reference, err := memo(radarForecastRunCache, "latest", func() (time.Time, error) {
+		body, err := radarWMSRequest(ctx, url.Values{"DATASET": {radarForecastDataset}, "REQUEST": {"GetCapabilities"}})
+		if err != nil {
+			return time.Time{}, err
+		}
+		return parseRadarDimensionTime(body, "precipitation_nowcast", "reference_time")
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !freshRadarObservation(reference, time.Now()) || reference.After(observed.Add(5*time.Minute)) {
+		return time.Time{}, fmt.Errorf("radar forecast run is stale or ahead of the observation")
+	}
+	return reference, nil
 }
 
 func getLocalRadarTimeline(ctx context.Context, lat, lon float64) (*localRadarTimeline, error) {
@@ -144,18 +163,9 @@ func prepareLocalRadarTimeline(ctx context.Context, lat, lon float64, radiusKM i
 	if !radar.shown() {
 		return nil, nil, "", nil
 	}
-	reference, err := memo(radarForecastRunCache, "latest", func() (time.Time, error) {
-		body, err := radarWMSRequest(ctx, url.Values{"DATASET": {radarForecastDataset}, "REQUEST": {"GetCapabilities"}})
-		if err != nil {
-			return time.Time{}, err
-		}
-		return parseRadarDimensionTime(body, "precipitation_nowcast", "reference_time")
-	})
+	reference, err := latestRadarForecastRun(ctx, radar.observed)
 	if err != nil {
 		return nil, nil, "", err
-	}
-	if !freshRadarObservation(reference, time.Now()) || reference.After(radar.observed.Add(5*time.Minute)) {
-		return nil, nil, "", fmt.Errorf("radar forecast run is stale or ahead of the observation")
 	}
 	id := fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%.17g,%.17g,%d,%s,%s,%t", lat, lon, radiusKM, radar.observed.Format(time.RFC3339), reference.Format(time.RFC3339), dark)))
 	times := localRadarForecastTimes(radar.observed, reference)
