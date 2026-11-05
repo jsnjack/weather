@@ -1,6 +1,6 @@
-const SHELL_CACHE = "forecast-shell-v20";
-const DATA_CACHE  = "forecast-data-v20";
-const SHELL = ["/static/styles.css?v=13", "/static/location.js?v=1", "/static/radar.js?v=11", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_CACHE = "forecast-shell-v21";
+const DATA_CACHE  = "forecast-data-v21";
+const SHELL = ["/static/styles.css?v=14", "/static/location.js?v=1", "/static/radar.js?v=12", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)));
@@ -22,7 +22,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.pathname === "/radar/atlas.png" || url.pathname === "/radar/local-atlas.png" || url.pathname === "/api/v1/radar/local/timeline") return;
 
-  // Network-first for page navigations (/, /hourly, /forecast, /today,
+  // Network-first for page navigations (/, /glance, /hourly, /forecast, /today,
   // /multiday), the API, and the live radar GIF; fall back to the last good
   // response when offline. The radar loop refreshes upstream every few
   // minutes, so it must never be served from the long-lived shell cache —

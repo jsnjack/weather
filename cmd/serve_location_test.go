@@ -20,7 +20,7 @@ func TestLocationNavigation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			query := string(locQuery(tc.loc, tc.place))
-			for _, route := range []string{"/", "/day", "/tomorrow", "/weekend", "/hourly", "/forecast", "/today", "/multiday"} {
+			for _, route := range []string{"/", "/glance", "/day", "/tomorrow", "/weekend", "/hourly", "/forecast", "/today", "/multiday"} {
 				r := httptest.NewRequest("GET", route+"?"+query, nil)
 				loc, name, err := resolveRequestLocation(r)
 				if err != nil || loc != tc.loc || name != tc.place {
@@ -35,7 +35,7 @@ func TestLocationNavigation(t *testing.T) {
 func TestInvalidLocationRequests(t *testing.T) {
 	for _, query := range []string{"lat=abc&lon=4", "lat=52", "lon=4", "lat=NaN&lon=4", "lat=52&lon=Inf", "lat=91&lon=4", "lat=52&lon=-181", "lat=abc&lon=4&name=Amsterdam"} {
 		t.Run(query, func(t *testing.T) {
-			for _, handler := range []http.HandlerFunc{handleIndex, handleHourly, handleOutlook, handleForecast, handleToday, handleMultiday, handleRainJSON, handleGlanceJSON, handleOutlookJSON, handleTodayJSON, handleMultidayJSON} {
+			for _, handler := range []http.HandlerFunc{handleIndex, handleGlance, handleHourly, handleOutlook, handleForecast, handleToday, handleMultiday, handleRainJSON, handleGlanceJSON, handleOutlookJSON, handleTodayJSON, handleMultidayJSON} {
 				w := httptest.NewRecorder()
 				handler(w, httptest.NewRequest("GET", "/?"+query, nil))
 				if w.Code != http.StatusBadRequest {

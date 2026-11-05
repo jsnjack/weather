@@ -19,6 +19,10 @@
   const map = player.querySelector(".radar-map");
   const zoomControls = player.querySelector(".radar-zoom");
   const radiusLabel = zoomControls.querySelector("[data-radius]");
+  // Pages that set data-outline ask for the outline of the rain expected
+  // that many minutes after the observation, and show a key when it is drawn.
+  const outline = player.dataset.outline || "";
+  const outlineKey = player.querySelector("[data-outline-key]");
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   // Map radii in km, closest first; the server renders each one.
   const radii = [25, 50, 100];
@@ -66,6 +70,7 @@
   function present() {
     const state = states[mode];
     local.hidden = mode !== "local" || !localReady || !!state.timeline;
+    if (outlineKey) outlineKey.hidden = local.hidden || !(states.local.observation && states.local.observation.outlined);
     canvas.hidden = !state.timeline;
     fallback.hidden = mode !== "national" || !state.failed;
     controls.hidden = !state.timeline && !(mode === "local" && localReady);
@@ -385,6 +390,7 @@
     const requestTheme = theme;
     const state = states.local;
     const params = locationParams();
+    if (outline) params.set("outline", outline);
     const controller = new AbortController();
     const timeout = setTimeout(function () { controller.abort(); }, 15000);
     try {
@@ -409,7 +415,7 @@
           image.src = url;
           try { await image.decode(); } catch (error) { URL.revokeObjectURL(url); throw error; }
           if (state.observation) URL.revokeObjectURL(state.observation.url);
-          state.observation = {url: url, at: at};
+          state.observation = {url: url, at: at, outlined: !!outline && response.headers.get("X-Radar-Outline") === outline};
         })().finally(function () { state.observationLoad = null; });
         present();
         await state.observationLoad;

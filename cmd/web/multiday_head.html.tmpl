@@ -8,12 +8,13 @@
 <title>Multiday — {{.Location.Description}}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
-<link rel="stylesheet" href="/static/styles.css?v=13">
+<link rel="stylesheet" href="/static/styles.css?v=14">
 <script src="/static/location.js?v=1"></script>
 </head>
 <body>
 <main>
   <nav class="nav">
+    <a href="/glance{{if .Q}}?{{.Q}}{{end}}">Glance</a>
     <a href="/{{if .Q}}?{{.Q}}{{end}}">Rain 2h</a>
     <a href="/day{{if .Q}}?{{.Q}}{{end}}">Today</a>
     <a href="/tomorrow{{if .Q}}?{{.Q}}{{end}}">Tomorrow</a>

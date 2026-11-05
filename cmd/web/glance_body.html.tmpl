@@ -1,0 +1,149 @@
+{{define "g-bike"}}<svg class="g-bike" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6" cy="16" r="3.6"/><circle cx="18" cy="16" r="3.6"/><path d="M6 16 9.6 9.5h6M12 16 9.6 9.5M12 16l3.6-6.5L18 16M6 16h6M9.6 9.5l.2-1.8M8.5 7.7h2.7M15.6 9.5l-.8-2.7h2.3"/></svg>{{end}}
+{{define "g-joint"}}<div class="g-joint" aria-hidden="true"><svg class="g-brk" viewBox="0 0 22 16" focusable="false"><rect x="8" y="5.6" width="6" height="4.8"/><path d="M1 8 21 3M1 13 21 8"/></svg><span>Zoom out · 1 row = 1 {{.}}</span></div>{{end}}
+{{define "g-sky"}}<details class="sky-condition"><summary aria-label="{{.Condition}}" title="{{.Condition}}"><span aria-hidden="true">{{.ConditionIcon}}</span></summary><span class="sky-label">{{.Condition}}</span></details>{{end}}
+{{define "g-rain"}}<span class="g-dp{{if .Wet}} g-wet{{end}}" role="cell"><b>{{.Chance}}%</b><small>{{.Amount}}</small></span>{{end}}
+{{define "g-wind"}}<span class="g-wd" role="cell"><span class="g-mi-{{.Wind.Class}}"><span class="g-arr" aria-hidden="true">{{.Wind.Arrow}}</span>{{.Wind.Kmh}}</span><small class="g-mi-{{.Gust.Class}}">/<span class="vh"> gusts </span>{{.Gust.Value}}</small><span class="vh"> km/h</span></span>{{end}}
+{{define "g-chips"}}{{range .}}<span class="g-chip" title="{{.Detail}}"><b>{{.Hours}}</b> <span class="vh">rain chance </span>{{.RainChance}}%</span>{{end}}{{end}}
+{{define "g-cols"}}<div class="g-row g-cols" role="row">
+          <span class="g-time" role="columnheader">{{.Name}}</span>
+          <span class="g-sky" role="columnheader"><span class="vh">Sky</span></span>
+          <span class="g-dp" role="columnheader">Rain</span>
+          <span class="g-trk g-scale" role="columnheader"><span class="vh">{{.Temp}}</span>{{range .Ticks}}<span aria-hidden="true" style="{{.Style}}">{{.Label}}</span>{{end}}</span>
+          <span class="g-wd" role="columnheader">Wind/gust</span>
+        </div>{{end}}
+  <p class="g-meta">{{.Date}} · updated <b>{{.Updated}}</b></p>
+  {{with .Readouts}}
+  <dl class="g-read">
+    <div><dt>Temp</dt><dd>{{.Temp}}°</dd><dd class="g-sub">feels {{.Feels}}°</dd></div>
+    <div><dt>Wind</dt><dd><span class="g-mi-{{.Wind.Class}}"><span class="g-arr" aria-hidden="true">{{.Wind.Arrow}}</span>{{.Wind.Kmh}}<span class="vh"> km/h</span></span></dd><dd class="g-sub"><span class="g-mi-{{.WindEnd.Class}}">{{.WindEnd.Kmh}}</span> by {{.By}}</dd></div>
+    <div><dt>UV</dt><dd><span class="g-mi-{{.UV.Class}}">{{.UV.Value}}</span></dd><dd class="g-sub"><span class="g-mi-{{.UVEnd.Class}}">{{.UVEnd.Value}}</span> by {{.By}}</dd></div>
+    <div><dt>Sky</dt><dd><span aria-hidden="true">{{.ConditionIcon}}</span></dd><dd class="g-sub">{{.Condition}}</dd></div>
+  </dl>
+  {{else}}
+  <p class="empty">Current temperature, wind and UV are unavailable right now.</p>
+  {{end}}
+
+  <div class="g-tl">
+    <p class="g-now"><span class="g-nowchip">Now {{.Updated}}</span><span class="g-nowtxt">{{.Nowcast.Message}}</span></p>
+
+    <section class="g-band" id="g-nowcast" aria-labelledby="g-nowcast-h">
+      <header class="g-bh"><h2 id="g-nowcast-h">Next 2 hours</h2><p>1 row = 5 min · radar nowcast</p>
+        {{if and .Nowcast.Providers (not .Nowcast.Dry)}}<p class="g-key">{{range .Nowcast.Providers}}<span><i class="g-pdot" style="background:{{.Color}}"></i>{{.Name}}</span>{{end}}</p>{{end}}
+      </header>
+      <div class="g-b1wrap">
+        <div class="g-b1">
+          {{if .Nowcast.PlotSVG}}
+          <div class="g-mmscale" aria-hidden="true">{{range .Nowcast.Scale}}<span style="{{.Style}}">{{.Label}}</span>{{end}}</div>
+          <div class="g-b1body" role="img" aria-label="{{.Nowcast.Summary}}" style="height:{{.Nowcast.HeightPx}}px">
+            {{range .Nowcast.Ticks}}<span class="g-tick" style="top:{{.Top}}px">{{.Label}}</span>{{end}}
+            {{range .Nowcast.Events}}<span class="g-ev" style="top:{{.Top}}px"><span style="top:{{.Shift}}px">{{if .Color}}<i class="g-pdot" style="background:{{.Color}}"></i>{{end}}{{.Text}}</span></span>{{end}}
+            <div class="g-plotbox">{{.Nowcast.PlotSVG}}</div>
+            <span class="g-endtick" style="top:{{.Nowcast.HeightPx}}px">{{.Nowcast.End}}</span>
+          </div>
+          {{else if .Nowcast.Dry}}
+          <p class="g-b1note"><span class="g-endtick">{{.Nowcast.End}}</span>No rain in the radar nowcast until {{.Nowcast.End}}.</p>
+          {{else}}
+          <p class="g-b1note">{{.Nowcast.Note}}</p>
+          {{end}}
+        </div>
+
+        <div class="radar g-radar" id="radar-player" data-location="{{.Q}}" data-timezone="{{.Timezone}}" data-outline="30">
+          <div class="radar-views" role="group" aria-label="Radar coverage">
+            <button type="button" data-view="local" aria-pressed="false" disabled title="Checking local radar">Local</button>
+            <button type="button" data-view="national" aria-pressed="true">Netherlands</button>
+          </div>
+          <div class="radar-map">
+            <img id="local-radar" data-local-map hidden alt="Observed rain within 50 km of your location" width="256" height="256">
+            <img data-national-fallback hidden alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445">
+            <canvas hidden width="425" height="445" role="img" aria-label="KNMI precipitation and lightning radar over the Netherlands"></canvas>
+            <span class="radar-outline-key" data-outline-key hidden><svg viewBox="0 0 24 12" aria-hidden="true" focusable="false"><path d="M3 9.5C2 7 6 2.5 12 2.2s9.6 2.4 9 5-5 3.6-10 3.4S3.7 11.2 3 9.5Z"/></svg><span class="vh">Outline shows rain </span>in 30 min</span>
+            <div class="radar-zoom" role="group" aria-label="Map zoom" hidden><button type="button" data-zoom="-1" aria-label="Zoom in">+</button><span data-radius>50 km</span><button type="button" data-zoom="1" aria-label="Zoom out">−</button></div>
+          </div>
+          <noscript><picture><source media="(prefers-color-scheme: dark)" srcset="/radar.gif?theme=dark"><img src="/radar.gif" alt="KNMI precipitation and lightning radar over the Netherlands" width="425" height="445"></picture></noscript>
+          <div class="radar-controls" hidden>
+            <label class="radar-slider"><input type="range" min="0" max="0" value="0" aria-label="Radar frame"></label>
+            <div class="radar-actions"><button type="button" data-play>Play</button><button type="button" data-now hidden aria-label="Now: latest observation" title="Latest observation">Now</button><button type="button" data-latest>Latest frame</button><output class="sub"></output></div>
+            <p class="sub" data-help>Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.</p>
+            <p class="sub radar-progress" data-progress hidden role="status"></p>
+          </div>
+          <p class="sub radar-credit" hidden><span class="g-rscale"><span>Light</span><span class="g-rs" role="img" aria-label="Radar colours from light to heavy rain: sky blue, blue, yellow, orange, red, magenta"><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Heavy</span></span><span>Map: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-achtergrondkaarten-brt-a-">Kadaster / PDOK</a> · Rain: <a href="https://dataplatform.knmi.nl/dataset/radar-reflectivity-composites-2-0">KNMI</a></span></p>
+          <p class="sub radar-note" hidden></p>
+        </div>
+      </div>
+    </section>
+
+    {{template "g-joint" "hour"}}
+
+    <section class="g-band" id="g-today" aria-labelledby="g-today-h">
+      <header class="g-bh"><h2 id="g-today-h">Rest of today</h2><p>1 row = 1 hour · Open-Meteo</p>{{with .Today.Summary}}<p class="g-bsum">{{.}}</p>{{end}}</header>
+      {{with .Today.Rides}}<div class="g-ridesline"><a class="g-rl" href="/day{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows today</a>{{template "g-chips" .}}</div>{{end}}
+      {{with .Today.RideNote}}<p class="g-noride">{{template "g-bike"}}<span>{{.}}</span></p>{{end}}
+      {{with .Today.TomorrowRides}}<div class="g-ridesline"><a class="g-rl" href="/tomorrow{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows tomorrow</a>{{template "g-chips" .}}</div>{{end}}
+      {{if .Today.Rows}}
+      <div class="g-table" role="table" aria-label="Rest of today by hour" style="{{.Scale.Lines}}">
+        {{template "g-cols" .Today.Cols}}
+        <div class="g-rows" role="rowgroup">
+          {{range .Today.Night}}<span class="g-night" aria-hidden="true" style="top:{{.Top}}px;height:{{.Height}}px"></span>{{end}}
+          {{range .Today.Sun}}<span class="g-sunline" aria-hidden="true" style="top:{{.Top}}px"></span><span class="g-sunlabel" aria-hidden="true" style="top:{{.LabelTop}}px">{{.Glyph}}{{.Time}}</span>{{end}}
+          {{.Today.TraceSVG}}
+          {{range .Today.Rows}}
+          <div class="g-row" role="row">
+            <span class="g-time" role="rowheader">{{.Time}}</span>
+            <span class="g-sky" role="cell">{{template "g-sky" .}}</span>
+            {{template "g-rain" .Rain}}
+            <span class="g-trk" role="cell"><span class="vh">{{.Temp.Text}}</span><i class="g-link" style="{{.Temp.LinkStyle}}"></i><i class="g-feel" style="{{.Temp.RingStyle}}"></i><i class="g-dot" style="{{.Temp.DotStyle}}"></i>{{range .Temp.Labels}}<span class="{{if .Feels}}g-fv{{else}}g-tv{{end}}" aria-hidden="true" style="{{.Style}}">{{.Value}}</span>{{end}}</span>
+            {{template "g-wind" .}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+      {{with .Today.Note}}<p class="g-bandnote">{{.}}</p>{{end}}
+    </section>
+
+    {{template "g-joint" "day"}}
+
+    <section class="g-band" id="g-days" aria-labelledby="g-days-h">
+      <header class="g-bh"><h2 id="g-days-h">Next 13 days</h2><p>1 row = 1 day · Open-Meteo daily</p></header>
+      {{if .Days.Rows}}
+      <div class="g-table" role="table" aria-label="Next 13 days" style="{{.Scale.Lines}}">
+        {{template "g-cols" .Days.Cols}}
+        <div class="g-rows g-days" role="rowgroup">
+          {{range .Days.Rows}}
+          {{if .Week}}<div class="g-week" role="row"><span role="rowheader" aria-colspan="5"><span aria-hidden="true">wk {{.Week}}</span><span class="vh">Week {{.Week}}</span></span></div>{{end}}
+          <div class="g-row g-day{{if .Weekend}} g-we{{end}}" role="row">
+            <span class="g-time" role="rowheader">{{.Label}}</span>
+            <span class="g-sky" role="cell">{{template "g-sky" .}}</span>
+            {{template "g-rain" .Rain}}
+            <span class="g-trk" role="cell"><span class="vh">{{.Temp.Text}}</span><i class="g-bar" style="{{.Temp.BarStyle}}"></i>{{range .Temp.Labels}}<span class="{{if .Feels}}g-fv{{else}}g-tv{{end}}" aria-hidden="true" style="{{.Style}}">{{.Value}}</span>{{end}}</span>
+            {{template "g-wind" .}}
+          </div>
+          {{with .Rides}}<div class="g-rides" role="row"><div role="cell" aria-colspan="5"><a class="g-rl" href="/tomorrow{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows</a>{{template "g-chips" .}}</div></div>{{end}}
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+      {{with .Days.Note}}<p class="g-bandnote">{{.}}</p>{{end}}
+    </section>
+
+    <section class="g-legend" aria-labelledby="g-legend-h">
+      <h2 id="g-legend-h">How to read it</h2>
+      <ul>
+        <li><i class="g-lg-dot"></i> temperature · <i class="g-lg-ring"></i> feels like</li>
+        <li><i class="g-lg-bar"></i> day’s low to high on the same °C scale as the hours</li>
+        <li><span class="g-dp g-wet g-lgdp"><b>85%</b></span> rain chance, with the amount below; <b class="g-water">blue from 40% or 1&nbsp;mm</b>, “dry” when no rain is expected (not used in the 5-minute band)</li>
+        <li><span class="g-pdot" style="background:{{.BuienalarmColor}}"></span> Buienalarm · <span class="g-pdot" style="background:{{.BuineradarColor}}"></span> Buienradar rain in mm/h, drawn down the 5-minute rows</li>
+        <li>→ arrow points where the wind pushes you · <span class="g-mi-caution">caution</span> wind ≥28 km/h, UV ≥3 · <span class="g-mi-critical">critical</span> wind ≥50 km/h, UV ≥8</li>
+        <li><i class="g-lg-night"></i> after sunset · <span class="g-chip"><b>10–12</b></span> ranked dry 2-hour ride window</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>refreshed {{.Refreshed}}</footer>
+</main>
+<script src="/static/radar.js?v=12"></script>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
+</script>
+</body>
+</html>

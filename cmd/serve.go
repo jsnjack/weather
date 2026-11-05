@@ -52,6 +52,8 @@ var (
 	hourlyBodyTmpl   = template.Must(template.New("hourly_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/hourly_body.html.tmpl"))
 	forecastHeadTmpl = template.Must(template.New("forecast_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/forecast_head.html.tmpl"))
 	forecastBodyTmpl = template.Must(template.New("forecast_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/forecast_body.html.tmpl"))
+	glanceHeadTmpl   = template.Must(template.New("glance_head.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/glance_head.html.tmpl"))
+	glanceBodyTmpl   = template.Must(template.New("glance_body.html.tmpl").Funcs(tmplFuncs).ParseFS(webFS, "web/glance_body.html.tmpl"))
 )
 
 var serveCmd = &cobra.Command{
@@ -59,6 +61,7 @@ var serveCmd = &cobra.Command{
 	Short: "Run an HTTP server that serves the forecast in a browser",
 	Long: `Starts an HTTP server that exposes the same forecast as the CLI via:
   GET /                  HTML page with an inline SVG chart
+  GET /glance            HTML page: now, 2 hours, today and 13 days on one time axis
   GET /api/v1/rain       JSON 2-hour rain forecast
 plus a PWA shell (manifest, service worker, icon) so the page can be
 installed on Android as a stand-in for a native widget.`,
@@ -67,6 +70,7 @@ installed on Android as a stand-in for a native widget.`,
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /", handleIndex)
+		mux.HandleFunc("GET /glance", handleGlance)
 		mux.HandleFunc("GET /hourly", handleHourly)
 		mux.HandleFunc("GET /day", handleOutlook)
 		mux.HandleFunc("GET /tomorrow", handleOutlook)
