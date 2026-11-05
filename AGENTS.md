@@ -66,6 +66,7 @@ cmd/
   serve_glance.go                Unified glance payload (rain + Open-Meteo snapshot)
   serve_glance_page.go           /glance: now, 2 hours, today and 13 days on one time axis
   svgchart.go                    Inline SVG chart for the HTML pages
+  condition_icons.go             The widget's condition icons as inline SVG for the web
   today.go                       Short ride-window heatmap command
   today_fetch.go                 Batched rain/wind grid fetch for the ride heatmap
   web/                           Embedded HTML templates, manifest, service worker, icon, CSS
@@ -195,7 +196,12 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   structure — islands on a card (14–16px radii), an accent island for the NOW
   hero, labelled now/+2h stats, the nowcast message as quiet text (a centred
   caption on the web, the rain lane's first line on the widget), pill-shaped
-  meta controls. The **web is warm paper** (fixed
+  meta controls, and one line-icon set for sky conditions: the widget's
+  `ic_cond_*.xml` vector drawables, rendered on the web as inline SVG in the
+  text colour (`condition_icons.go`; `TestConditionIconsMatchWidget` fails if
+  the two copies drift, so change the XML and regenerate the table together).
+  Clear and partly cloudy hours after dark show the moon and plain cloud on
+  both. The **web is warm paper** (fixed
   palette in `web/styles.css` tokens; the values the widget used before going
   dynamic) while the **widget is Material You** (wallpaper tokens). Provider
   line colours and caution/critical states are identical everywhere. The

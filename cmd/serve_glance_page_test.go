@@ -372,16 +372,16 @@ func TestGlanceNightIcons(t *testing.T) {
 		condition string
 		want      string
 	}{
-		{6, "clear", "🌙"},
-		{7, "clear", "🌙"}, // sunrise 07:41: most of the hour is still dark
-		{8, "clear", "☀️"},
-		{16, "clear", "☀️"},
-		{17, "clear", "🌙"},
-		{21, "partly_cloudy", "☁️"},
-		{21, "rain", conditionIcon("rain")},
+		{6, "clear", "night"},
+		{7, "clear", "night"}, // sunrise 07:41: most of the hour is still dark
+		{8, "clear", "clear"},
+		{16, "clear", "clear"},
+		{17, "clear", "night"},
+		{21, "partly_cloudy", "overcast"},
+		{21, "rain", "rain"},
 	} {
 		at := time.Date(2026, 11, 5, tc.hour, 0, 0, 0, zone)
-		if got := glanceConditionIcon(tc.condition, glanceNight(days, at)); got != tc.want {
+		if got := conditionIconKey(tc.condition, glanceNight(days, at)); got != tc.want {
 			t.Errorf("%02d:00 %s = %s, want %s", tc.hour, tc.condition, got, tc.want)
 		}
 	}

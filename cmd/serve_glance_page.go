@@ -65,7 +65,7 @@ type glanceReadouts struct {
 	Wind, WindEnd windView
 	UV, UVEnd     microView
 	Condition     string
-	ConditionIcon string
+	ConditionIcon template.HTML
 	By            string // clock time of the +2h values
 }
 
@@ -158,7 +158,7 @@ type glanceSunMark struct {
 type glanceHourRow struct {
 	Time          string
 	Condition     string
-	ConditionIcon string
+	ConditionIcon template.HTML
 	Rain          glanceRain
 	Temp          glanceTempTrack
 	Wind          windView
@@ -183,7 +183,7 @@ type glanceDayRow struct {
 	Label         string
 	Weekend       bool
 	Condition     string
-	ConditionIcon string
+	ConditionIcon template.HTML
 	Rain          glanceRain
 	Temp          glanceTempTrack
 	Wind          windView
@@ -378,7 +378,7 @@ func glanceReadoutsFrom(g *glanceAPIResponse, now time.Time) *glanceReadouts {
 		UV:            makeUVView(g.UVIndex.Now),
 		UVEnd:         makeUVView(g.UVIndex.End),
 		Condition:     conditionHumanLabel(g.Condition),
-		ConditionIcon: conditionIcon(g.Condition),
+		ConditionIcon: conditionIcon(g.Condition, g.Night),
 		By:            now.Add(2 * time.Hour).Format("15:04"),
 	}
 }
@@ -636,7 +636,7 @@ func glanceHourRows(hours []HourlyForecast, days []DailyForecast, scale glanceTe
 		rows = append(rows, glanceHourRow{
 			Time:          hour.Time.Format("15:04"),
 			Condition:     conditionHumanLabel(condition),
-			ConditionIcon: glanceConditionIcon(condition, glanceNight(days, hour.Time)),
+			ConditionIcon: conditionIcon(condition, glanceNight(days, hour.Time)),
 			Rain:          makeGlanceRain(hour.Precipitation, hour.PrecipitationProbability),
 			Temp:          scale.hourTrack(hour.Temperature, hour.ApparentTemperature),
 			Wind:          makeWindView(glanceWind{SpeedKmh: int(round(hour.WindSpeed)), DirectionDeg: int(round(hour.WindDirection))}),
@@ -653,7 +653,7 @@ func glanceDayRows(days []DailyAggregate, scale glanceTempScale) []glanceDayRow 
 			Label:         day.Date.Format("Mon 2"),
 			Weekend:       day.Date.Weekday() == time.Saturday || day.Date.Weekday() == time.Sunday,
 			Condition:     conditionHumanLabel(day.Condition),
-			ConditionIcon: conditionIcon(day.Condition),
+			ConditionIcon: conditionIcon(day.Condition, false),
 			Rain:          makeGlanceRain(day.PrecipSum, day.PrecipProbMax),
 			Temp:          scale.dayTrack(day.TempMin, day.TempMax),
 			Wind:          makeWindView(glanceWind{SpeedKmh: int(round(day.WindMax)), DirectionDeg: int(round(day.WindDirDominant))}),
@@ -691,22 +691,6 @@ func glanceTraceSVG(hours []HourlyForecast, scale glanceTempScale) template.HTML
 // that day's sunset and sunrise. Unknown sun times count as day.
 func glanceNight(days []DailyForecast, t time.Time) bool {
 	return nightAt(days, t.Add(30*time.Minute))
-}
-
-// glanceConditionIcon swaps the sun for a moon in clear and partly cloudy
-// hours after dark; the other conditions have no sun in their icon.
-func glanceConditionIcon(condition string, night bool) string {
-	icon := conditionIcon(condition)
-	if !night {
-		return icon
-	}
-	switch icon {
-	case "☀️":
-		return "🌙"
-	case "🌤️":
-		return "☁️"
-	}
-	return icon
 }
 
 func glanceSunTimes(days []DailyForecast, now time.Time) (time.Time, time.Time) {

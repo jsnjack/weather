@@ -186,7 +186,7 @@ type hourlyRow struct {
 	UV            int
 	UVClass       string
 	Condition     string // human label
-	ConditionIcon string
+	ConditionIcon template.HTML
 }
 
 type hourlyPageData struct {
