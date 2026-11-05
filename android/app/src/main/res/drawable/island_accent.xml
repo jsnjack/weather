@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Accent-tinted island for the dry-state NOW cell: system_accent2 is the
-  muted accent container tone, so the hero temperature cell reads as the
-  primary island without shouting.
+  Accent-tinted island for the conditions panel (temperature and the
+  NOW / +2H table): system_accent2 is the muted accent container tone.
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/widget_container_accent" />
-    <corners android:radius="16dp" />
+    <corners android:radius="@android:dimen/system_app_widget_inner_radius" />
 </shape>

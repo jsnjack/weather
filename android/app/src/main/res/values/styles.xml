@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Small tracked caps: NOW, +2H, RADAR, SUNSET. -->
+    <style name="WidgetLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">@color/widget_subtle</item>
+        <item name="android:textSize">9sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.13</item>
+    </style>
+
+    <style name="WidgetTableRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingBottom">1dp</item>
+    </style>
+
+    <style name="WidgetTableKey">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">@color/widget_subtle</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
+    <style name="WidgetTableHead">
+        <item name="android:layout_width">30dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">end</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">@color/widget_subtle</item>
+        <item name="android:textSize">8.5sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.1</item>
+    </style>
+
+    <!-- NOW column in the foreground colour, +2H muted. Warnings recolour either. -->
+    <style name="WidgetTableNow">
+        <item name="android:layout_width">30dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">end</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:text">""</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
+    <style name="WidgetTableEnd" parent="WidgetTableNow">
+        <item name="android:textColor">@color/widget_subtle</item>
+    </style>
+
+    <style name="WidgetDryKey" parent="WidgetLabel">
+        <item name="android:layout_width">50dp</item>
+    </style>
+
+    <style name="WidgetDryValue">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:text">""</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
+    <!-- Small rounded label over the map: forecast-outline legend, radar state, ▶. -->
+    <style name="WidgetMapChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_margin">7dp</item>
+        <item name="android:background">@drawable/map_chip_background</item>
+        <item name="android:paddingStart">7dp</item>
+        <item name="android:paddingEnd">7dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:text">""</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <!-- Settings screen section heading. -->
+    <style name="SettingsSection">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">20dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+</resources>

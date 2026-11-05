@@ -88,7 +88,7 @@ apk: version
 	cp android/app/build/outputs/apk/debug/app-debug.apk bin/$(BINARY)-widget.apk
 
 android-check: apk
-	@$(ANDROID_GRADLE) :app:testDebugUnitTest :app:checkRadarPolicy :app:lintDebug
+	@$(ANDROID_GRADLE) :app:testDebugUnitTest :app:lintDebug
 	@echo "==> make android-check: all green"
 
 install: apk

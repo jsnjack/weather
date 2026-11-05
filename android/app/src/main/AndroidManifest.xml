@@ -17,7 +17,7 @@
         android:allowBackup="false"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@android:style/Theme.DeviceDefault">
+        android:theme="@style/Theme.RainWidget">
 
         <!-- Must stay exported to receive the system APPWIDGET_UPDATE
              broadcast. The manual-refresh action deliberately lives on the
@@ -42,10 +42,12 @@
             android:name=".ManualRefreshReceiver"
             android:exported="false" />
 
+        <!-- Settings screen: opens when the widget is added and from the
+             widget's long-press menu (widgetFeatures="reconfigurable"). -->
         <activity
             android:name=".ConfigureActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.DeviceDefault.Dialog">
+            android:theme="@style/Theme.RainWidget">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>

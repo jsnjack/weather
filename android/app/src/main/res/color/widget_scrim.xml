@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The card colour at 88% alpha: system colours carry no alpha of their own. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.88" android:color="@color/widget_bg" />
+</selector>

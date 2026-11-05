@@ -2,31 +2,39 @@
 
 A native Android widget that calls the `weather serve` JSON API
 (`/api/v1/glance`) and renders the 2-hour Buienalarm + Buienradar
-mini-chart on the home screen. Tap → opens the detailed today forecast for the
-widget's own location in the browser.
+mini-chart on the home screen. Tapping it opens the glance page (`/glance`)
+for the widget's own location in the browser: now, the next two hours, the
+rest of today and the next 13 days in one scroll.
 
-When nearby rain is present, a right-hand radar map shows the latest KNMI
-observation within a 50 km radius, with a location marker. The grey PDOK
-background includes town names, roads and water; place labels remain above rain.
-The map follows system dark mode: its basemap and labels are styled before
-rain is drawn, keeping rain colours and the location marker unchanged. The web
-player follows the browser's colour preference for both Local and Netherlands.
-Both themes share upstream caches. The CLI exports dark PNG/GIF maps with
-`weather radar --dark --output radar.png` or
-`weather radar --dark --animate --output radar.gif`.
-The square map has 16dp rounded corners and no surrounding panel or padding, so its aspect ratio stays
-accurate without coloured bands above and below it.
-All existing measurements remain in a compact native left panel. Radar taps
-open the same local map in the browser and play from the latest observation
-through the next hour, then stop. Replay, Pause, Now and the slider reuse the
-loaded frames. Unavailable forecasts keep the current observation visible.
-The browser starts after the observation and two forecast frames arrive, while
-the remainder loads progressively. Its controls and time stay in one compact row.
-Widgets smaller than 340×210dp (or too
-short for the chosen font size) keep the original layout. Unavailable, empty or
-stale radar data also keeps the original layout, including with older servers.
-Deploy the updated server manually to enable `/api/v1/radar/local` and
-`/api/v1/radar/local/timeline`.
+The widget has one fixed layout for each size, so a refresh only changes text
+and images. At the default 4×2 size it shows a header with the place and the
+refresh time, a conditions panel (temperature now and in two hours, plus a
+NOW / +2H table of feels-like, wind and UV), a rain lane underneath and a
+square radar map on the right. The rain lane starts with the nowcast sentence;
+below it is the two-provider chart when rain is due, or the radar and sunset
+rows when it's dry. Narrow widgets drop the map, and short (4×1) widgets put
+everything in one row. Each refresh draws the widget once, after the forecast
+and both map themes have arrived; "Refreshing…", resizes and offline fallbacks
+redraw the stored forecast and map in the same layout.
+
+The map always shows, whether or not it's raining. It is the latest KNMI
+observation within 50 km, rendered by the server at 512×512 on a grey PDOK
+basemap with town names above the rain, and a thin line marks where KNMI's
+nowcast expects the rain in 30 minutes. If KNMI's observation is stale, the
+map shows no rain and says "Radar unavailable"; offline, the widget keeps its
+last map near the same place and labels it with the observation time.
+Tapping the map plays the next two hours in the browser.
+
+Every update carries light and dark versions of the map and chart, and the
+warning colours are theme resources, so the launcher switches themes at once
+without starting the app. Corners follow the launcher's own widget radius.
+Long-press the widget and choose Settings to change the server or location in
+place; a new widget can be placed without setting anything (Auto location, the
+last-used server). After a refresh the widget picker shows the real widget.
+
+Deploy the updated server before installing this widget: it relies on
+`/api/v1/radar/local?always=1&size=512&outline=30` and opens `/glance`. Older servers still work,
+but the map slot then shows "No radar map here" on dry days.
 
 Forecasts use KNMI's five-minute nowcast, pinned to one run through its
 `reference_time` dimension. Frames load only on a map tap or Play, and reuse
@@ -45,13 +53,10 @@ Keep the key on the server, outside the browser and widget configuration.
 
 Limits: https://developer.dataplatform.knmi.nl/wms
 
-Redeploy the server to enable `theme=dark` on the radar image and timeline APIs.
-While the app process is alive, a night-mode change queues an expedited widget
-refresh; the existing periodic refresh handles updates after process death.
-
-> **Target device:** a modern Samsung (One UI 8 / Galaxy A56, Android 16).
-> `minSdk` is 31 (Android 12) — there are no compatibility shims for older
-> releases. It installs on anything API 31+, but that's the floor we test.
+> **Target device:** the author's Galaxy A56 on One UI 9 (Android 17). The
+> widget must keep working on One UI 8.5 (Android 16), so it uses no Android
+> 17-only APIs. `minSdk` is 35 (Android 15), set by the widget picker's
+> live-preview API; there are no compatibility shims for older releases.
 
 > **Target host:** Fedora Linux. All commands assume `dnf` and standard
 > Fedora layout. The project author runs Fedora on every dev machine;
@@ -60,9 +65,8 @@ refresh; the existing periodic refresh handles updates after process death.
 ## Pinned versions
 
 `build.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties` and
-`gradle/gradle-daemon-jvm.properties` pin these. The compile SDK is 37; the
-target SDK remains 34 and the minimum supported Android version remains 12
-(API 31).
+`gradle/gradle-daemon-jvm.properties` pin these. The compile and target SDK
+are 37 (Android 17); the minimum supported Android version is 15 (API 35).
 
 | Component | Version |
 |---|---|

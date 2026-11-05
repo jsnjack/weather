@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  reconfigurable: the launcher's long-press menu offers Settings, so the
+  server or location can change without removing the widget.
+  configuration_optional: a new widget is placed straight away with the
+  defaults (Auto location, last-used server); Settings stays one tap away.
+  The picker shows a live preview once the widget has refreshed (Android 15
+  setWidgetPreview); previewLayout is the static fallback.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="110dp"
-    android:targetCellWidth="4"
-    android:targetCellHeight="2"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="80dp"
-    android:maxResizeWidth="500dp"
-    android:maxResizeHeight="220dp"
-    android:resizeMode="horizontal|vertical"
-    android:widgetCategory="home_screen"
-    android:initialLayout="@layout/widget_rain_loading"
     android:configure="net.surfly.weather.widget.ConfigureActivity"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/widget_rain_loading"
+    android:maxResizeHeight="220dp"
+    android:maxResizeWidth="500dp"
+    android:minHeight="110dp"
+    android:minResizeHeight="80dp"
+    android:minResizeWidth="180dp"
+    android:minWidth="250dp"
     android:previewImage="@drawable/ic_widget_preview"
-    android:previewLayout="@layout/widget_rain"
+    android:previewLayout="@layout/widget_stacked"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
     android:updatePeriodMillis="0"
-    android:description="@string/widget_description" />
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

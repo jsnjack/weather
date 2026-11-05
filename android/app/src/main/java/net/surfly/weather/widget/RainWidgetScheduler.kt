@@ -19,6 +19,7 @@ object RainWidgetScheduler {
 
     private const val PERIODIC_NAME = "rain-widget-periodic"
     private const val ONESHOT_PREFIX = "rain-widget-oneshot-"
+    private const val RENDER_PREFIX = "rain-widget-render-"
     private const val PERIODIC_MINUTES = 15L
 
     fun enqueuePeriodic(context: Context) {
@@ -48,6 +49,21 @@ object RainWidgetScheduler {
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(ONESHOT_PREFIX + appWidgetId, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /** Redraws one widget from its stored forecast and map, without network. */
+    fun enqueueRender(context: Context, appWidgetId: Int) {
+        val request = OneTimeWorkRequestBuilder<RainWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putInt(RainWidgetWorker.KEY_WIDGET_ID, appWidgetId)
+                    .putBoolean(RainWidgetWorker.KEY_RENDER_ONLY, true)
+                    .build(),
+            )
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(RENDER_PREFIX + appWidgetId, ExistingWorkPolicy.REPLACE, request)
     }
 
     fun cancelPeriodic(context: Context) {

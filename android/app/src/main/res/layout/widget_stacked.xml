@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stacked layout (FULL and PANEL variants, WidgetPlanner): a header, the
+  conditions panel and rain lane on the left, and a square map on the right.
+  Every box is always present; a refresh only changes text and images. The
+  worker sizes map_box and cond from the launcher's exact widget size.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="22dp"
+        android:gravity="center_vertical"
+        android:baselineAligned="false"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="0dp">
+
+        <TextView
+            android:id="@+id/location"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:text="@string/loading"
+            android:textColor="@color/widget_text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/updated"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/updated_pill_background"
+            android:gravity="center_vertical"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:singleLine="true"
+            android:text=""
+            android:textColor="@color/widget_subtle"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/cond"
+                android:layout_width="match_parent"
+                android:layout_height="66dp"
+                android:background="@drawable/island_accent"
+                android:baselineAligned="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="60dp"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:id="@+id/condition"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="3dp"
+                            android:contentDescription="@string/condition_description"
+                            android:src="@drawable/ic_cond_clear"
+                            android:tint="@color/chart_temp"
+                            tools:ignore="UseAppTint" />
+
+                        <TextView
+                            android:id="@+id/temp_now"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:singleLine="true"
+                            android:text=""
+                            android:textColor="@color/widget_text"
+                            android:textFontWeight="300"
+                            android:textSize="30sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:baselineAligned="true"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            style="@style/WidgetLabel"
+                            android:layout_marginEnd="4dp"
+                            android:text="@string/plus2h_label" />
+
+                        <TextView
+                            android:id="@+id/temp_end"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text=""
+                            android:textColor="@color/chart_temp"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/table"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <LinearLayout style="@style/WidgetTableRow">
+                        <TextView style="@style/WidgetTableKey" android:text="" />
+                        <TextView style="@style/WidgetTableHead" android:text="@string/now_label" />
+                        <TextView style="@style/WidgetTableHead" android:text="@string/plus2h_label" />
+                    </LinearLayout>
+
+                    <LinearLayout style="@style/WidgetTableRow">
+                        <TextView style="@style/WidgetTableKey" android:text="@string/stat_feels" />
+                        <TextView android:id="@+id/feels_now" style="@style/WidgetTableNow" />
+                        <TextView android:id="@+id/feels_end" style="@style/WidgetTableEnd" />
+                    </LinearLayout>
+
+                    <LinearLayout style="@style/WidgetTableRow">
+                        <TextView style="@style/WidgetTableKey" android:text="@string/stat_wind" />
+                        <TextView android:id="@+id/wind_now" style="@style/WidgetTableNow" />
+                        <TextView android:id="@+id/wind_end" style="@style/WidgetTableEnd" />
+                    </LinearLayout>
+
+                    <LinearLayout style="@style/WidgetTableRow">
+                        <TextView style="@style/WidgetTableKey" android:text="@string/stat_uv" />
+                        <TextView android:id="@+id/uv_now" style="@style/WidgetTableNow" />
+                        <TextView android:id="@+id/uv_end" style="@style/WidgetTableEnd" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/lane"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/island_neutral"
+                android:orientation="vertical">
+
+                <include layout="@layout/widget_lane_content" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <include layout="@layout/widget_map" />
+    </LinearLayout>
+</LinearLayout>

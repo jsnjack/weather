@@ -1,182 +1,246 @@
 package net.surfly.weather.widget
 
 import android.Manifest
-import android.app.Activity
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
+import android.util.SizeF
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.RadioGroup
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+import net.surfly.weather.widget.render.WidgetRenderer
 
-class ConfigureActivity : Activity() {
-
-    companion object {
-        private const val REQ_LOCATION = 1001
-        private const val REQ_BACKGROUND = 1002
-    }
+/**
+ * Widget settings: server URL and location mode. Opens when a widget is
+ * added (if the launcher asks for it) and from the widget's long-press menu.
+ * A preview of the widget, drawn from the last stored forecast, sits on top.
+ */
+class ConfigureActivity : AppCompatActivity() {
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
-    private lateinit var urlField: EditText
-    private lateinit var modeGroup: RadioGroup
-    private lateinit var nameField: EditText
-    private lateinit var coordsRow: LinearLayout
-    private lateinit var latField: EditText
-    private lateinit var lonField: EditText
+    private lateinit var urlLayout: TextInputLayout
+    private lateinit var urlField: TextInputEditText
+    private lateinit var modeGroup: MaterialButtonToggleGroup
+    private lateinit var modeHelp: TextView
+    private lateinit var nameLayout: TextInputLayout
+    private lateinit var nameField: TextInputEditText
+    private lateinit var coordsRow: View
+    private lateinit var latLayout: TextInputLayout
+    private lateinit var latField: TextInputEditText
+    private lateinit var lonLayout: TextInputLayout
+    private lateinit var lonField: TextInputEditText
+    private lateinit var permissionCard: MaterialCardView
+    private lateinit var permissionStatus: TextView
+
+    private val requestForeground = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) Toast.makeText(this, R.string.cfg_location_denied, Toast.LENGTH_LONG).show()
+        showPermission()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)
         setContentView(R.layout.activity_configure)
 
-        appWidgetId = intent?.extras?.getInt(
-            AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID
-        ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+        appWidgetId = intent?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+            ?: AppWidgetManager.INVALID_APPWIDGET_ID
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
-            finish(); return
+            finish()
+            return
         }
 
+        val root = findViewById<View>(R.id.root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            v.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
+
+        urlLayout = findViewById(R.id.url_layout)
         urlField = findViewById(R.id.url)
         modeGroup = findViewById(R.id.location_mode)
+        modeHelp = findViewById(R.id.mode_help)
+        nameLayout = findViewById(R.id.name_layout)
         nameField = findViewById(R.id.location_name)
         coordsRow = findViewById(R.id.coords_row)
+        latLayout = findViewById(R.id.lat_layout)
         latField = findViewById(R.id.location_lat)
+        lonLayout = findViewById(R.id.lon_layout)
         lonField = findViewById(R.id.location_lon)
+        permissionCard = findViewById(R.id.permission_card)
+        permissionStatus = findViewById(R.id.permission_status)
 
         val current = WidgetPrefs.load(this, appWidgetId)
-        urlField.setText(if (current.serverUrl.isBlank()) WidgetPrefs.defaultUrl(this) else current.serverUrl)
+        urlField.setText(current.serverUrl.ifBlank { WidgetPrefs.defaultUrl(this) })
         nameField.setText(current.name)
         if (current.lat != 0.0) latField.setText(current.lat.toString())
         if (current.lon != 0.0) lonField.setText(current.lon.toString())
-        when (current.mode) {
-            LocationMode.AUTO -> modeGroup.check(R.id.mode_auto)
-            LocationMode.NAME -> modeGroup.check(R.id.mode_name)
-            LocationMode.COORDS -> modeGroup.check(R.id.mode_coords)
-            LocationMode.IP -> modeGroup.check(R.id.mode_ip)
+        modeGroup.check(
+            when (current.mode) {
+                LocationMode.AUTO -> R.id.mode_auto
+                LocationMode.NAME -> R.id.mode_name
+                LocationMode.COORDS -> R.id.mode_coords
+                LocationMode.IP -> R.id.mode_ip
+            },
+        )
+        modeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) showMode(checkedId, askForLocation = true)
         }
-        modeGroup.setOnCheckedChangeListener { _, checkedId -> updateModeUI(checkedId) }
-        updateModeUI(modeGroup.checkedRadioButtonId)
+        showMode(modeGroup.checkedButtonId, askForLocation = false)
 
-        findViewById<Button>(R.id.save).setOnClickListener { onSave() }
+        findViewById<View>(R.id.permission_change).setOnClickListener { changePermission() }
+        findViewById<View>(R.id.save).setOnClickListener { onSave() }
+        showPreview()
     }
 
-    private fun updateModeUI(checkedId: Int) {
-        nameField.visibility = if (checkedId == R.id.mode_name) View.VISIBLE else View.GONE
+    override fun onResume() {
+        super.onResume()
+        // Returning from the system's app settings may have changed access.
+        if (::permissionStatus.isInitialized) showPermission()
+    }
+
+    private fun showMode(checkedId: Int, askForLocation: Boolean) {
+        nameLayout.visibility = if (checkedId == R.id.mode_name) View.VISIBLE else View.GONE
         coordsRow.visibility = if (checkedId == R.id.mode_coords) View.VISIBLE else View.GONE
-        if (checkedId == R.id.mode_auto) {
-            ensureLocationPermissions()
+        permissionCard.visibility = if (checkedId == R.id.mode_auto) View.VISIBLE else View.GONE
+        modeHelp.setText(
+            when (checkedId) {
+                R.id.mode_name -> R.string.cfg_name_help
+                R.id.mode_coords -> R.string.cfg_coords_help
+                R.id.mode_ip -> R.string.cfg_ip_help
+                else -> R.string.cfg_auto_help
+            },
+        )
+        showPermission()
+        if (checkedId == R.id.mode_auto && askForLocation && !granted(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            requestForeground.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
+    }
+
+    private fun showPermission() {
+        permissionStatus.setText(
+            when {
+                granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION) -> R.string.cfg_permission_always
+                granted(Manifest.permission.ACCESS_COARSE_LOCATION) -> R.string.cfg_permission_foreground
+                else -> R.string.cfg_permission_none
+            },
+        )
     }
 
     /**
-     * Auto mode wants a *current* fix during background WorkManager one-shots,
-     * which on Android 11+ requires ACCESS_BACKGROUND_LOCATION — and only after
-     * foreground location is already granted.
-     *
-     * On Android 11+, the system does NOT allow apps to request background
-     * location via a permission dialog; users must grant "Allow all the time"
-     * manually in the app's Settings page. We walk the user there directly.
-     *
-     * Without background permission the widget still falls back to:
-     *   1. A last-known fix ≤30 min old (often refreshed by Maps/other apps), or
-     *   2. The last coords saved from a previous successful widget refresh.
-     * So "No location" should only appear on a completely fresh install with
-     * no prior fix and no background permission.
+     * Auto mode needs a current fix during background refreshes, which
+     * requires "Allow all the time". Android only offers that choice in the
+     * app's system settings, and only after foreground access is granted.
      */
-    private fun ensureLocationPermissions() {
+    private fun changePermission() {
         if (!granted(Manifest.permission.ACCESS_COARSE_LOCATION)) {
-            requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOCATION)
+            requestForeground.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
             return
         }
-        if (!granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
-            // Android 11+: permission dialog can't offer "Allow all the time" —
-            // the only reliable path is the app's system settings page.
-            Toast.makeText(this, R.string.cfg_background_denied, Toast.LENGTH_LONG).show()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", packageName, null)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                )
-            } else {
-                requestPermissions(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQ_BACKGROUND)
-            }
-        }
+        Toast.makeText(this, R.string.cfg_background_denied, Toast.LENGTH_LONG).show()
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", packageName, null)),
+        )
     }
 
     private fun granted(perm: String): Boolean =
         ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-        when (requestCode) {
-            REQ_LOCATION -> {
-                if (ok) {
-                    ensureLocationPermissions() // chain into the background-location step
-                } else {
-                    Toast.makeText(this, R.string.cfg_location_denied, Toast.LENGTH_LONG).show()
-                }
-            }
-            REQ_BACKGROUND -> {
-                if (!ok) {
-                    Toast.makeText(this, R.string.cfg_background_denied, Toast.LENGTH_LONG).show()
-                }
-            }
+    /** Draws the widget from this widget's stored forecast, or the newest one for a new widget. */
+    private fun showPreview() {
+        val id = if (WidgetStore.loadGlance(this, appWidgetId) != null) appWidgetId else WidgetStore.newestWidgetId(this)
+        val content = id?.let { WidgetUpdater.storedContent(this, it, pill = null) } ?: return
+        val host = findViewById<FrameLayout>(R.id.preview_host)
+        val views = WidgetRenderer.build(this, content, listOf(SizeF(PREVIEW_W, PREVIEW_H)))
+        val density = resources.displayMetrics.density
+        // The application context inflates plain framework views; this
+        // activity's AppCompat inflater would swap in AppCompatImageView,
+        // which RemoteViews refuses.
+        val widget = runCatching { views.apply(applicationContext, host) }
+            .onFailure { Log.w("RainWidget", "Settings preview failed", it) }
+            .getOrNull() ?: return
+        host.addView(widget, FrameLayout.LayoutParams((PREVIEW_W * density).toInt(), (PREVIEW_H * density).toInt()))
+        findViewById<View>(R.id.preview_card).visibility = View.VISIBLE
+        // Scale the 4×2 widget to the card's width, keeping its proportions.
+        host.post {
+            val scale = (host.width / (PREVIEW_W * density)).coerceAtMost(1f)
+            widget.pivotX = 0f
+            widget.pivotY = 0f
+            widget.scaleX = scale
+            widget.scaleY = scale
+            host.updateHeight((PREVIEW_H * density * scale).toInt())
         }
     }
 
+    private fun ViewGroup.updateHeight(px: Int) {
+        layoutParams = layoutParams.apply { height = px }
+    }
+
     private fun onSave() {
+        urlLayout.error = null
+        nameLayout.error = null
+        latLayout.error = null
+        lonLayout.error = null
         val url = urlField.text.toString().trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            Toast.makeText(this, R.string.cfg_invalid_url, Toast.LENGTH_LONG).show()
+            urlLayout.error = getString(R.string.cfg_invalid_url)
             return
         }
-        val mode = when (modeGroup.checkedRadioButtonId) {
+        val mode = when (modeGroup.checkedButtonId) {
             R.id.mode_name -> LocationMode.NAME
             R.id.mode_coords -> LocationMode.COORDS
             R.id.mode_ip -> LocationMode.IP
             else -> LocationMode.AUTO
         }
+        val name = nameField.text.toString().trim()
+        if (mode == LocationMode.NAME && name.isEmpty()) {
+            nameLayout.error = getString(R.string.cfg_invalid_name)
+            return
+        }
         var lat = 0.0
         var lon = 0.0
         if (mode == LocationMode.COORDS) {
-            lat = latField.text.toString().toDoubleOrNull()
-                ?: run { Toast.makeText(this, R.string.cfg_invalid_coords, Toast.LENGTH_LONG).show(); return }
-            lon = lonField.text.toString().toDoubleOrNull()
-                ?: run { Toast.makeText(this, R.string.cfg_invalid_coords, Toast.LENGTH_LONG).show(); return }
+            val la = latField.text.toString().toDoubleOrNull()
+            val lo = lonField.text.toString().toDoubleOrNull()
+            if (la == null) latLayout.error = getString(R.string.cfg_invalid_coords)
+            if (lo == null) lonLayout.error = getString(R.string.cfg_invalid_coords)
+            if (la == null || lo == null) return
+            lat = la
+            lon = lo
         }
 
-        WidgetPrefs.save(
-            this, appWidgetId,
-            WidgetConfig(
-                serverUrl = url,
-                mode = mode,
-                name = nameField.text.toString().trim(),
-                lat = lat,
-                lon = lon,
-            )
-        )
-
+        WidgetPrefs.save(this, appWidgetId, WidgetConfig(serverUrl = url, mode = mode, name = name, lat = lat, lon = lon))
         RainWidgetScheduler.enqueuePeriodic(this)
-        RainWidgetScheduler.enqueueOneShot(this, appWidgetId)
+        RainWidgetScheduler.enqueueOneShot(this, appWidgetId, expedited = true)
 
-        val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        setResult(RESULT_OK, resultValue)
+        setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId))
         finish()
+    }
+
+    private companion object {
+        const val PREVIEW_W = 384f
+        const val PREVIEW_H = 220f
     }
 }

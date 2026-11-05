@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Card background. The radius is the launcher's own widget radius, so the
+     card matches One UI's widgets instead of a hard-coded value. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/widget_bg" />
-    <corners android:radius="28dp" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
 </shape>

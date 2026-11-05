@@ -251,21 +251,6 @@ object ChartRenderer {
             drawCenteredText(canvas, label, x, plotT - dp(2f, density), sunGlyphPaint)
         }
 
-        // Inner ticks anchored to now (+30 / +60 / +90), so spacing is
-        // always consistent and the last interior tick can never collide
-        // with the right-edge "end" label. Each label still reads as an
-        // absolute HH:mm timestamp.
-        val interiorStepMin = 30L
-        var offsetMin = interiorStepMin
-        while (true) {
-            val t = nowInstant.plusSeconds(offsetMin * 60)
-            // Stop ~15 min before end so the last tick has visual breathing room.
-            if ((tMax.toEpochMilli() - t.toEpochMilli()) / 60_000 < 15) break
-            val x = xOf(t)
-            drawCenteredText(canvas, ZonedDateTime.ofInstant(t, zone).format(hhmm), x, yTimeRow, tickPaint)
-            offsetMin += interiorStepMin
-        }
-
         // Edge time labels anchored to the chart corners.
         val xNow = xOf(nowInstant)
         val xEnd = xOf(tMax)
@@ -274,6 +259,30 @@ object ChartRenderer {
 
         drawCenteredText(canvas, nowTime, xNow, yTimeRow, tickPaint, anchor = TextAnchor.LEFT)
         drawCenteredText(canvas, endTime, xEnd, yTimeRow, tickPaint, anchor = TextAnchor.RIGHT)
+
+        // Inner ticks anchored to now (+30 / +60 / +90), so spacing is
+        // always consistent. Each label still reads as an absolute HH:mm
+        // timestamp; a tick whose label would touch a drawn label is skipped,
+        // so narrow charts keep only the ticks that fit.
+        val labelGap = dp(6f, density)
+        val taken = mutableListOf(
+            xNow to xNow + tickPaint.measureText(nowTime),
+            xEnd - tickPaint.measureText(endTime) to xEnd,
+        )
+        val interiorStepMin = 30L
+        var offsetMin = interiorStepMin
+        while (true) {
+            val t = nowInstant.plusSeconds(offsetMin * 60)
+            if (!t.isBefore(tMax)) break
+            val x = xOf(t)
+            val label = ZonedDateTime.ofInstant(t, zone).format(hhmm)
+            val half = tickPaint.measureText(label) / 2
+            if (taken.none { (l, r) -> x - half < r + labelGap && x + half > l - labelGap }) {
+                drawCenteredText(canvas, label, x, yTimeRow, tickPaint)
+                taken += x - half to x + half
+            }
+            offsetMin += interiorStepMin
+        }
 
         // Right-edge intensity reference: up to two faint numeric labels
         // at "nice" mm/h levels that fall within the visible y range.

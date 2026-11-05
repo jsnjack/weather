@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The map slot, shared by both widget layouts. The worker sets its size; the
+  light and dark images arrive together, and the launcher picks one by theme.
+  Force Dark stays off so rain colours are never inverted.
+-->
+<!-- android:tint, not app:tint: launchers inflate widget layouts without
+     AppCompat, so app:tint would be ignored. Lint's UseAppTint doesn't apply. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/map_box"
+    android:layout_width="166dp"
+    android:layout_height="166dp"
+    android:layout_marginStart="8dp"
+    android:background="@drawable/island_neutral"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/radar_description"
+        android:forceDarkAllowed="false"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:id="@+id/map_placeholder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_location_off"
+            android:tint="@color/widget_subtle"
+            tools:ignore="UseAppTint" />
+
+        <TextView
+            android:id="@+id/map_placeholder_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text=""
+            android:textColor="@color/widget_subtle"
+            android:textFontWeight="600"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/map_note"
+        style="@style/WidgetMapChip"
+        android:layout_gravity="bottom|start"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/map_play"
+        style="@style/WidgetMapChip"
+        android:layout_gravity="bottom|end"
+        android:text="@string/map_play"
+        android:visibility="gone" />
+</FrameLayout>

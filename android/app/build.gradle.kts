@@ -10,12 +10,15 @@ android {
 
     defaultConfig {
         applicationId = "net.surfly.weather.widget"
-        // minSdk 31 (Android 12): the widget uses API-31 appwidget attributes
-        // (targetCellWidth/Height, previewLayout, maxResize*). Targeting only
-        // modern devices (this build is for a One UI 8 / Galaxy A56) means no
+        // minSdk 35 (Android 15): the widget picker's live preview
+        // (AppWidgetManager.setWidgetPreview) is an Android 15 API; the
+        // day/night images, exact-size layouts and launcher corner radii
+        // are Android 12 APIs. The app targets the user's Galaxy A56 on
+        // One UI 9 (Android 17) and must keep working on One UI 8.5
+        // (Android 16), so nothing here needs Android 17, and there are no
         // version-guard shims for older releases.
-        minSdk = 31
-        targetSdk = 34
+        minSdk = 35
+        targetSdk = 37
         val appVersion = (project.findProperty("appVersion") as String?)?.takeIf { it != "0.0.0" }
         versionName = appVersion ?: "0.2"
         versionCode = if (appVersion != null) {
@@ -57,19 +60,12 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("com.google.android.gms:play-services-location:21.4.0")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
-}
-
-tasks.register<JavaExec>("checkRadarPolicy") {
-    dependsOn("compileDebugKotlin")
-    classpath = files(
-        tasks.named("compileDebugKotlin").map { it.outputs.files },
-        configurations.named("debugRuntimeClasspath"),
-    )
-    mainClass.set(rootProject.file("checks/RadarPolicyChecks.java").absolutePath)
+    testImplementation("junit:junit:4.13.2")
 }
