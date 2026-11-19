@@ -139,7 +139,7 @@
     </details>
   </div>
 
-  <footer>Forecast: <a href="https://open-meteo.com/">Open-Meteo</a> · Nowcast: Buienalarm, Buienradar</footer>
+  <footer>Forecast: <a href="https://open-meteo.com/">Open-Meteo</a>{{with .NowcastCredit}} · Nowcast: {{.}}{{end}}</footer>
 </main>
 <script src="/static/radar.js?v=12"></script>
 <script>

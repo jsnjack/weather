@@ -419,6 +419,16 @@ func TestGlanceNightIcons(t *testing.T) {
 	}
 }
 
+func TestNowcastCredit(t *testing.T) {
+	g := &glanceAPIResponse{Buienalarm: &Forecast{Source: "Buienalarm", Estimate: true}, Buineradar: &Forecast{Source: sourceGeoSphere}}
+	if got := nowcastCredit(g); got != "Buienalarm, GeoSphere Austria" {
+		t.Fatalf("credit = %q", got)
+	}
+	if got := nowcastCredit(&glanceAPIResponse{Buienalarm: &Forecast{Source: "Buienalarm"}}); got != "Buienalarm" {
+		t.Fatalf("credit without a second line = %q", got)
+	}
+}
+
 func TestGlanceDaylightAcrossMidnight(t *testing.T) {
 	zone := time.FixedZone("CEST", 2*3600)
 	day := func(d int) DailyForecast {

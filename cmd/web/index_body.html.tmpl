@@ -1,4 +1,7 @@
-  {{if .ChartSVG}}<section class="chart island">{{.ChartSVG}}</section>{{end}}
+  {{if .ChartSVG}}<section class="chart island">
+    {{if .ChartKey}}<p class="chart-key">{{range .ChartKey}}<span class="key-item"><span class="dot" style="background:{{.Color}}"></span>{{.Name}}</span>{{end}}</p>{{end}}
+    {{.ChartSVG}}
+  </section>{{end}}
 
   {{if .HasGlance}}
   <section class="glance-cells{{if .IsDry}} hero{{end}}">

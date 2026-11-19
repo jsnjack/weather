@@ -52,6 +52,7 @@ type glancePageData struct {
 	Timezone        string
 	Date            string
 	Updated         string
+	NowcastCredit   string // the nowcast sources shown, for the footer's CC BY credits
 	Readouts        *glanceReadouts
 	Nowcast         glanceNowcastBand
 	Today           glanceHourBand
@@ -287,6 +288,7 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 	page.Updated = now.Format("15:04")
 	page.Readouts = glanceReadoutsFrom(src.glance, now)
 	page.Nowcast = buildGlanceNowcast(src.glance)
+	page.NowcastCredit = nowcastCredit(src.glance)
 
 	var hours []HourlyForecast
 	var todayRides, tomorrowRides []rideWindow
@@ -394,11 +396,13 @@ func glanceReadoutsFrom(g *glanceAPIResponse, now time.Time) *glanceReadouts {
 func buildGlanceNowcast(g *glanceAPIResponse) glanceNowcastBand {
 	var band glanceNowcastBand
 	var alarm, radar []ForecastDataPoint
+	alarmName, radarName := "Buienalarm", "Buienradar"
 	if g != nil {
 		alarm, radar = forecastPoints(g.Buienalarm), forecastPoints(g.Buineradar)
 		if g.Buienalarm != nil {
 			band.Message = g.Buienalarm.Desc
 		}
+		alarmName, radarName = g.Buienalarm.labelOr(alarmName), g.Buineradar.labelOr(radarName)
 	}
 	if n := len(alarm); n > 0 {
 		capped := radar[:0:0]
@@ -410,10 +414,10 @@ func buildGlanceNowcast(g *glanceAPIResponse) glanceNowcastBand {
 		radar = capped
 	}
 	if len(alarm) > 0 {
-		band.Providers = append(band.Providers, glanceProvider{Name: "Buienalarm", Color: buienalarmColor, points: alarm})
+		band.Providers = append(band.Providers, glanceProvider{Name: alarmName, Color: buienalarmColor, points: alarm})
 	}
 	if len(radar) > 0 {
-		band.Providers = append(band.Providers, glanceProvider{Name: "Buienradar", Color: buineradarColor, points: radar})
+		band.Providers = append(band.Providers, glanceProvider{Name: radarName, Color: buineradarColor, points: radar})
 	}
 	if len(band.Providers) == 0 {
 		band.Note = "The rain nowcast is unavailable right now."
@@ -762,6 +766,25 @@ func glanceDaySummary(day DailyAggregate) string {
 		rain += " mm"
 	}
 	return fmt.Sprintf("Today %d°/%d° · %s · gusts %d", int(round(day.TempMax)), int(round(day.TempMin)), rain, int(round(day.GustMax)))
+}
+
+// nowcastCredit names the providers of the nowcast lines, as their licences
+// ask (DWD, GeoSphere Austria and MET Norway are CC BY 4.0).
+func nowcastCredit(g *glanceAPIResponse) string {
+	if g == nil {
+		return ""
+	}
+	var names []string
+	for _, f := range []*Forecast{g.Buienalarm, g.Buineradar} {
+		switch {
+		case f == nil || f.Source == "":
+		case f.Source == sourceGeoSphere:
+			names = append(names, "GeoSphere Austria")
+		default:
+			names = append(names, f.Source)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 func glanceRides(rides []rideWindow) []glanceRide {

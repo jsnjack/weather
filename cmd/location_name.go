@@ -53,7 +53,7 @@ func fetchLocationFromString(str string) (Location, error) {
 	req.Header.Set("Accept", "application/json")
 	// Nominatim's usage policy requires a User-Agent identifying the app
 	// and 403s anonymous Go-http-client requests on sight.
-	req.Header.Set("User-Agent", "weather-cli/"+Version+" (+https://github.com/jsnjack/weather)")
+	req.Header.Set("User-Agent", userAgent())
 
 	resp, err := client.Do(req)
 	if err != nil {

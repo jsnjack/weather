@@ -51,12 +51,12 @@ type locationTransportFunc func(*http.Request) (*http.Response, error)
 func (fn locationTransportFunc) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
 
 func TestGeocodingCache(t *testing.T) {
-	oldTransport, oldNames, oldDescriptions := http.DefaultTransport, locationNameCache, locationDescriptionCache
+	oldTransport, oldNames, oldPlaces := http.DefaultTransport, locationNameCache, locationPlaceCache
 	t.Cleanup(func() {
-		http.DefaultTransport, locationNameCache, locationDescriptionCache = oldTransport, oldNames, oldDescriptions
+		http.DefaultTransport, locationNameCache, locationPlaceCache = oldTransport, oldNames, oldPlaces
 	})
 	locationNameCache = newTTLCache[Location](geocodingTTL, 1024)
-	locationDescriptionCache = newTTLCache[string](geocodingTTL, 1024)
+	locationPlaceCache = newTTLCache[reversePlace](geocodingTTL, 1024)
 	forward, reverse := 0, 0
 	http.DefaultTransport = locationTransportFunc(func(r *http.Request) (*http.Response, error) {
 		body := ""

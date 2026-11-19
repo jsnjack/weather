@@ -104,6 +104,12 @@ func memo[T any](c *ttlCache[T], key string, fn func() (T, error)) (T, error) {
 var (
 	buienalarmCache = newTTLCache[*Forecast](2*time.Minute, 512)
 	buineradarCache = newTTLCache[*Forecast](2*time.Minute, 512)
+	// DWD's radar nowcast is new every 5 minutes.
+	dwdCache = newTTLCache[*Forecast](2*time.Minute, 512)
+	// GeoSphere runs every 15 minutes and allows 240 requests an hour.
+	geosphereCache = newTTLCache[*Forecast](5*time.Minute, 512)
+	// MET Norway asks clients to wait for Expires, about 3–5 minutes.
+	metnoCache = newTTLCache[*Forecast](5*time.Minute, 512)
 )
 
 const (

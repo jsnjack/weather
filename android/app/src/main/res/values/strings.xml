@@ -74,6 +74,6 @@
     <string name="map_none">No radar map here</string>
     <string name="map_no_location">Map appears once the widget has a location</string>
     <string name="radar_description">Rain radar within 50 km of the widget\'s location</string>
-    <string name="chart_description">Rain forecast for the next two hours from Buienalarm and Buienradar</string>
+    <string name="chart_description">Rain forecast for the next two hours</string>
     <string name="condition_description">Current conditions</string>
 </resources>

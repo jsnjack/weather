@@ -59,4 +59,22 @@ type Forecast struct {
 	Data           []ForecastDataPoint `json:"data"`
 	Desc           string              `json:"desc"`
 	Type           ForecastType        `json:"type"`
+	// Source names the provider that drew this series, e.g. "Buienalarm" or
+	// "DWD": the chart's second line comes from a different radar per country.
+	Source string `json:"source"`
+	// Estimate marks a series that isn't plain radar, such as Buienalarm's
+	// worldwide product outside western Europe.
+	Estimate bool `json:"estimate,omitempty"`
+}
+
+// labelOr is the series name for chart keys: the source, marked when it is
+// only an estimate, or fallback for a nil forecast or one without a source.
+func (f *Forecast) labelOr(fallback string) string {
+	if f == nil || f.Source == "" {
+		return fallback
+	}
+	if f.Estimate {
+		return f.Source + " (estimate)"
+	}
+	return f.Source
 }

@@ -18,8 +18,8 @@ type Location struct {
 const geocodingTTL = 24 * time.Hour
 
 var (
-	locationNameCache        = newTTLCache[Location](geocodingTTL, 1024)
-	locationDescriptionCache = newTTLCache[string](geocodingTTL, 1024)
+	locationNameCache  = newTTLCache[Location](geocodingTTL, 1024)
+	locationPlaceCache = newTTLCache[reversePlace](geocodingTTL, 1024)
 )
 
 func coordinateText(value float64) string {

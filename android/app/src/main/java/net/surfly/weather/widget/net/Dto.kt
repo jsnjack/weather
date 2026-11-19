@@ -24,6 +24,9 @@ data class SeriesDto(
 )
 
 // Note: the server JSON key is the misspelled "buineradar" — match it exactly.
+// It carries the chart's second line from whichever national radar covers
+// the location (Buienradar, DWD, GeoSphere or MET Norway); its "source"
+// field names it, and it is absent where no radar nowcast exists.
 @Serializable
 data class RainResponse(
     val location: LocationDto = LocationDto(),

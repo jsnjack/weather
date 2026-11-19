@@ -188,7 +188,9 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 }
 
-// fetchRain runs both rain providers in parallel for the given coordinates.
+// fetchRain runs both rain nowcasts in parallel for the given coordinates:
+// Buienalarm, and the second line from the national radar that covers the
+// point (getSecondNowcast). The second result keeps the "radar" name.
 func fetchRain(ctx context.Context, lat, lon float64, prog Progress) (alarm, radar *Forecast, alarmErr, radarErr error) {
 	prog.AddTotal(2)
 	var wg sync.WaitGroup
@@ -201,7 +203,7 @@ func fetchRain(ctx context.Context, lat, lon float64, prog Progress) (alarm, rad
 	go func() {
 		defer wg.Done()
 		defer prog.Inc(1)
-		radar, radarErr = GetBuineradarForecast(lat, lon)
+		radar, radarErr = getSecondNowcast(lat, lon)
 	}()
 	wg.Wait()
 	return
@@ -212,6 +214,7 @@ type indexData struct {
 	Location        Location
 	Description     string
 	ChartSVG        template.HTML
+	ChartKey        []chartKeyItem // the lines actually drawn, with their sources
 	BuienalarmColor string
 	BuineradarColor string
 	Now             string
@@ -232,6 +235,11 @@ type indexData struct {
 	UVNow          microView
 	UVEnd          microView
 	SunEvents      []sunEventView
+}
+
+type chartKeyItem struct {
+	Name  string
+	Color string
 }
 
 type windView struct {
@@ -306,7 +314,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	series := []SVGSeries{}
 	var lastAlarmT time.Time
 	if alarm != nil && len(alarm.Data) > 0 {
-		series = append(series, SVGSeries{Name: "Buienalarm", Color: buienalarmColor, Data: alarm.Data})
+		series = append(series, SVGSeries{Name: alarm.labelOr("Buienalarm"), Color: buienalarmColor, Data: alarm.Data})
 		lastAlarmT = alarm.Data[len(alarm.Data)-1].Time
 	}
 	if radar != nil && len(radar.Data) > 0 {
@@ -322,8 +330,11 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 			rdata = cut
 		}
 		if len(rdata) > 0 {
-			series = append(series, SVGSeries{Name: "Buineradar", Color: buineradarColor, Data: rdata})
+			series = append(series, SVGSeries{Name: radar.labelOr("Buienradar"), Color: buineradarColor, Data: rdata})
 		}
+	}
+	for _, line := range series {
+		data.ChartKey = append(data.ChartKey, chartKeyItem{Name: line.Name, Color: line.Color})
 	}
 	if alarm != nil {
 		data.Description = alarm.Desc

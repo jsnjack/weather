@@ -14,7 +14,17 @@ import (
 type BuienalarmResponse struct {
 	Data           []PrecipitationData `json:"data"`
 	NowcastMessage NowcastMessage      `json:"nowcastmessage"`
+	Summary        struct {
+		// Source is the radar product that answered: "radar-nl" and
+		// "radar-westeurope" are radar; "radar-world" (everywhere else) is
+		// about 30 minutes old and also answers over open ocean, so it blends
+		// in non-radar data. Infoplaza documents none of them.
+		Source string `json:"source"`
+	} `json:"summary"`
 }
+
+// buienalarmWorldSource is the product that is only an estimate.
+const buienalarmWorldSource = "radar-world"
 
 type PrecipitationData struct {
 	PrecipitationRate float64 `json:"precipitationrate"`
@@ -72,8 +82,10 @@ func getBuinealarmForecastUncached(lat, long float64) (*Forecast, error) {
 	}
 
 	forecast := &Forecast{
-		Desc: "Buienalarm",
-		Type: PrecipitationForecast,
+		Desc:     "Buienalarm",
+		Type:     PrecipitationForecast,
+		Source:   "Buienalarm",
+		Estimate: buinealarmResponse.Summary.Source == buienalarmWorldSource,
 	}
 	for _, data := range buinealarmResponse.Data {
 		t := time.Unix(data.Timestamp, 0).In(nowcastZone(lat, long))

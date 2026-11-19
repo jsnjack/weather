@@ -9,17 +9,35 @@ import (
 	"time"
 )
 
+// reversePlace is one reverse-geocoding answer.
+type reversePlace struct {
+	Description string // "Locality, City, Country"
+	Country     string // ISO 3166-1 alpha-2 code, e.g. "AT"; empty when unknown
+}
+
 // GetDescriptionFromCoordinates returns a cached locality, city and country label.
 func GetDescriptionFromCoordinates(lat, lon float64) (string, error) {
+	place, err := reverseGeocode(lat, lon)
+	return place.Description, err
+}
+
+// GetCountryFromCoordinates returns the cached ISO 3166-1 alpha-2 country
+// code for a point, from the same lookup as its description.
+func GetCountryFromCoordinates(lat, lon float64) (string, error) {
+	place, err := reverseGeocode(lat, lon)
+	return place.Country, err
+}
+
+func reverseGeocode(lat, lon float64) (reversePlace, error) {
 	if err := validateCoordinates(lat, lon); err != nil {
-		return "", err
+		return reversePlace{}, err
 	}
-	return memo(locationDescriptionCache, coordinateText(lat)+"|"+coordinateText(lon), func() (string, error) {
-		return fetchDescriptionFromCoordinates(lat, lon)
+	return memo(locationPlaceCache, coordinateText(lat)+"|"+coordinateText(lon), func() (reversePlace, error) {
+		return fetchPlaceFromCoordinates(lat, lon)
 	})
 }
 
-func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
+func fetchPlaceFromCoordinates(lat, lon float64) (reversePlace, error) {
 	slog.Debug("reverse-geocode: getting description", "lat", lat, "lon", lon)
 	urlTpl := "https://us1.api-bdc.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en"
 	url := fmt.Sprintf(urlTpl, coordinateText(lat), coordinateText(lon))
@@ -30,16 +48,16 @@ func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return reversePlace{}, err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return reversePlace{}, err
 	}
 	defer closeBody(resp.Body, "reverse-geocode response body")
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code %d", resp.StatusCode)
+		return reversePlace{}, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 	var response struct {
 		Locality    string `json:"locality"`
@@ -49,7 +67,7 @@ func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return "", err
+		return reversePlace{}, err
 	}
 
 	// Compose "Locality, City" (e.g. "Oost, Amsterdam") when both are
@@ -74,9 +92,9 @@ func fetchDescriptionFromCoordinates(lat, lon float64) (string, error) {
 
 	description := strings.Join(parts, ", ")
 	if description == "" {
-		return "", fmt.Errorf("reverse geocoder returned no location name")
+		return reversePlace{}, fmt.Errorf("reverse geocoder returned no location name")
 	}
-	return description, nil
+	return reversePlace{Description: description, Country: strings.ToUpper(response.Country)}, nil
 }
 
 // stripParenthesisedQualifier removes a trailing "( ... )" qualifier and any

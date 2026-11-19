@@ -65,8 +65,9 @@ func getBuineradarForecastUncached(lat, long float64) (*Forecast, error) {
 	}
 
 	forecast := &Forecast{
-		Desc: "Buienradar",
-		Type: PrecipitationForecast,
+		Desc:   "Buienradar",
+		Type:   PrecipitationForecast,
+		Source: "Buienradar",
 	}
 	for _, data := range buineradarResponse.Forecasts {
 		t, err := time.Parse("2006-01-02T15:04:05", data.UtcDateTime)

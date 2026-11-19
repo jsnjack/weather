@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jsnjack/termplt"
@@ -92,9 +93,14 @@ User can also specify the location manually.`,
 }
 
 func renderRainChart(alarm, radar *Forecast) {
-	fmt.Printf("%sBuienalarm%s · %sBuineradar%s\n",
-		termplt.ColorCyan, termplt.ColorReset,
-		termplt.ColorPurple, termplt.ColorReset)
+	var key []string
+	if alarm != nil && len(alarm.Data) > 0 {
+		key = append(key, termplt.ColorCyan+alarm.labelOr("Buienalarm")+termplt.ColorReset)
+	}
+	if radar != nil && len(radar.Data) > 0 {
+		key = append(key, termplt.ColorPurple+radar.labelOr("Buienradar")+termplt.ColorReset)
+	}
+	fmt.Println(strings.Join(key, " · "))
 	chart := termplt.NewLineChart()
 	var unit string
 	if alarm != nil && len(alarm.Data) > 0 {

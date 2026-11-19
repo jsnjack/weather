@@ -9,7 +9,7 @@
 
 `weather` is a Go CLI for short-range rain forecasting and bike-trip planning,
 optimised for the Netherlands. The root command prints a 2-hour rain chart
-(Buienalarm + Buienradar) for your current location. Subcommands cover an
+(Buienalarm plus a national radar nowcast) for your current location. Subcommands cover an
 hour-by-hour rolling forecast (`hourly`), detailed calendar-day forecasts
 (`today --forecast`, `tomorrow`, `weekend`), a multi-day daily outlook (`forecast`,
 up to 16 days), shorter-term ride planning (`today`), multi-day bike-trip
@@ -37,6 +37,7 @@ changing it:
 | radar: `serve_radar_*.go`, `cmd_radar.go`, `web/radar.js`, the widget map | [docs/radar.md](docs/radar.md) |
 | the web pages' look, the icons shared with the widget, `/glance` | [docs/web.md](docs/web.md) |
 | Open-Meteo caching and pacing, `today`, `today --forecast` / `tomorrow` / `weekend` | [docs/forecasts.md](docs/forecasts.md) |
+| the 2-hour nowcast lines and their sources abroad: `forecast_*.go` | [docs/nowcast.md](docs/nowcast.md) |
 
 The widget's build and iterate workflow is in
 [android/README.md](android/README.md).
@@ -62,7 +63,11 @@ cmd/
   openmeteo_http.go              Shared request pacing, concurrency and rate-limit cooldown
   forecast.go                    Shared Forecast / ForecastType / ForecastDataPoint types
   forecast_buinealarm.go         Buienalarm nowcast client (imn-rust-lb.infoplaza.io)
-  forecast_buineradar.go         Buienradar nowcast client (gpsgadget.buienradar.nl)
+  forecast_buineradar.go         Buienradar nowcast client (graphdata.buienradar.nl)
+  forecast_second.go             Picks the chart's second nowcast line by country
+  forecast_dwd.go                DWD radar nowcast via Bright Sky (Germany)
+  forecast_geosphere.go          GeoSphere Austria INCA nowcast (Austria and borders)
+  forecast_metno.go              MET Norway radar nowcast (Nordics)
   location.go                    ResolveLocation — priority: lat/lon > name > IP
   location_ip.go                 MaxMind IP geolocation fallback
   location_name.go               Name → coordinates (Nominatim geocoding)
@@ -99,7 +104,10 @@ android/                         Native Android home-screen widget (Kotlin, sepa
 
 External APIs:
 - `imn-rust-lb.infoplaza.io` — Buienalarm 2-hour precipitation nowcast.
-- `gpsgadget.buienradar.nl` — Buienradar 2-hour precipitation history+forecast.
+- `graphdata.buienradar.nl` — Buienradar 2-hour precipitation history+forecast.
+- `api.brightsky.dev` — DWD radar nowcast for Germany.
+- `dataset.api.hub.geosphere.at` — GeoSphere Austria nowcast.
+- `api.met.no` — MET Norway radar nowcast for the Nordics.
 - `api.open-meteo.com` — hourly temperature / precipitation / wind for multiday & today.
 - `geoip.maxmind.com` — IP geolocation fallback.
 - `us1.api-bdc.net` — reverse-geocoding for human-readable location names.
@@ -109,9 +117,10 @@ External APIs:
 
 ## Key Flows
 
-1. **Root rain chart.** `ResolveLocation` → parallel fetch of Buienalarm +
-   Buienradar via `fetchRain` → both series plotted on a single `termplt`
-   line chart, capped at the Buienalarm horizon.
+1. **Root rain chart.** `ResolveLocation` → parallel fetch of Buienalarm and
+   the second line picked by country (`fetchRain`, `getSecondNowcast`) → both
+   series plotted on a single `termplt` line chart, capped at the Buienalarm
+   horizon.
 2. **`multiday`.** Beam search over bearing sequences from the start location.
    Each candidate fans out into ≤8 next-day bearings; per-day score from
    `multiday_score.go` combines daytime dry hours, wind, and temperature; pivot
@@ -202,9 +211,14 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   holds it for the frozen widget process until the next job, up to 15 minutes
   late. Keep the 15-minute WorkManager periodic refresh as the floor; it
   re-arms the alarm after reboots ([docs/widget.md](docs/widget.md)).
-- **Both nowcast providers, same chart.** Buienalarm and Buienradar disagree
-  often enough that showing both lines is more useful than picking one. The
-  shorter Buienalarm horizon caps the x-axis to keep them comparable.
+- **Two nowcast lines, same chart.** Two radar nowcasts disagree often enough
+  that showing both lines is more useful than picking one. Line 1 is
+  Buienalarm everywhere, labelled "estimate" where only its worldwide product
+  answers. Line 2 comes from the national radar for the country (Buienradar,
+  DWD, GeoSphere, MET Norway) and is absent where no open radar nowcast
+  exists; the JSON keeps its `buineradar` key and names it in `source`. The
+  shorter Buienalarm horizon caps the x-axis
+  ([docs/nowcast.md](docs/nowcast.md)).
 - **Open-Meteo elevation as a sea check.** `OpenMeteoData.IsSea()` matches on
   `Elevation == 0` because the model clamps surface water (sea, IJsselmeer)
   to NAP zero while polders return negative values. Don't broaden this to
