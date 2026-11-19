@@ -60,7 +60,19 @@ func TestConditionIconSVG(t *testing.T) {
 	if !strings.Contains(svg, `fill="none"`) || !strings.Contains(svg, `stroke="currentColor"`) {
 		t.Fatalf("night icon should be the stroked moon: %s", svg)
 	}
-	if got := conditionIconKey("unknown", false); got != "clear" {
-		t.Fatalf("unknown condition = %q, want clear", got)
+	for _, tc := range []struct {
+		condition string
+		night     bool
+		want      string
+	}{
+		{"unknown", false, "clear"},
+		{"clear", true, "night"},
+		{"partly_cloudy", false, "partly_cloudy"},
+		{"partly_cloudy", true, "partly_cloudy_night"},
+		{"rain", true, "rain"},
+	} {
+		if got := conditionIconKey(tc.condition, tc.night); got != tc.want {
+			t.Errorf("conditionIconKey(%q, %v) = %q, want %q", tc.condition, tc.night, got, tc.want)
+		}
 	}
 }

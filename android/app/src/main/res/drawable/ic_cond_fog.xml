@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Shared with the web pages: cmd/condition_icons.go must match (TestConditionIconsMatchWidget). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
     android:tint="@color/widget_text">
+    <!-- Cloud -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M3,15h13a1,1 0 0 0 0,-2H3a1,1 0 0 0 0,2zM3,19h18a1,1 0 0 0 0,-2H3a1,1 0 0 0 0,2zM3,11h18a1,1 0 0 0 0,-2H3a1,1 0 0 0 0,2zM3,7h13a1,1 0 0 0 0,-2H3a1,1 0 0 0 0,2z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7 15A4 4 0 0 1 6.5 7.03A5.5 5.5 0 0 1 16.7 6.6A4.25 4.25 0 0 1 17 15Z" />
+    <!-- Mist -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3.5 18.5H16.5M7.5 21.5H20.5" />
 </vector>

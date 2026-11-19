@@ -353,9 +353,9 @@ object WidgetRenderer {
         return arrayOf("↑", "↗", "→", "↘", "↓", "↙", "←", "↖")[((toDeg + 22) / 45) % 8]
     }
 
-    /** At night, clear shows a moon and partly cloudy shows plain cloud, like the glance page. */
+    /** At night, clear shows a moon and partly cloudy a moon behind a cloud, like the web pages. */
     fun conditionDrawable(token: String?, night: Boolean = false): Int = when {
-        night && token == "partly_cloudy" -> R.drawable.ic_cond_overcast
+        night && token == "partly_cloudy" -> R.drawable.ic_cond_partly_cloudy_night
         night && (token == null || token == "clear") -> R.drawable.ic_cond_night
         else -> dayDrawable(token)
     }

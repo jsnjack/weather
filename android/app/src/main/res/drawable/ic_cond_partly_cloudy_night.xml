@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared with the web pages: cmd/condition_icons.go must match (TestConditionIconsMatchWidget). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/widget_text">
+    <!-- Cloud -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9.5 20A3.5 3.5 0 0 1 9 13.04A4.8 4.8 0 0 1 17.9 11.9A4.1 4.1 0 0 1 17.6 20Z" />
+    <!-- Moon behind the cloud -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M11.2 9.3A4.4 4.4 0 1 1 6.7 3.4A3.8 3.8 0 0 0 11.2 9.3Z" />
+</vector>

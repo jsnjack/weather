@@ -10,9 +10,14 @@ Read it before changing `cmd/web/` or `cmd/serve_glance*.go`.
   meta controls, and one line-icon set for sky conditions: the widget's
   `ic_cond_*.xml` vector drawables, rendered on the web as inline SVG in the
   text colour (`condition_icons.go`; `TestConditionIconsMatchWidget` fails if
-  the two copies drift, so change the XML and regenerate the table together).
-  Clear and partly cloudy hours after dark show the moon and plain cloud on
-  both. The **web is warm paper** (fixed
+  the two copies drift, so change the XML and the table together). The icons
+  are monochrome, a 2-unit round stroke on a 24-unit grid with one silhouette
+  per condition (cloud with dots, slanted lines, flakes, a bolt or mist lines),
+  drawn 20 px on the web: the earlier filled Material-style set, drawn at
+  16 px, read as the same cloud for drizzle, rain and snow, and fog as a menu
+  button. Clear and partly cloudy hours after dark show the moon and the moon
+  behind a cloud on both, including the hourly tables on Today, Tomorrow and
+  Weekend. The **web is warm paper** (fixed
   palette in `web/styles.css` tokens; the values the widget used before going
   dynamic) while the **widget is Material You** (wallpaper tokens). Provider
   line colours and caution/critical states are identical everywhere. The

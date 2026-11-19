@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Shared with the web pages: cmd/condition_icons.go must match (TestConditionIconsMatchWidget). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
     android:tint="@color/widget_text">
+    <!-- Sun -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M12,6.5A5.5,5.5 0 1 0 12,17.5A5.5,5.5 0 0 0 12,6.5ZM12,16A4,4 0 1 1 12,8A4,4 0 0 1 12,16Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12 8A4 4 0 1 0 12 16A4 4 0 1 0 12 8Z" />
+    <!-- Rays -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M11.25,2L11.25,4L12.75,4L12.75,2ZM11.25,20L11.25,22L12.75,22L12.75,20ZM2,11.25L2,12.75L4,12.75L4,11.25ZM20,11.25L20,12.75L22,12.75L22,11.25Z" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M4.93,4.22L6.34,5.64L7.05,4.93L5.64,3.52ZM16.95,16.95L18.36,18.36L19.07,17.66L17.66,16.24ZM16.95,7.05L18.36,5.64L17.66,4.93L16.24,6.34ZM4.93,19.78L6.34,18.36L5.64,17.66L4.22,19.07Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12 2.5V5M18.72 5.28L16.95 7.05M21.5 12H19M18.72 18.72L16.95 16.95M12 21.5V19M5.28 18.72L7.05 16.95M2.5 12H5M5.28 5.28L7.05 7.05" />
 </vector>

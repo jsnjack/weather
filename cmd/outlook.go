@@ -35,6 +35,7 @@ type detailedOutlook struct {
 	End    time.Time        `json:"end"`
 	Hours  []HourlyForecast `json:"hours"`
 	Rides  []rideWindow     `json:"rideWindows"`
+	days   []DailyForecast  // sun times for night icons
 }
 
 func init() {
@@ -87,7 +88,7 @@ func buildDetailedOutlook(data *OpenMeteoData, period string, now time.Time) (de
 	if err != nil {
 		return detailedOutlook{}, err
 	}
-	result := detailedOutlook{Period: period, Start: start, End: end, Hours: []HourlyForecast{}, Rides: []rideWindow{}}
+	result := detailedOutlook{Period: period, Start: start, End: end, Hours: []HourlyForecast{}, Rides: []rideWindow{}, days: data.Daily}
 	// Hours that have already ended are hidden; the current hour stays.
 	from := start
 	if current := localHour(now); current.After(from) {

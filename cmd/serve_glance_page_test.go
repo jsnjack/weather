@@ -377,15 +377,15 @@ func TestGlanceNightIcons(t *testing.T) {
 		{8, "clear", "clear"},
 		{16, "clear", "clear"},
 		{17, "clear", "night"},
-		{21, "partly_cloudy", "overcast"},
+		{21, "partly_cloudy", "partly_cloudy_night"},
 		{21, "rain", "rain"},
 	} {
 		at := time.Date(2026, 11, 5, tc.hour, 0, 0, 0, zone)
-		if got := conditionIconKey(tc.condition, glanceNight(days, at)); got != tc.want {
+		if got := conditionIconKey(tc.condition, nightHour(days, at)); got != tc.want {
 			t.Errorf("%02d:00 %s = %s, want %s", tc.hour, tc.condition, got, tc.want)
 		}
 	}
-	if glanceNight(nil, time.Date(2026, 11, 5, 23, 0, 0, 0, zone)) {
+	if nightHour(nil, time.Date(2026, 11, 5, 23, 0, 0, 0, zone)) {
 		t.Error("unknown sun times should count as day")
 	}
 }

@@ -636,7 +636,7 @@ func glanceHourRows(hours []HourlyForecast, days []DailyForecast, scale glanceTe
 		rows = append(rows, glanceHourRow{
 			Time:          hour.Time.Format("15:04"),
 			Condition:     conditionHumanLabel(condition),
-			ConditionIcon: conditionIcon(condition, glanceNight(days, hour.Time)),
+			ConditionIcon: conditionIcon(condition, nightHour(days, hour.Time)),
 			Rain:          makeGlanceRain(hour.Precipitation, hour.PrecipitationProbability),
 			Temp:          scale.hourTrack(hour.Temperature, hour.ApparentTemperature),
 			Wind:          makeWindView(glanceWind{SpeedKmh: int(round(hour.WindSpeed)), DirectionDeg: int(round(hour.WindDirection))}),
@@ -687,9 +687,9 @@ func glanceTraceSVG(hours []HourlyForecast, scale glanceTempScale) template.HTML
 		len(hours)*glanceHourRowPx, strings.Join(temps, " "), strings.Join(feels, " ")))
 }
 
-// glanceNight reports whether most of the hour starting at t falls between
+// nightHour reports whether most of the hour starting at t falls between
 // that day's sunset and sunrise. Unknown sun times count as day.
-func glanceNight(days []DailyForecast, t time.Time) bool {
+func nightHour(days []DailyForecast, t time.Time) bool {
 	return nightAt(days, t.Add(30*time.Minute))
 }
 

@@ -94,13 +94,15 @@ func handleOutlook(w http.ResponseWriter, r *http.Request) {
 func populateOutlookPage(page *hourlyPageData, result detailedOutlook) {
 	page.StartLabel = result.Start.Format("Mon 2 Jan")
 	page.EndLabel = result.End.Add(-time.Nanosecond).Format("Mon 2 Jan")
-	populateHourlyPage(page, result.Hours)
+	populateHourlyPage(page, result.Hours, result.days)
 	for _, ride := range result.Rides {
 		page.Rides = append(page.Rides, rideWindowRow{Start: ride.Start.Format("Mon 15:04"), End: ride.End.Format("15:04"), RainChance: ride.RainChance, Wind: int(round(ride.Wind)), Gusts: int(round(ride.Gusts)), Feels: int(round(ride.Feels)), UV: int(round(ride.UV))})
 	}
 }
 
-func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast) {
+// populateHourlyPage fills the hourly table and charts; days gives the sun
+// times for night icons.
+func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast, days []DailyForecast) {
 	var temps, feels, rain []ForecastDataPoint
 	lastDay := ""
 	for _, hour := range hours {
@@ -112,7 +114,7 @@ func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast) {
 		wind, gusts, uv := int(round(hour.WindSpeed)), int(round(hour.WindGusts)), int(round(hour.UVIndex))
 		page.Rows = append(page.Rows, hourlyRow{
 			Time: label, NewDay: day != lastDay && lastDay != "", Temp: int(round(hour.Temperature)), Feels: int(round(hour.ApparentTemperature)), Precip: formatPrecip(hour.Precipitation), PrecipPct: hour.PrecipitationProbability,
-			WindArrow: windArrowFor(int(round(hour.WindDirection))), WindKmh: wind, WindClass: windClassFor(wind), GustsKmh: gusts, GustClass: windClassFor(gusts), UV: uv, UVClass: uvClassFor(uv), Condition: conditionHumanLabel(wmoCondition(hour.WeatherCode)), ConditionIcon: conditionIcon(wmoCondition(hour.WeatherCode), false),
+			WindArrow: windArrowFor(int(round(hour.WindDirection))), WindKmh: wind, WindClass: windClassFor(wind), GustsKmh: gusts, GustClass: windClassFor(gusts), UV: uv, UVClass: uvClassFor(uv), Condition: conditionHumanLabel(wmoCondition(hour.WeatherCode)), ConditionIcon: conditionIcon(wmoCondition(hour.WeatherCode), nightHour(days, hour.Time)),
 		})
 		lastDay = day
 		temps = append(temps, ForecastDataPoint{Time: hour.Time, Value: hour.Temperature})

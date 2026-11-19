@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Crescent moon: clear sky after sunset or before sunrise. -->
+<!-- Shared with the web pages: cmd/condition_icons.go must match (TestConditionIconsMatchWidget). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:tint="@color/widget_text"
     android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportHeight="24"
+    android:tint="@color/widget_text">
+    <!-- Moon -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M14.5,3.6A8.5,8.5 0 1 0 20.4,15.6 7,7 0 0 1 14.5,3.6Z"
-        android:strokeWidth="1.6"
         android:strokeColor="#FF000000"
-        android:strokeLineJoin="round" />
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M19.5 14.5A8.2 8.2 0 1 1 9.5 4.5A7.2 7.2 0 0 0 19.5 14.5Z" />
 </vector>

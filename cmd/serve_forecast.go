@@ -276,7 +276,7 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 			rows = append(rows, hour)
 		}
 	}
-	populateHourlyPage(&page, rows)
+	populateHourlyPage(&page, rows, data.Daily)
 
 	if err := hourlyBodyTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "hourlyBody", "err", err)

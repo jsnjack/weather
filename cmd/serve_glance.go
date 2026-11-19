@@ -82,7 +82,7 @@ func nextGlanceHours(hourly []HourlyForecast, daily []DailyForecast, now time.Ti
 			Time:        h.Time.Format(time.RFC3339),
 			Condition:   wmoCondition(h.WeatherCode),
 			Temperature: int(round(h.Temperature)),
-			Night:       glanceNight(daily, h.Time),
+			Night:       nightHour(daily, h.Time),
 		})
 		if len(hours) == glanceHourCount {
 			break
