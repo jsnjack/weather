@@ -255,9 +255,9 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   and `Ride: multiday`.
 - **The glance page puts every horizon on one time axis.** `/glance`, the
   widget's tap target, shows rows of 5 minutes (both nowcast providers), then 1
-  hour for the rest of today, then 1 day for the next 13 days, on one rail and
-  one °C scale. `glance_body` repeats the index page's radar player markup, so
-  change both with `radar.js`. Details in [docs/web.md](docs/web.md).
+  hour until midnight or for at least 12 hours, then 1 day for the next 13
+  days, on one rail and one °C scale. `glance_body` repeats the index page's
+  radar player markup, so change both with `radar.js`. Details in [docs/web.md](docs/web.md).
 - **Hourly tables fit the phone width.** Sky condition icons sit beside the
   temperature, with accessible names and tap-to-show labels. At widths up to
   600px, temperature/feels, rain/chance and wind/gusts share labelled two-line

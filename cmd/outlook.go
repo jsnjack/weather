@@ -16,6 +16,9 @@ const (
 	rideWindowHours   = 2
 	rideWindowLimit   = 3
 	rideRainChanceMax = 30
+	// todayMinHours is how many hours Today lists at least, so in the evening
+	// it runs into tomorrow instead of showing the last few hours of the day.
+	todayMinHours = 12
 )
 
 type rideWindow struct {
@@ -32,7 +35,7 @@ type rideWindow struct {
 type detailedOutlook struct {
 	Period string           `json:"period"`
 	Start  time.Time        `json:"start"`
-	End    time.Time        `json:"end"`
+	End    time.Time        `json:"end"` // after the last hour; past midnight when Today runs into tomorrow
 	Hours  []HourlyForecast `json:"hours"`
 	Rides  []rideWindow     `json:"rideWindows"`
 	days   []DailyForecast  // sun times for night icons
@@ -88,21 +91,31 @@ func buildDetailedOutlook(data *OpenMeteoData, period string, now time.Time) (de
 	if err != nil {
 		return detailedOutlook{}, err
 	}
-	result := detailedOutlook{Period: period, Start: start, End: end, Hours: []HourlyForecast{}, Rides: []rideWindow{}, days: data.Daily}
 	// Hours that have already ended are hidden; the current hour stays.
 	from := start
 	if current := localHour(now); current.After(from) {
 		from = current
 	}
+	shown := end
+	if period == outlookToday {
+		shown = maxTime(end, from.Add(todayMinHours*time.Hour))
+	}
+	result := detailedOutlook{Period: period, Start: start, End: shown, Hours: []HourlyForecast{}, Rides: []rideWindow{}, days: data.Daily}
+	// Ride windows stay within the period: tomorrow's have their own page.
+	var periodHours []HourlyForecast
 	for _, hour := range data.Hourly {
-		if !hour.Time.Before(from) && hour.Time.Before(end) {
-			result.Hours = append(result.Hours, hour)
+		if hour.Time.Before(from) || !hour.Time.Before(shown) {
+			continue
+		}
+		result.Hours = append(result.Hours, hour)
+		if hour.Time.Before(end) {
+			periodHours = append(periodHours, hour)
 		}
 	}
 	if len(result.Hours) == 0 {
 		return detailedOutlook{}, fmt.Errorf("detailed forecast: no data for %s", period)
 	}
-	result.Rides = rankRideWindows(result.Hours, data.Daily, now)
+	result.Rides = rankRideWindows(periodHours, data.Daily, now)
 	return result, nil
 }
 

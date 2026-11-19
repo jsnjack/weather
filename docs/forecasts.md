@@ -33,7 +33,10 @@ and the calendar-day views. Read it before changing `cmd/cache.go`,
   with Sunday showing Sunday only. Windows use location midnight and calendar
   arithmetic so DST does not force a 24-hour day. The three views share one
   seven-day hourly response. Hours that have already ended are hidden; the
-  current hour stays. Up to three non-overlapping two-hour ride windows
+  current hour stays. Today lists at least 12 hours (`todayMinHours`): when
+  midnight is closer it runs into tomorrow, because at 20:00 the rest of the
+  day was only four rows; its ride windows still stay within today, since
+  tomorrow's are on Tomorrow. Up to three non-overlapping two-hour ride windows
   are ranked by rain probability, wind, gusts, feels-like comfort and UV; each
   must be dry with rain chance at most 30%, wholly in daylight, start in the future, and have wind/gusts below
   the critical threshold. The Android widget opens `/glance` when tapped, and

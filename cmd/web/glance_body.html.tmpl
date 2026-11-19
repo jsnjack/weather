@@ -75,12 +75,12 @@
     {{template "g-joint"}}
 
     <section class="g-band" id="g-today" aria-labelledby="g-today-h">
-      <header class="g-bh"><h2 id="g-today-h">Rest of today</h2>{{with .Today.Summary}}<p class="g-bsum">{{.}}</p>{{end}}</header>
+      <header class="g-bh"><h2 id="g-today-h">{{.Today.Title}}</h2>{{with .Today.Summary}}<p class="g-bsum">{{.}}</p>{{end}}</header>
       {{with .Today.Rides}}<div class="g-ridesline"><a class="g-rl" href="/day{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows today</a>{{template "g-chips" .}}</div>{{end}}
       {{with .Today.RideNote}}<p class="g-noride">{{template "g-bike"}}<span>{{.}}</span></p>{{end}}
       {{with .Today.TomorrowRides}}<div class="g-ridesline"><a class="g-rl" href="/tomorrow{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows tomorrow</a>{{template "g-chips" .}}</div>{{end}}
       {{if .Today.Rows}}
-      <div class="g-table" role="table" aria-label="Rest of today by hour" style="{{.Scale.Lines}}">
+      <div class="g-table" role="table" aria-label="{{.Today.Title}} by hour" style="{{.Scale.Lines}}">
         {{template "g-cols" .Today.Cols}}
         <div class="g-rows" role="rowgroup">
           {{range .Today.Night}}<span class="g-night" aria-hidden="true" style="top:{{.Top}}px;height:{{.Height}}px"></span>{{end}}

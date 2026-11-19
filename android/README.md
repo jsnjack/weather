@@ -4,7 +4,7 @@ A native Android widget that calls the `weather serve` JSON API
 (`/api/v1/glance`) and renders the 2-hour Buienalarm + Buienradar
 mini-chart on the home screen. Tapping it opens the glance page (`/glance`)
 for the widget's own location in the browser: now, the next two hours, the
-rest of today and the next 13 days in one scroll.
+next 12 hours or the rest of today, and the next 13 days in one scroll.
 
 The widget has one fixed layout for each size, so a refresh only changes text
 and images. At the default 4×2 size it shows a header with the place and the

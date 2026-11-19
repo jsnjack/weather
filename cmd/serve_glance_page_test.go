@@ -159,12 +159,15 @@ func TestGlanceNowcast(t *testing.T) {
 }
 
 func TestGlancePage(t *testing.T) {
-	t.Run("hours continue after the nowcast", func(t *testing.T) {
+	t.Run("hours continue after the nowcast for 12 hours", func(t *testing.T) {
 		src, now := glanceTestSources(t, false)
 		var page glancePageData
 		populateGlancePage(&page, src, now)
-		if len(page.Today.Rows) != 8 || page.Today.Rows[0].Time != "16:00" {
-			t.Fatalf("hour rows = %d from %+v", len(page.Today.Rows), page.Today.Rows)
+		// 14:05: the nowcast covers 14:00–15:59, and the hours run 12 hours
+		// from the current hour, past midnight to 01:00.
+		rows := page.Today.Rows
+		if len(rows) != 10 || rows[0].Time != "16:00" || rows[len(rows)-1].Time != "01:00" || page.Today.Title != "Next 12 hours" {
+			t.Fatalf("%q: hour rows = %d from %+v", page.Today.Title, len(rows), rows)
 		}
 		if len(page.Days.Rows) != glanceForecastDays-1 || page.Days.Rows[0].Label != "Thu 5" || page.Days.Rows[0].Week != 45 {
 			t.Fatalf("day rows = %d, first %+v", len(page.Days.Rows), page.Days.Rows[0])
@@ -221,6 +224,16 @@ func TestGlancePage(t *testing.T) {
 		if len(page.Today.TomorrowRides) != rideWindowLimit || page.Days.Note == "" {
 			t.Fatalf("tomorrow rides %+v, days note %q", page.Today.TomorrowRides, page.Days.Note)
 		}
+	})
+	t.Run("hourly forecast failure keeps the page", func(t *testing.T) {
+		src, now := glanceTestSources(t, false)
+		src.hourly, src.hourlyErr = nil, errors.New("open-meteo down")
+		var page glancePageData
+		populateGlancePage(&page, src, now)
+		if page.Today.Note == "" || len(page.Today.Rows) != 0 || len(page.Days.Rows) != glanceForecastDays-1 {
+			t.Fatalf("today note %q, %d hour rows, %d day rows", page.Today.Note, len(page.Today.Rows), len(page.Days.Rows))
+		}
+		renderGlancePage(t, page)
 	})
 	t.Run("less text", func(t *testing.T) {
 		src, now := glanceTestSources(t, false)
@@ -344,8 +357,8 @@ func TestGlanceHandler(t *testing.T) {
 		want        []string
 		dayRows     int
 	}{
-		{"renders every band", http.StatusOK, []string{"Next 2 hours", "Peak 1.4 mm/h", "Rest of today", "Next 13 days", "How to read it", `id="radar-player"`, `data-outline="30"`, `class="g-read"`}, glanceForecastDays - 1},
-		{"daily failure keeps the other bands", http.StatusBadRequest, []string{"Next 2 hours", "Peak 1.4 mm/h", "Rest of today", "Unable to fetch the daily forecast right now.", "How to read it", `class="g-read"`}, 0},
+		{"renders every band", http.StatusOK, []string{"Next 2 hours", "Peak 1.4 mm/h", `id="g-today-h"`, "Next 13 days", "How to read it", `id="radar-player"`, `data-outline="30"`, `class="g-read"`}, glanceForecastDays - 1},
+		{"daily failure keeps the other bands", http.StatusBadRequest, []string{"Next 2 hours", "Peak 1.4 mm/h", `id="g-today-h"`, "Unable to fetch the daily forecast right now.", "How to read it", `class="g-read"`}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resetOpenMeteo(t)
@@ -403,5 +416,29 @@ func TestGlanceNightIcons(t *testing.T) {
 	}
 	if nightHour(nil, time.Date(2026, 11, 5, 23, 0, 0, 0, zone)) {
 		t.Error("unknown sun times should count as day")
+	}
+}
+
+func TestGlanceDaylightAcrossMidnight(t *testing.T) {
+	zone := time.FixedZone("CEST", 2*3600)
+	day := func(d int) DailyForecast {
+		date := time.Date(2026, 6, d, 0, 0, 0, 0, zone)
+		return DailyForecast{Date: date, Sunrise: date.Add(5*time.Hour + 30*time.Minute), Sunset: date.Add(22 * time.Hour)}
+	}
+	// 18:00 to 06:59 the next morning: one night from 22:00 to 05:30.
+	var hours []HourlyForecast
+	start := time.Date(2026, 6, 20, 18, 0, 0, 0, zone)
+	for i := range 13 {
+		hours = append(hours, HourlyForecast{Time: start.Add(time.Duration(i) * time.Hour)})
+	}
+	night, marks := glanceDaylight(hours, []DailyForecast{day(20), day(21)})
+	if len(night) != 1 || night[0].Top != 4*glanceHourRowPx || night[0].Height != 7*glanceHourRowPx+glanceHourRowPx/2 {
+		t.Fatalf("night = %+v", night)
+	}
+	if len(marks) != 2 || marks[0].Glyph != "↓" || marks[0].Time != "22:00" || marks[1].Glyph != "↑" || marks[1].Time != "05:30" {
+		t.Fatalf("marks = %+v", marks)
+	}
+	if night, marks := glanceDaylight(hours, []DailyForecast{day(20)}); len(night) != 1 || night[0].Height != 2*glanceHourRowPx || len(marks) != 1 {
+		t.Fatalf("a day without sun times should count as daylight: night %+v, marks %+v", night, marks)
 	}
 }

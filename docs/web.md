@@ -43,9 +43,10 @@ Read it before changing `cmd/web/` or `cmd/serve_glance*.go`.
   pages. One rail carries rows of 5 minutes (both nowcast providers drawn down
   the axis in mm/h, capped at the Buienalarm horizon, with labelled rain-start,
   per-provider peak and dry-again events and a text alternative), then 1 hour
-  for the rest of today from where the nowcast ends (the `/day` outlook, with
-  night shading and sun times), then 1 day for the next 13 days (the
-  `/forecast` daily request). Header readouts come from `buildGlanceResponse`.
+  from where the nowcast ends (the `/day` outlook: until midnight, or 12 hours
+  from the current hour when midnight is closer, titled "Rest of today" or
+  "Next 12 hours"; night shading and sun times use each calendar day's sun
+  times), then 1 day for the next 13 days (the `/forecast` daily request). Header readouts come from `buildGlanceResponse`.
   Hours and days share one °C scale, so daily low–high bars line up with the
   hourly dots. In hourly and daily rows the rain cell follows the sky icon:
   the chance in bold, in the water colour from 40% or from 1 mm (Open-Meteo's

@@ -117,6 +117,61 @@ func TestRideWindows(t *testing.T) {
 }
 
 func TestBuildDetailedOutlook(t *testing.T) {
+	t.Run("today runs 12 hours into tomorrow in the evening", func(t *testing.T) {
+		zone, err := time.LoadLocation("Europe/Amsterdam")
+		if err != nil {
+			t.Fatal(err)
+		}
+		midnight := time.Date(2026, 6, 20, 0, 0, 0, 0, zone)
+		data := &OpenMeteoData{Daily: []DailyForecast{
+			{Date: midnight, Sunrise: midnight.Add(5*time.Hour + 20*time.Minute), Sunset: midnight.Add(22 * time.Hour)},
+			{Date: midnight.AddDate(0, 0, 1), Sunrise: midnight.Add(29*time.Hour + 20*time.Minute), Sunset: midnight.Add(46 * time.Hour)},
+		}}
+		for i := range 48 {
+			data.Hourly = append(data.Hourly, HourlyForecast{Time: midnight.Add(time.Duration(i) * time.Hour), ApparentTemperature: 18, WindSpeed: 10, WindGusts: 15})
+		}
+		for _, tc := range []struct {
+			name        string
+			now         time.Duration
+			first, last string
+			rows        int
+		}{
+			{"morning keeps the rest of the day", 7*time.Hour + 30*time.Minute, "Sat 07:00", "Sat 23:00", 17},
+			{"afternoon", 14*time.Hour + 10*time.Minute, "Sat 14:00", "Sun 01:00", 12},
+			{"evening", 20*time.Hour + 12*time.Minute, "Sat 20:00", "Sun 07:00", 12},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := buildDetailedOutlook(data, outlookToday, midnight.Add(tc.now))
+				if err != nil {
+					t.Fatal(err)
+				}
+				first, last := result.Hours[0].Time.Format("Mon 15:04"), result.Hours[len(result.Hours)-1].Time.Format("Mon 15:04")
+				if len(result.Hours) != tc.rows || first != tc.first || last != tc.last || !result.End.Equal(result.Hours[len(result.Hours)-1].Time.Add(time.Hour)) {
+					t.Fatalf("%d hours %s → %s, end %v", len(result.Hours), first, last, result.End)
+				}
+				// Sunday morning is daylight and dry, but its ride windows belong to Tomorrow.
+				for _, ride := range result.Rides {
+					if !ride.End.Before(midnight.AddDate(0, 0, 1).Add(time.Second)) {
+						t.Fatalf("ride window %v–%v is not today", ride.Start, ride.End)
+					}
+				}
+			})
+		}
+		late, err := buildDetailedOutlook(data, outlookToday, midnight.Add(23*time.Hour+30*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(late.Rides) != 0 {
+			t.Fatalf("23:30 ride windows = %+v, want none: Sunday morning is tomorrow's", late.Rides)
+		}
+		tomorrow, err := buildDetailedOutlook(data, outlookTomorrow, midnight.Add(20*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tomorrow.Hours) != 24 {
+			t.Fatalf("tomorrow = %d hours, want 24", len(tomorrow.Hours))
+		}
+	})
 	t.Run("location zone, exclusive midnight and hidden past hours", func(t *testing.T) {
 		zone, err := time.LoadLocation("Europe/Amsterdam")
 		if err != nil {

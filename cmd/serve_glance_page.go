@@ -165,6 +165,7 @@ type glanceHourRow struct {
 }
 
 type glanceHourBand struct {
+	Title         string // "Rest of today", or "Next 12 hours" once the rows pass midnight
 	Cols          glanceColumns
 	Note          string
 	Summary       string
@@ -289,7 +290,11 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 
 	var hours []HourlyForecast
 	var todayRides, tomorrowRides []rideWindow
-	var sunrise, sunset time.Time
+	var sunDays []DailyForecast
+	if src.hourly != nil {
+		sunDays = src.hourly.Daily
+	}
+	page.Today.Title = "Rest of today"
 	today, todayErr := buildDetailedOutlook(src.hourly, outlookToday, now)
 	if todayErr != nil {
 		page.Today.Note = "Unable to fetch the hourly forecast right now."
@@ -311,7 +316,9 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 		if tomorrow, err := buildDetailedOutlook(src.hourly, outlookTomorrow, now); err == nil {
 			tomorrowRides = tomorrow.Rides
 		}
-		sunrise, sunset = glanceSunTimes(src.hourly.Daily, now)
+		if len(hours) > 0 && hours[len(hours)-1].Time.Format(glanceDateKey) != now.Format(glanceDateKey) {
+			page.Today.Title = fmt.Sprintf("Next %d hours", todayMinHours)
+		}
 	}
 
 	var days []DailyAggregate
@@ -338,9 +345,9 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 	page.Scale = newGlanceTempScale(temps)
 	page.Today.Cols = glanceColumns{Name: "Time", Temp: "Temperature and feels like in °C", Ticks: page.Scale.Ticks}
 	page.Days.Cols = glanceColumns{Name: "Day", Temp: "Low and high temperature in °C", Ticks: page.Scale.Ticks}
-	page.Today.Rows = glanceHourRows(hours, src.hourly.Daily, page.Scale)
+	page.Today.Rows = glanceHourRows(hours, sunDays, page.Scale)
 	page.Today.TraceSVG = glanceTraceSVG(hours, page.Scale)
-	page.Today.Night, page.Today.Sun = glanceDaylight(hours, sunrise, sunset)
+	page.Today.Night, page.Today.Sun = glanceDaylight(hours, sunDays)
 	page.Days.Rows = glanceDayRows(days, page.Scale)
 
 	if todayErr != nil {
@@ -691,8 +698,8 @@ func nightHour(days []DailyForecast, t time.Time) bool {
 	return nightAt(days, t.Add(30*time.Minute))
 }
 
-func glanceSunTimes(days []DailyForecast, now time.Time) (time.Time, time.Time) {
-	key := now.Format(glanceDateKey)
+func glanceSunTimes(days []DailyForecast, date time.Time) (time.Time, time.Time) {
+	key := date.Format(glanceDateKey)
 	for _, day := range days {
 		if day.Date.Format(glanceDateKey) == key {
 			return day.Sunrise, day.Sunset
@@ -701,35 +708,48 @@ func glanceSunTimes(days []DailyForecast, now time.Time) (time.Time, time.Time) 
 	return time.Time{}, time.Time{}
 }
 
-// glanceDaylight shades the hourly rows before sunrise and after sunset and
-// marks the sun events. Each row spans its hour, so an event sits at its
-// minute within the row; its label goes in the rail at the nearest row
-// boundary, between two hour labels.
-func glanceDaylight(hours []HourlyForecast, sunrise, sunset time.Time) ([]glanceSpan, []glanceSunMark) {
+// glanceDaylight shades the hourly rows between sunset and sunrise and marks
+// the sun events. The rows can run past midnight, so each calendar day uses
+// its own sun times, and a day without them counts as daylight. Each row
+// spans its hour, so an event sits at its minute within the row; its label
+// goes in the rail at the nearest row boundary, between two hour labels.
+func glanceDaylight(hours []HourlyForecast, days []DailyForecast) ([]glanceSpan, []glanceSunMark) {
 	if len(hours) == 0 {
 		return nil, nil
 	}
 	start, end := hours[0].Time, hours[len(hours)-1].Time.Add(time.Hour)
 	px := func(at time.Time) int { return int(math.Round(at.Sub(start).Hours() * glanceHourRowPx)) }
 	var night []glanceSpan
-	if !sunrise.IsZero() && start.Before(sunrise) {
-		night = append(night, glanceSpan{Top: 0, Height: px(minTime(sunrise, end))})
-	}
-	if !sunset.IsZero() && end.After(sunset) {
-		from := maxTime(sunset, start)
-		night = append(night, glanceSpan{Top: px(from), Height: px(end) - px(from)})
+	shade := func(from, to time.Time) {
+		from, to = maxTime(from, start), minTime(to, end)
+		if !to.After(from) {
+			return
+		}
+		top, bottom := px(from), px(to)
+		if n := len(night); n > 0 && night[n-1].Top+night[n-1].Height == top {
+			night[n-1].Height = bottom - night[n-1].Top
+			return
+		}
+		night = append(night, glanceSpan{Top: top, Height: bottom - top})
 	}
 	var marks []glanceSunMark
-	for _, event := range []struct {
-		at    time.Time
-		glyph string
-	}{{sunrise, "↑"}, {sunset, "↓"}} {
-		if event.at.IsZero() || !event.at.After(start) || !event.at.Before(end) {
+	mark := func(at time.Time, glyph string) {
+		if !at.After(start) || !at.Before(end) {
+			return
+		}
+		top := px(at)
+		boundary := min(max(int(math.Round(float64(top)/glanceHourRowPx)), 1), len(hours))
+		marks = append(marks, glanceSunMark{Top: top, LabelTop: boundary * glanceHourRowPx, Glyph: glyph, Time: at.Format("15:04")})
+	}
+	for day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location()); day.Before(end); day = day.AddDate(0, 0, 1) {
+		sunrise, sunset := glanceSunTimes(days, day)
+		if sunrise.IsZero() || sunset.IsZero() {
 			continue
 		}
-		top := px(event.at)
-		boundary := min(max(int(math.Round(float64(top)/glanceHourRowPx)), 1), len(hours))
-		marks = append(marks, glanceSunMark{Top: top, LabelTop: boundary * glanceHourRowPx, Glyph: event.glyph, Time: event.at.Format("15:04")})
+		shade(day, sunrise)
+		shade(sunset, day.AddDate(0, 0, 1))
+		mark(sunrise, "↑")
+		mark(sunset, "↓")
 	}
 	return night, marks
 }
