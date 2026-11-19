@@ -173,6 +173,8 @@ td.muted, span.muted { color: var(--muted); }
 .legend-card h4 { margin: .6rem 0 .3rem; font-size: .78rem; color: var(--muted); font-weight: 600; }
 .legend-group { margin-bottom: .4rem; }
 .legend-item { display: inline-flex; align-items: center; gap: .4rem; margin: .15rem .9rem .15rem 0; font-size: .82rem; }
+/* A legend line of running text; .legend-item lays out a swatch and its label. */
+.legend-line { margin: .15rem 0; font-size: .82rem; }
 .legend-card .sub { font-size: .82rem; }
 .swatch {
   display: inline-flex; align-items: center; justify-content: center;
@@ -189,6 +191,8 @@ td.muted, span.muted { color: var(--muted); }
   background: linear-gradient(90deg, #60a5fa, #f97316); }
 
 footer { margin-top: 1.25rem; color: var(--muted); font-size: .75rem; text-align: center; }
+footer a { color: inherit; }
+.ride-note { display: flex; align-items: center; gap: 6px; margin: .5rem 0 .9rem; color: var(--muted); font-size: .9rem; }
 
 /* progress / loading */
 .loading { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
@@ -215,7 +219,7 @@ footer { margin-top: 1.25rem; color: var(--muted); font-size: .75rem; text-align
   .glance { --g-night: rgb(140 170 215 / .08); --g-sun: #F0A04B; --g-temp: #FB8A3C; --g-cold: #78AEF5; }
 }
 .glance :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.g-meta, .g-read dd, .g-nowchip, .g-bh p, .g-mmscale, .g-tick, .g-endtick, .g-ev span, .g-joint span,
+.g-meta, .g-read dd, .g-nowchip, .g-bh p, .g-mmscale, .g-tick, .g-endtick, .g-ev span,
 .g-time, .g-dp, .g-wd, .g-tv, .g-fv, .g-scale, .g-week span, .g-chip, .g-sunlabel { font-family: var(--g-mono); }
 
 /* header readouts: now, with the +2h value underneath */
@@ -246,7 +250,6 @@ footer { margin-top: 1.25rem; color: var(--muted); font-size: .75rem; text-align
 .g-brk { position: absolute; left: calc(var(--g-rail) - 11px); top: 14px; z-index: 2; width: 22px; height: 16px; overflow: visible; }
 .g-brk rect { fill: var(--surface); }
 .g-brk path { fill: none; stroke: var(--ink); stroke-width: 1.5; }
-.g-joint span { padding: 2px 7px; border: 1px solid var(--g-grid); border-radius: 3px; background: var(--surface); color: var(--muted); font-size: .64rem; letter-spacing: .04em; text-transform: uppercase; }
 .g-bandnote, .g-b1note { position: relative; margin: 0 0 .75rem calc(var(--g-rail)); padding: .2rem 0 .2rem 10px; color: var(--muted); font-size: .85rem; }
 
 /* next 2 hours: both providers drawn down the 5-minute rows */
@@ -337,7 +340,8 @@ footer { margin-top: 1.25rem; color: var(--muted); font-size: .75rem; text-align
 .g-rides { padding: 0 0 8px calc(var(--g-rail) + var(--g-gap)); }
 .g-rides > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .g-legend { position: relative; z-index: 1; margin: 22px 0 0 calc(var(--g-rail) + 10px); padding: 12px; border: 1px solid var(--g-grid); background: var(--surface); }
-.g-legend h2 { margin: 0 0 6px; font-size: .82rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.g-legend summary { cursor: pointer; font-size: .82rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.g-legend[open] summary { margin-bottom: 6px; }
 .g-legend ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; font-size: .82rem; }
 .g-lg-dot, .g-lg-ring { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: middle; }
 .g-lg-dot { background: var(--g-temp); }

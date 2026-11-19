@@ -204,7 +204,7 @@ func TestGlancePage(t *testing.T) {
 		src, now := glanceTestSources(t, true)
 		var page glancePageData
 		populateGlancePage(&page, src, now)
-		if len(page.Today.Rides) != 0 || page.Today.RideNote != "No dry 2-hour ride window left in daylight" || len(page.Days.Rows[0].Rides) != rideWindowLimit {
+		if len(page.Today.Rides) != 0 || page.Today.RideNote != "No ride window left today" || len(page.Days.Rows[0].Rides) != rideWindowLimit {
 			t.Fatalf("today rides %+v, note %q, tomorrow %+v", page.Today.Rides, page.Today.RideNote, page.Days.Rows[0].Rides)
 		}
 		body := renderGlancePage(t, page)
@@ -220,6 +220,22 @@ func TestGlancePage(t *testing.T) {
 		populateGlancePage(&page, src, now)
 		if len(page.Today.TomorrowRides) != rideWindowLimit || page.Days.Note == "" {
 			t.Fatalf("tomorrow rides %+v, days note %q", page.Today.TomorrowRides, page.Days.Note)
+		}
+	})
+	t.Run("less text", func(t *testing.T) {
+		src, now := glanceTestSources(t, false)
+		var page glancePageData
+		populateGlancePage(&page, src, now)
+		body := renderGlancePage(t, page)
+		for _, gone := range []string{"At a glance ·", "1 row =", "Zoom out ·", "updated <b>", "refreshed", "Whole day", "sun 07:37"} {
+			if strings.Contains(body, gone) {
+				t.Errorf("page still says %q", gone)
+			}
+		}
+		for _, want := range []string{"Today 10°/4° · 0.4 mm · gusts 41", `<details class="g-legend">`, "Forecast: <a href=\"https://open-meteo.com/\">Open-Meteo</a>"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("page lacks %q", want)
+			}
 		}
 	})
 	t.Run("shared temperature scale", func(t *testing.T) {

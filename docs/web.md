@@ -29,6 +29,15 @@ Read it before changing `cmd/web/` or `cmd/serve_glance*.go`.
   green/yellow/red identities the legend names, and rounded gap tiles read
   worse than the solid grid. No refresh buttons in headers — the browser
   has one.
+- **Keep explanatory text off the pages.** The glance and Today / Tomorrow /
+  Weekend pages carry no subtitles under the place name, no "1 row = …"
+  captions or "Zoom out" labels between bands, no "refreshed" footer and no
+  ranking rule above the ride table; the user found them too wordy. The time
+  labels show each band's step, the nav shows the page, and a missing ride
+  window is one line. The data sources sit in the footer, which keeps the
+  credit Open-Meteo's CC BY 4.0 licence requires. Glance's "How to read it"
+  legend is folded behind a toggle; the hourly pages keep a two-line legend
+  (wind arrow and caution/critical limits, and the ride-window rule).
 - **The glance page puts every horizon on one time axis.** `/glance` is the
   widget's tap target and takes the same location parameters as the other
   pages. One rail carries rows of 5 minutes (both nowcast providers drawn down

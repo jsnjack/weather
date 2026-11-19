@@ -202,7 +202,7 @@ type hourlyPageData struct {
 	TempChartSVG   template.HTML
 	PrecipChartSVG template.HTML
 	Rows           []hourlyRow
-	Now            string
+	RideNote       string // shown instead of the ride table when there is no window
 	Note           string // populated when the upstream fetch failed entirely
 }
 
@@ -224,21 +224,17 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 	}
 	hours := parseHoursParam(r)
 	now := time.Now().In(locationZone(loc.Latitude, loc.Longitude))
-	start := localHour(now)
-	end := start.Add(time.Duration(hours) * time.Hour)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	flusher, _ := w.(http.Flusher)
 
 	page := hourlyPageData{
-		Title:      "Hourly",
-		Location:   loc,
-		Q:          locQuery(loc, name),
-		NameInput:  name,
-		Hours:      hours,
-		StartLabel: start.Format("Mon 15:04"),
-		EndLabel:   end.Format("Mon 15:04"),
+		Title:     "Hourly",
+		Location:  loc,
+		Q:         locQuery(loc, name),
+		NameInput: name,
+		Hours:     hours,
 	}
 	if err := hourlyHeadTmpl.Execute(w, page); err != nil {
 		slog.Debug("template execute", "tmpl", "hourlyHead", "err", err)
@@ -257,7 +253,6 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 	prog.Inc(1)
 	prog.Finish()
 
-	page.Now = time.Now().In(locationZone(loc.Latitude, loc.Longitude)).Format("15:04:05")
 	if fetchErr != nil || data == nil || len(data.Hourly) == 0 {
 		page.Note = "Unable to fetch the hourly forecast right now."
 		if err := hourlyBodyTmpl.Execute(w, page); err != nil {
@@ -267,9 +262,8 @@ func handleHourly(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now = now.In(data.Hourly[0].Time.Location())
-	start = localHour(now)
-	end = start.Add(time.Duration(hours) * time.Hour)
-	page.StartLabel, page.EndLabel = start.Format("Mon 15:04"), end.Format("Mon 15:04")
+	start := localHour(now)
+	end := start.Add(time.Duration(hours) * time.Hour)
 	rows := make([]HourlyForecast, 0, hours)
 	for _, hour := range data.Hourly {
 		if !hour.Time.Before(start) && !hour.Time.After(end) {

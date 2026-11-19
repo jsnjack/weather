@@ -1,5 +1,5 @@
 {{define "g-bike"}}<svg class="g-bike" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6" cy="16" r="3.6"/><circle cx="18" cy="16" r="3.6"/><path d="M6 16 9.6 9.5h6M12 16 9.6 9.5M12 16l3.6-6.5L18 16M6 16h6M9.6 9.5l.2-1.8M8.5 7.7h2.7M15.6 9.5l-.8-2.7h2.3"/></svg>{{end}}
-{{define "g-joint"}}<div class="g-joint" aria-hidden="true"><svg class="g-brk" viewBox="0 0 22 16" focusable="false"><rect x="8" y="5.6" width="6" height="4.8"/><path d="M1 8 21 3M1 13 21 8"/></svg><span>Zoom out · 1 row = 1 {{.}}</span></div>{{end}}
+{{define "g-joint"}}<div class="g-joint" aria-hidden="true"><svg class="g-brk" viewBox="0 0 22 16" focusable="false"><rect x="8" y="5.6" width="6" height="4.8"/><path d="M1 8 21 3M1 13 21 8"/></svg></div>{{end}}
 {{define "g-sky"}}<details class="sky-condition"><summary aria-label="{{.Condition}}" title="{{.Condition}}"><span aria-hidden="true">{{.ConditionIcon}}</span></summary><span class="sky-label">{{.Condition}}</span></details>{{end}}
 {{define "g-rain"}}<span class="g-dp{{if .Wet}} g-wet{{end}}" role="cell"><b>{{.Chance}}%</b><small>{{.Amount}}</small></span>{{end}}
 {{define "g-wind"}}<span class="g-wd" role="cell"><span class="g-mi-{{.Wind.Class}}"><span class="g-arr" aria-hidden="true">{{.Wind.Arrow}}</span>{{.Wind.Kmh}}</span><small class="g-mi-{{.Gust.Class}}">/<span class="vh"> gusts </span>{{.Gust.Value}}</small><span class="vh"> km/h</span></span>{{end}}
@@ -11,7 +11,7 @@
           <span class="g-trk g-scale" role="columnheader"><span class="vh">{{.Temp}}</span>{{range .Ticks}}<span aria-hidden="true" style="{{.Style}}">{{.Label}}</span>{{end}}</span>
           <span class="g-wd" role="columnheader">Wind/gust</span>
         </div>{{end}}
-  <p class="g-meta">{{.Date}} · updated <b>{{.Updated}}</b></p>
+  <p class="g-meta">{{.Date}}</p>
   {{with .Readouts}}
   <dl class="g-read">
     <div><dt>Temp</dt><dd>{{.Temp}}°</dd><dd class="g-sub">feels {{.Feels}}°</dd></div>
@@ -27,7 +27,7 @@
     <p class="g-now"><span class="g-nowchip">Now {{.Updated}}</span><span class="g-nowtxt">{{.Nowcast.Message}}</span></p>
 
     <section class="g-band" id="g-nowcast" aria-labelledby="g-nowcast-h">
-      <header class="g-bh"><h2 id="g-nowcast-h">Next 2 hours</h2><p>1 row = 5 min · radar nowcast</p>
+      <header class="g-bh"><h2 id="g-nowcast-h">Next 2 hours</h2>
         {{if and .Nowcast.Providers (not .Nowcast.Dry)}}<p class="g-key">{{range .Nowcast.Providers}}<span><i class="g-pdot" style="background:{{.Color}}"></i>{{.Name}}</span>{{end}}</p>{{end}}
       </header>
       <div class="g-b1wrap">
@@ -72,10 +72,10 @@
       </div>
     </section>
 
-    {{template "g-joint" "hour"}}
+    {{template "g-joint"}}
 
     <section class="g-band" id="g-today" aria-labelledby="g-today-h">
-      <header class="g-bh"><h2 id="g-today-h">Rest of today</h2><p>1 row = 1 hour · Open-Meteo</p>{{with .Today.Summary}}<p class="g-bsum">{{.}}</p>{{end}}</header>
+      <header class="g-bh"><h2 id="g-today-h">Rest of today</h2>{{with .Today.Summary}}<p class="g-bsum">{{.}}</p>{{end}}</header>
       {{with .Today.Rides}}<div class="g-ridesline"><a class="g-rl" href="/day{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows today</a>{{template "g-chips" .}}</div>{{end}}
       {{with .Today.RideNote}}<p class="g-noride">{{template "g-bike"}}<span>{{.}}</span></p>{{end}}
       {{with .Today.TomorrowRides}}<div class="g-ridesline"><a class="g-rl" href="/tomorrow{{if $.Q}}?{{$.Q}}{{end}}">{{template "g-bike"}}Ride windows tomorrow</a>{{template "g-chips" .}}</div>{{end}}
@@ -101,10 +101,10 @@
       {{with .Today.Note}}<p class="g-bandnote">{{.}}</p>{{end}}
     </section>
 
-    {{template "g-joint" "day"}}
+    {{template "g-joint"}}
 
     <section class="g-band" id="g-days" aria-labelledby="g-days-h">
-      <header class="g-bh"><h2 id="g-days-h">Next 13 days</h2><p>1 row = 1 day · Open-Meteo daily</p></header>
+      <header class="g-bh"><h2 id="g-days-h">Next 13 days</h2></header>
       {{if .Days.Rows}}
       <div class="g-table" role="table" aria-label="Next 13 days" style="{{.Scale.Lines}}">
         {{template "g-cols" .Days.Cols}}
@@ -126,8 +126,8 @@
       {{with .Days.Note}}<p class="g-bandnote">{{.}}</p>{{end}}
     </section>
 
-    <section class="g-legend" aria-labelledby="g-legend-h">
-      <h2 id="g-legend-h">How to read it</h2>
+    <details class="g-legend">
+      <summary>How to read it</summary>
       <ul>
         <li><i class="g-lg-dot"></i> temperature · <i class="g-lg-ring"></i> feels like</li>
         <li><i class="g-lg-bar"></i> day’s low to high on the same °C scale as the hours</li>
@@ -136,10 +136,10 @@
         <li>→ arrow points where the wind pushes you · <span class="g-mi-caution">caution</span> wind ≥28 km/h, UV ≥3 · <span class="g-mi-critical">critical</span> wind ≥50 km/h, UV ≥8</li>
         <li><i class="g-lg-night"></i> after sunset · <span class="g-chip"><b>10–12</b></span> ranked dry 2-hour ride window</li>
       </ul>
-    </section>
+    </details>
   </div>
 
-  <footer>refreshed {{.Refreshed}}</footer>
+  <footer>Forecast: <a href="https://open-meteo.com/">Open-Meteo</a> · Nowcast: Buienalarm, Buienradar</footer>
 </main>
 <script src="/static/radar.js?v=12"></script>
 <script>

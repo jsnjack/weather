@@ -79,7 +79,6 @@ func handleOutlook(w http.ResponseWriter, r *http.Request) {
 	result, err := fetchDetailedOutlook(location.Latitude, location.Longitude, period, time.Now())
 	progress.Inc(1)
 	progress.Finish()
-	page.Now = time.Now().In(locationZone(location.Latitude, location.Longitude)).Format("15:04:05")
 	if err != nil {
 		page.Note = "Unable to fetch the detailed forecast right now."
 		slog.Warn("fetch detailed outlook", "period", period, "err", err)
@@ -91,19 +90,33 @@ func handleOutlook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// rideNotes is the one line shown instead of the ride table when a period has
+// no ride window.
+var rideNotes = map[string]string{
+	outlookToday:    "No ride window left today",
+	outlookTomorrow: "No ride window tomorrow",
+	outlookWeekend:  "No ride window this weekend",
+}
+
 func populateOutlookPage(page *hourlyPageData, result detailedOutlook) {
-	page.StartLabel = result.Start.Format("Mon 2 Jan")
-	page.EndLabel = result.End.Add(-time.Nanosecond).Format("Mon 2 Jan")
 	populateHourlyPage(page, result.Hours, result.days)
 	for _, ride := range result.Rides {
 		page.Rides = append(page.Rides, rideWindowRow{Start: ride.Start.Format("Mon 15:04"), End: ride.End.Format("15:04"), RainChance: ride.RainChance, Wind: int(round(ride.Wind)), Gusts: int(round(ride.Gusts)), Feels: int(round(ride.Feels)), UV: int(round(ride.UV))})
 	}
+	if len(page.Rides) == 0 {
+		page.RideNote = rideNotes[result.Period]
+	}
 }
 
-// populateHourlyPage fills the hourly table and charts; days gives the sun
-// times for night icons.
+// populateHourlyPage fills the hourly table and charts. days gives the sun
+// times for night icons; the rain chart is left out when every hour is dry.
 func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast, days []DailyForecast) {
+	if len(hours) > 0 {
+		page.StartLabel = hours[0].Time.Format("Mon 2 Jan 15:04")
+		page.EndLabel = hours[len(hours)-1].Time.Format("Mon 15:04")
+	}
 	var temps, feels, rain []ForecastDataPoint
+	wet := false
 	lastDay := ""
 	for _, hour := range hours {
 		day := hour.Time.Format("2006-01-02")
@@ -116,6 +129,7 @@ func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast, days []Dai
 			Time: label, NewDay: day != lastDay && lastDay != "", Temp: int(round(hour.Temperature)), Feels: int(round(hour.ApparentTemperature)), Precip: formatPrecip(hour.Precipitation), PrecipPct: hour.PrecipitationProbability,
 			WindArrow: windArrowFor(int(round(hour.WindDirection))), WindKmh: wind, WindClass: windClassFor(wind), GustsKmh: gusts, GustClass: windClassFor(gusts), UV: uv, UVClass: uvClassFor(uv), Condition: conditionHumanLabel(wmoCondition(hour.WeatherCode)), ConditionIcon: conditionIcon(wmoCondition(hour.WeatherCode), nightHour(days, hour.Time)),
 		})
+		wet = wet || hour.Precipitation > 0
 		lastDay = day
 		temps = append(temps, ForecastDataPoint{Time: hour.Time, Value: hour.Temperature})
 		feels = append(feels, ForecastDataPoint{Time: hour.Time, Value: hour.ApparentTemperature})
@@ -123,6 +137,8 @@ func populateHourlyPage(page *hourlyPageData, hours []HourlyForecast, days []Dai
 	}
 	if len(temps) >= 2 {
 		page.TempChartSVG = RenderLineChartSVG([]SVGSeries{{Name: "Temp", Color: tempColor, Data: temps}, {Name: "Feels", Color: feelsColor, Data: feels}}, SVGOpts{YUnit: "°C", XTimeFormat: "Mon 15h"})
+	}
+	if len(rain) >= 2 && wet {
 		page.PrecipChartSVG = RenderLineChartSVG([]SVGSeries{{Name: "Precip", Color: buienalarmColor, Data: rain}}, SVGOpts{YUnit: "mm", XTimeFormat: "Mon 15h", MinYHi: 1, FillArea: true})
 	}
 }

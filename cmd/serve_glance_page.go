@@ -52,7 +52,6 @@ type glancePageData struct {
 	Timezone        string
 	Date            string
 	Updated         string
-	Refreshed       string
 	Readouts        *glanceReadouts
 	Nowcast         glanceNowcastBand
 	Today           glanceHourBand
@@ -285,7 +284,6 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 	page.Timezone = zone.String()
 	page.Date = now.Format("Mon 2 Jan")
 	page.Updated = now.Format("15:04")
-	page.Refreshed = now.Format("15:04:05")
 	page.Readouts = glanceReadoutsFrom(src.glance, now)
 	page.Nowcast = buildGlanceNowcast(src.glance)
 
@@ -353,10 +351,10 @@ func populateGlancePage(page *glancePageData, src glanceSources, now time.Time) 
 		return
 	}
 	if len(tomorrowRides) == 0 {
-		page.Today.RideNote = "No dry 2-hour ride window in daylight for the rest of today or tomorrow"
+		page.Today.RideNote = "No ride window today or tomorrow"
 		return
 	}
-	page.Today.RideNote = "No dry 2-hour ride window left in daylight"
+	page.Today.RideNote = rideNotes[outlookToday]
 	tomorrowKey := now.AddDate(0, 0, 1).Format(glanceDateKey)
 	if len(page.Days.Rows) > 0 && page.Days.Rows[0].date.Format(glanceDateKey) == tomorrowKey {
 		page.Days.Rows[0].Rides = glanceRides(tomorrowRides)
@@ -743,11 +741,7 @@ func glanceDaySummary(day DailyAggregate) string {
 	} else {
 		rain += " mm"
 	}
-	summary := fmt.Sprintf("Whole day %d°/%d° · %s · gusts to %d", int(round(day.TempMax)), int(round(day.TempMin)), rain, int(round(day.GustMax)))
-	if !day.Sunrise.IsZero() && !day.Sunset.IsZero() {
-		summary += fmt.Sprintf(" · sun %s–%s", day.Sunrise.Format("15:04"), day.Sunset.Format("15:04"))
-	}
-	return summary
+	return fmt.Sprintf("Today %d°/%d° · %s · gusts %d", int(round(day.TempMax)), int(round(day.TempMin)), rain, int(round(day.GustMax)))
 }
 
 func glanceRides(rides []rideWindow) []glanceRide {

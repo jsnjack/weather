@@ -165,9 +165,14 @@ func TestOutlookTemplates(t *testing.T) {
 			if err := hourlyBodyTmpl.Execute(&body, page); err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"Best dry 2-hour ride windows", "Gusts", "/day", "/tomorrow", "/weekend", "35"} {
+			for _, want := range []string{"Best dry 2-hour ride windows", "Gusts", "/day", "/tomorrow", "/weekend", "35", "Sat 10 Oct 08:00 → Sat 09:00", "Ride windows: 2 dry daylight hours"} {
 				if !strings.Contains(body.String(), want) {
 					t.Errorf("missing %q", want)
+				}
+			}
+			for _, gone := range []string{"Hourly weather and dry ride windows", "Times are local", "Ranked by", "refreshed", "ride-note"} {
+				if strings.Contains(body.String(), gone) {
+					t.Errorf("page still says %q", gone)
 				}
 			}
 			if _, err := json.Marshal(result); err != nil {
@@ -175,6 +180,19 @@ func TestOutlookTemplates(t *testing.T) {
 			}
 		})
 	}
+	t.Run("no ride window is one line", func(t *testing.T) {
+		start := time.Date(2026, 10, 10, 20, 0, 0, 0, time.UTC)
+		result := detailedOutlook{Period: outlookToday, Start: start, End: start.Add(2 * time.Hour), Hours: []HourlyForecast{{Time: start}, {Time: start.Add(time.Hour)}}}
+		page := hourlyPageData{Title: "Today", Period: outlookToday}
+		populateOutlookPage(&page, result)
+		var body bytes.Buffer
+		if err := hourlyBodyTmpl.Execute(&body, page); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(body.String(), `class="ride-note"`) || !strings.Contains(body.String(), "No ride window left today") || strings.Contains(body.String(), "Best dry 2-hour ride windows") {
+			t.Fatal("missing ride window should be a single line")
+		}
+	})
 	t.Run("API rejects invalid period before fetching", func(t *testing.T) {
 		response := httptest.NewRecorder()
 		handleOutlookJSON(response, httptest.NewRequest("GET", "/api/v1/outlook?period=bad", nil))
@@ -210,4 +228,30 @@ func TestOpenMeteoRepeatedDSTHour(t *testing.T) {
 			t.Fatalf("hour %d gap = %s", i, gap)
 		}
 	}
+}
+
+func TestPopulateHourlyPage(t *testing.T) {
+	zone := time.FixedZone("CET", 3600)
+	start := time.Date(2026, 11, 19, 20, 0, 0, 0, zone)
+	days := []DailyForecast{{Date: time.Date(2026, 11, 19, 0, 0, 0, 0, zone), Sunrise: start.Add(-12 * time.Hour), Sunset: start.Add(-3 * time.Hour)}}
+	hours := []HourlyForecast{{Time: start}, {Time: start.Add(time.Hour)}}
+	t.Run("dry hours skip the rain chart and use night icons", func(t *testing.T) {
+		var page hourlyPageData
+		populateHourlyPage(&page, hours, days)
+		if page.TempChartSVG == "" || page.PrecipChartSVG != "" {
+			t.Fatalf("temp chart %t, rain chart %t", page.TempChartSVG != "", page.PrecipChartSVG != "")
+		}
+		if page.Rows[0].ConditionIcon != conditionIcon("clear", true) {
+			t.Fatal("clear hour after sunset should show the moon")
+		}
+	})
+	t.Run("any rain draws the rain chart", func(t *testing.T) {
+		wet := append([]HourlyForecast(nil), hours...)
+		wet[1].Precipitation = 0.1
+		var page hourlyPageData
+		populateHourlyPage(&page, wet, days)
+		if page.PrecipChartSVG == "" {
+			t.Fatal("rain chart missing")
+		}
+	})
 }

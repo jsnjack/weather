@@ -1,13 +1,13 @@
-  {{if and (not .Period) .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
-  {{if .Period}}
-  {{if .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}} · Times are local to {{.Location.Description}}.</p>{{end}}
+  {{if .Rows}}<p class="sub">{{.StartLabel}} → {{.EndLabel}}</p>{{end}}
+  {{if .Rides}}
   <section class="island evolution">
     <h2>Best dry 2-hour ride windows</h2>
-    <p class="sub">Ranked by rain chance, wind, gusts, feels-like temperature and UV. Daylight only; rain chance ≤30%; gusts below 50 km/h.</p>
-    {{if .Rides}}<table><thead><tr><th>Time</th><th>Rain %</th><th>Wind</th><th>Gusts</th><th>Feels</th><th>UV</th></tr></thead><tbody>
+    <table><thead><tr><th>Time</th><th>Rain %</th><th>Wind</th><th>Gusts</th><th>Feels</th><th>UV</th></tr></thead><tbody>
     {{range .Rides}}<tr><th>{{.Start}}–{{.End}}</th><td>{{.RainChance}}%</td><td>{{.Wind}}</td><td>{{.Gusts}}</td><td>{{.Feels}}°</td><td>{{.UV}}</td></tr>{{end}}
-    </tbody></table>{{else}}{{if not .Note}}<p>No suitable daylight window in the forecast.</p>{{end}}{{end}}
+    </tbody></table>
   </section>
+  {{else if .RideNote}}
+  <p class="ride-note"><svg class="g-bike" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6" cy="16" r="3.6"/><circle cx="18" cy="16" r="3.6"/><path d="M6 16 9.6 9.5h6M12 16 9.6 9.5M12 16l3.6-6.5L18 16M6 16h6M9.6 9.5l.2-1.8M8.5 7.7h2.7M15.6 9.5l-.8-2.7h2.3"/></svg>{{.RideNote}}</p>
   {{end}}
 
   {{if .Note}}<p class="empty">{{.Note}}</p>{{end}}
@@ -56,15 +56,13 @@
   <section class="legend-card">
     <h3>Legend</h3>
     <div class="legend-group">
-      <span class="legend-item">Temp / Feels — °C · icon — sky conditions</span>
-      <span class="legend-item">Rain — mm in the hour · % — chance of rain</span>
-      <span class="legend-item">Wind / gusts — km/h · arrow points where it pushes you</span>
-      <span class="legend-item"><span class="g-mi-caution">caution</span> wind/gusts ≥28 / UV ≥3 · <span class="g-mi-critical">critical</span> wind/gusts ≥50 / UV ≥8</span>
+      <p class="legend-line">→ arrow points where the wind pushes you · <span class="g-mi-caution">caution</span> wind/gusts ≥28&nbsp;km/h, UV ≥3 · <span class="g-mi-critical">critical</span> ≥50&nbsp;km/h, UV ≥8</p>
+      {{if .Period}}<p class="legend-line">Ride windows: 2 dry daylight hours, rain chance ≤30%, gusts under 50&nbsp;km/h, best first</p>{{end}}
     </div>
   </section>
   {{end}}
 
-  <footer>refreshed {{.Now}}</footer>
+  <footer>Forecast: <a href="https://open-meteo.com/">Open-Meteo</a></footer>
 </main>
 <script>
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
