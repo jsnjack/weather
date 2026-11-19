@@ -195,11 +195,13 @@ the same major/minor/patch numeric mapping as the shared F-Droid publisher.
   themes (`setIcon(…, light, dark)`, colour-state lists, `android:tint`), so the
   launcher switches theme without starting the app
   ([docs/widget.md](docs/widget.md)).
-- **Android widget has a periodic refresh floor.** `USER_PRESENT` unlock
-  broadcasts are context-registered from `RainWidgetApp` and enqueue expedited
-  one-shots while the process is alive; keep the 15-minute WorkManager periodic
-  refresh armed from widget enable/update/save so automatic updates still work
-  after Android kills the process.
+- **The widget refreshes when the screen turns on.** A non-wakeup alarm
+  (`ScreenOnRefresh`, every 5 minutes) is held while the screen is off and
+  delivered as it turns on, to a manifest receiver that refreshes forecasts
+  older than 4 minutes. Don't go back to a `USER_PRESENT` receiver: Android 14+
+  holds it for the frozen widget process until the next job, up to 15 minutes
+  late. Keep the 15-minute WorkManager periodic refresh as the floor; it
+  re-arms the alarm after reboots ([docs/widget.md](docs/widget.md)).
 - **Both nowcast providers, same chart.** Buienalarm and Buienradar disagree
   often enough that showing both lines is more useful than picking one. The
   shorter Buienalarm horizon caps the x-axis to keep them comparable.

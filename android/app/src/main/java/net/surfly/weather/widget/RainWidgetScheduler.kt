@@ -1,7 +1,5 @@
 package net.surfly.weather.widget
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -22,20 +20,15 @@ object RainWidgetScheduler {
     private const val RENDER_PREFIX = "rain-widget-render-"
     private const val PERIODIC_MINUTES = 15L
 
+    /** Arms the automatic refreshes: the 15-minute floor and the screen-on alarm. */
     fun enqueuePeriodic(context: Context) {
+        ScreenOnRefresh.arm(context)
         val request = PeriodicWorkRequestBuilder<RainWidgetWorker>(PERIODIC_MINUTES, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(PERIODIC_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-    }
-
-    fun enqueueAllWidgets(context: Context, expedited: Boolean = false): Int {
-        val mgr = AppWidgetManager.getInstance(context)
-        val ids = mgr.getAppWidgetIds(ComponentName(context, RainWidgetProvider::class.java))
-        ids.forEach { enqueueOneShot(context, it, expedited) }
-        return ids.size
     }
 
     fun enqueueOneShot(context: Context, appWidgetId: Int, expedited: Boolean = false) {
@@ -67,6 +60,7 @@ object RainWidgetScheduler {
     }
 
     fun cancelPeriodic(context: Context) {
+        ScreenOnRefresh.cancel(context)
         WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_NAME)
     }
 }

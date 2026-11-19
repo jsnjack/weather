@@ -42,6 +42,21 @@ changing `android/`. [AGENTS.md](../AGENTS.md) has the short rules, and
   store; the widget is `reconfigurable|configuration_optional`, so long-press →
   Settings changes it in place. After a refresh, at most every six hours, the
   widget sends its current rendering to the picker (`setWidgetPreview`).
+- **Refresh when the screen turns on, not on unlock.** The widget used a
+  `USER_PRESENT` receiver registered in code, but Android 14+ holds such
+  broadcasts for a cached app until it becomes active
+  (`bcast_core_defer_until_active=true`, seen in `dumpsys activity broadcasts`
+  on the A56), and the widget's process is frozen about ten seconds after
+  every refresh. The unlock refresh therefore ran when the next 15-minute job
+  woke the app, and the user saw the old forecast until they tapped the pill.
+  Now `ScreenOnRefresh` arms an inexact repeating `ELAPSED_REALTIME` alarm
+  (non-wakeup, 5 minutes): it never wakes a sleeping phone, Android delivers it
+  as soon as the screen turns on, and its manifest receiver
+  (`ScreenOnRefreshReceiver`, started even when the process is frozen) enqueues
+  an expedited refresh for each widget whose forecast is older than 4 minutes
+  (`RefreshPolicy`). While the screen stays on that means a refresh about every
+  5 minutes. The 15-minute WorkManager job stays as the floor and re-arms the
+  alarm, which a reboot or force-stop clears.
 - **Widget colours are Material You dynamic tokens.** `values/colors.xml` maps
   every neutral and the warm accent to `@android:color/system_*` roles
   (wallpaper-derived, API 31+); `values-night/colors.xml` uses the same token

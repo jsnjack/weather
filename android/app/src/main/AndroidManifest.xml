@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
-        android:name=".RainWidgetApp"
         android:label="@string/app_name"
         android:icon="@drawable/ic_widget_preview"
         android:roundIcon="@drawable/ic_widget_preview"
@@ -40,6 +39,15 @@
              allowed to do without being exported. -->
         <receiver
             android:name=".ManualRefreshReceiver"
+            android:exported="false" />
+
+        <!-- Screen-on refresh: ScreenOnRefresh's non-wakeup alarm is held
+             while the screen is off and delivered when it turns on. Declared
+             here rather than registered in code, so Android starts the app for
+             it even while the process is frozen. Not exported: the alarm's
+             PendingIntent targets it explicitly. -->
+        <receiver
+            android:name=".ScreenOnRefreshReceiver"
             android:exported="false" />
 
         <!-- Settings screen: opens when the widget is added and from the

@@ -56,6 +56,8 @@ class RainWidgetWorker(
             mgr.getAppWidgetIds(ComponentName(ctx, RainWidgetProvider::class.java))
         }
         val renderOnly = inputData.getBoolean(KEY_RENDER_ONLY, false)
+        // A reboot or force-stop clears the screen-on alarm; this job survives both.
+        if (ids.isNotEmpty()) ScreenOnRefresh.ensureArmed(ctx)
         for (id in ids) {
             if (renderOnly && WidgetUpdater.renderStored(ctx, mgr, id, pill = null)) continue
             refreshOne(ctx, mgr, id)

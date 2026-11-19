@@ -40,6 +40,10 @@ object WidgetStore {
         File(ctx.cacheDir, "$GLANCE_PREFIX$id.json").writeText(body)
     }
 
+    /** When the cached forecast was saved (epoch millis), without parsing it; null when there is none. */
+    fun glanceSavedAt(ctx: Context, id: Int): Long? =
+        File(ctx.cacheDir, "$GLANCE_PREFIX$id.json").takeIf { it.exists() }?.lastModified()
+
     /** The cached forecast and the time it was saved (epoch millis). */
     fun loadGlance(ctx: Context, id: Int): Pair<GlanceResponse, Long>? {
         val f = File(ctx.cacheDir, "$GLANCE_PREFIX$id.json")

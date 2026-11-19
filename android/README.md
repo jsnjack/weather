@@ -196,9 +196,10 @@ WorkManager refresh. Manual refresh now lives on a
 trigger it — which also means the old
 `am broadcast … ACTION_MANUAL_REFRESH` command no longer reaches it from the
 adb shell. To force a refetch without reinstalling, tap the timestamp pill.
-Lock/unlock also triggers an expedited one-shot while the widget process is
-alive via a context-registered `USER_PRESENT` receiver; the periodic worker is
-the reliable automatic floor when Android has killed the process.
+Turning the screen on refreshes a forecast older than 4 minutes: a non-wakeup
+alarm (`ScreenOnRefresh`) waits while the screen is off and is delivered as it
+turns on. `adb shell dumpsys alarm | grep -A4 surfly` shows it armed; the
+periodic worker is the floor and re-arms it after a reboot.
 
 ## Visual iteration via screenshots
 
@@ -256,9 +257,9 @@ When the widget is dropped on the home screen, a small dialog opens:
   - *Fixed coords* — explicit lat/lon.
   - *Server IP* — let the server's MaxMind fallback decide; least
     accurate on cellular, no permissions.
-- **Refresh cadence** — fixed 15-minute WorkManager periodic refresh, plus
-  expedited unlock-triggered one-shots while the widget process is alive and
-  explicit tap-to-refresh.
+- **Refresh cadence** — when the screen turns on and about every 5 minutes
+  while it stays on (only forecasts older than 4 minutes), a 15-minute
+  WorkManager periodic floor, and explicit tap-to-refresh.
 
 Tap the chart to open the PWA in the browser. Tap the small refresh
 icon (top-right) to force an immediate fetch.
