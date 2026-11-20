@@ -75,8 +75,9 @@ KNMI forecast runs, caches and rate limits. Read it before changing
   The cropped 605×765 map prints the temperature at six stations
   (`knmiRadarStations`) only on observed frames: a frame is observed when at
   least three circles hold white digits, a forecast when none do. These
-  visual conventions are not an upstream API: Now is hidden if dimensions,
-  markers or chronological ordering are unrecognised. `/api/v1/radar`
+  visual conventions are not an upstream API: Now is hidden, and the hint
+  below the controls leaves it out, if dimensions, markers or chronological
+  ordering are unrecognised. `/api/v1/radar`
   describes the GIF's frame dimensions and delays; `/radar/atlas.png?id=...` serves a composed
   PNG atlas keyed by the GIF checksum and theme. Four snapshots stay cached for six minutes;
   GIF fetches keep their three-minute cache, so scrubbing never calls KNMI.

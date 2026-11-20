@@ -78,7 +78,7 @@
     latest.hidden = !state.timeline;
     now.hidden = !state.timeline || !Number.isInteger(state.timeline.latestObservation);
     help.hidden = !state.timeline || mode === "local";
-    help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after two hours." : "Earlier ← → Later · Now selects the latest observation. Timestamp shown on the map; later frames may be forecasts.";
+    help.textContent = mode === "local" ? "Now is the latest observation; later frames are forecasts. Playback stops after two hours." : "Earlier ← → Later · " + (now.hidden ? "" : "Now selects the latest observation. ") + "Timestamp shown on the map; later frames may be forecasts.";
     credit.hidden = mode !== "local" || !localReady;
     zoomControls.hidden = mode !== "local" || !localReady;
     const zooming = !!states.local.observationLoad;
