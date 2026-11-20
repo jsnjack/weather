@@ -30,7 +30,7 @@
       <header class="g-bh"><h2 id="g-nowcast-h">Next 2 hours</h2>
         {{if and .Nowcast.Providers (not .Nowcast.Dry)}}<p class="g-key">{{range .Nowcast.Providers}}<span><i class="g-pdot" style="background:{{.Color}}"></i>{{.Name}}</span>{{end}}</p>{{end}}
       </header>
-      <div class="g-b1wrap">
+      <div class="g-b1wrap{{if not .Nowcast.PlotSVG}} g-noplot{{end}}">
         <div class="g-b1">
           {{if .Nowcast.PlotSVG}}
           <div class="g-mmscale" aria-hidden="true">{{range .Nowcast.Scale}}<span style="{{.Style}}">{{.Label}}</span>{{end}}</div>

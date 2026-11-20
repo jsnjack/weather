@@ -56,7 +56,9 @@ Read it before changing `cmd/web/` or `cmd/serve_glance*.go`.
   sit under tomorrow's row. The page streams like the others, loads its three
   sources in parallel through the existing caches (one shared hourly request)
   and gives each band its own note when its source fails. The local radar
-  player sits beside the 5-minute rows from 760 px and below them on phones;
+  player sits beside the 5-minute rows from 760 px and below them on phones.
+  When there are no rows to plot (dry, or the nowcast failed), it sits
+  centred below the one-line note at every width (`g-noplot`);
   `data-outline="30"` makes `radar.js` request `outline=30` and show an
   "in 30 min" key only when the server drew a line. `glance_body` repeats the
   index player markup, so change both with `radar.js`. There is no CLI

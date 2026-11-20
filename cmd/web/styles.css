@@ -270,6 +270,7 @@ footer a { color: inherit; }
 .g-ev { position: absolute; left: 10px; right: 0; z-index: 1; height: 0; border-top: 1px dashed var(--muted); }
 .g-ev > span { position: absolute; right: 0; display: inline-flex; align-items: center; gap: 5px; padding: 1px 0 1px 6px; transform: translateY(-50%); background: var(--surface); font-size: .7rem; font-weight: 500; white-space: nowrap; }
 .g-radar { margin: 0 0 0 calc(var(--g-rail) + 10px); padding: 0; }
+.radar-note { max-width: 425px; margin-inline: auto; }
 .g-radar img, .g-radar canvas { border-radius: 6px; }
 .radar-outline-key { position: absolute; left: .5rem; top: .5rem; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 999px; background: rgb(255 255 255 / .93); color: #15191C; box-shadow: 0 1px 3px rgb(0 0 0 / .15); font-size: .72rem; font-weight: 600; line-height: 1.1; }
 .radar-outline-key svg { width: 20px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; }
@@ -352,6 +353,9 @@ footer a { color: inherit; }
 @media (min-width: 760px) {
   .g-b1wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
   .g-radar { margin-left: 0; }
+  /* Without a rain plot the note is one line, so the radar sits centred below it. */
+  .g-b1wrap.g-noplot { display: block; }
+  .g-noplot .g-radar { margin-left: calc(var(--g-rail) + 10px); }
 }
 
 /* The glance header's sky icon uses the accent, like the widget's hero icon. */
