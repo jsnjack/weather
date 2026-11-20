@@ -88,3 +88,43 @@ func TestCentreKNMIRadarMap(t *testing.T) {
 		t.Fatalf("425x445 map changed (err %v)", err)
 	}
 }
+
+// knmiCroppedFrame draws the cropped KNMI map with the time label, a border
+// line, a rain pixel and temperature circles at the first stations.
+func knmiCroppedFrame(temperatures int) *image.RGBA {
+	frame := image.NewRGBA(knmiRadarCropBounds)
+	draw.Draw(frame, frame.Bounds(), image.NewUniform(knmiRadarSea), image.Point{}, draw.Src)
+	draw.Draw(frame, image.Rect(50, 40, 556, 726), image.NewUniform(knmiRadarLand), image.Point{}, draw.Src)
+	frame.SetRGBA(150, 300, knmiRadarBorder)
+	frame.SetRGBA(300, 600, color.RGBA{28, 168, 243, 255})
+	draw.Draw(frame, knmiRadarLabel, image.NewUniform(knmiRadarLabelFill), image.Point{}, draw.Src)
+	frame.SetRGBA(40, 40, knmiRadarLabelText)
+	for _, station := range knmiRadarStations[:temperatures] {
+		for y := station.Y - knmiRadarStationRadius; y <= station.Y+knmiRadarStationRadius; y++ {
+			for x := station.X - knmiRadarStationRadius; x <= station.X+knmiRadarStationRadius; x++ {
+				if inRadarCircle(image.Pt(x, y), station, knmiRadarStationRadius) {
+					frame.SetRGBA(x, y, color.RGBA{115, 124, 134, 255})
+				}
+			}
+		}
+		digits := image.Rect(station.X-4, station.Y-3, station.X+4, station.Y+3)
+		draw.Draw(frame, digits, image.NewUniform(color.White), image.Point{}, draw.Src)
+	}
+	return frame
+}
+
+func TestKNMIRadarObservations(t *testing.T) {
+	for _, tc := range []struct {
+		temperatures int
+		want         radarFrameKind
+	}{
+		{6, radarObserved},
+		{3, radarObserved},
+		{2, radarUnknown},
+		{0, radarPredicted},
+	} {
+		if got := radarObservationKind(knmiCroppedFrame(tc.temperatures)); got != tc.want {
+			t.Errorf("%d temperatures: kind=%v, want %v", tc.temperatures, got, tc.want)
+		}
+	}
+}

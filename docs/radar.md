@@ -55,22 +55,24 @@ KNMI forecast runs, caches and rate limits. Read it before changing
   is disabled through `X-Accel-Buffering: no`; deployments must allow streaming.
 - **The national map is cropped to centre the Netherlands.** KNMI's GIF (as
   seen in November 2026) is 755×815 with the country in its upper right,
-  beside open sea. `centreKNMIRadarMap` crops every frame to x 150–755, y 0–765 when the
-  GIF is fetched and keeps the time label in the top-left corner, so
-  `/radar.gif`, the atlas and the fallback all show the same 605×765 map.
+  beside open sea. `centreKNMIRadarMap` crops every frame to x 150–755,
+  y 0–765 when the GIF is fetched and keeps the time label in the top-left
+  corner, so `/radar.gif`, the atlas and the fallback all show the same
+  605×765 map.
   Uncropped, the 25 frames exceeded the 12M-pixel atlas budget and the player
   fell back to the plain GIF. Other sizes pass through unchanged. This layout
-  has no black/red caption and no known dark-theme fills, so Now stays hidden
-  and dark pages show KNMI's light map.
+  has no known dark-theme fills, so dark pages show KNMI's light map.
 - **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again
-  from the first frame. The latest observation is
-  identified by KNMI's black timestamp followed by red forecast
-  timestamps on its 425×445 map. This visual convention is not an upstream API:
-  Now is hidden if dimensions, caption colours or chronological ordering are
-  unrecognised. `/api/v1/radar` describes the
-  GIF's frame dimensions and delays; `/radar/atlas.png?id=...` serves a composed
+  from the first frame. On the old 425×445 map the latest observation is
+  identified by KNMI's black timestamp followed by red forecast timestamps.
+  The cropped 605×765 map prints the temperature at six stations
+  (`knmiRadarStations`) only on observed frames: a frame is observed when at
+  least three circles hold white digits, a forecast when none do. These
+  visual conventions are not an upstream API: Now is hidden if dimensions,
+  markers or chronological ordering are unrecognised. `/api/v1/radar`
+  describes the GIF's frame dimensions and delays; `/radar/atlas.png?id=...` serves a composed
   PNG atlas keyed by the GIF checksum and theme. Four snapshots stay cached for six minutes;
   GIF fetches keep their three-minute cache, so scrubbing never calls KNMI.
   Frame disposal and offsets are preserved, including the baked-in timestamp

@@ -137,8 +137,20 @@ const (
 )
 
 // KNMI's 425×445 map prints observed timestamps in black and forecast timestamps
-// in red. This is a visual convention, not metadata; unknown layouts stay unknown.
+// in red. Its cropped 755×815 successor prints station temperatures only on
+// observed frames. These are visual conventions, not metadata; unknown layouts
+// stay unknown.
 func radarObservationKind(frame *image.RGBA) radarFrameKind {
+	if frame.Bounds() == knmiRadarCropBounds {
+		switch shown := len(knmiRadarTemperatures(frame)); {
+		case shown*2 >= len(knmiRadarStations):
+			return radarObserved
+		case shown == 0:
+			return radarPredicted
+		default:
+			return radarUnknown
+		}
+	}
 	if frame.Bounds() != image.Rect(0, 0, 425, 445) {
 		return radarUnknown
 	}

@@ -68,10 +68,72 @@ func getKNMIRadarMap() ([]byte, error) {
 // the full map) with the same margin on every side. The time label, which the
 // crop would cut off, moves with it to keep its place in the top-left corner.
 var (
-	knmiRadarFullSize = image.Pt(755, 815)
-	knmiRadarCrop     = image.Rect(150, 0, 755, 765)
-	knmiRadarLabel    = image.Rect(25, 20, 139, 74)
+	knmiRadarFullSize   = image.Pt(755, 815)
+	knmiRadarCrop       = image.Rect(150, 0, 755, 765)
+	knmiRadarCropBounds = image.Rectangle{Max: knmiRadarCrop.Size()}
+	knmiRadarLabel      = image.Rect(25, 20, 139, 74)
 )
+
+// The map's fills, border lines and time label, as KNMI draws them.
+var (
+	knmiRadarSea       = color.RGBA{220, 225, 235, 255}
+	knmiRadarLand      = color.RGBA{185, 199, 214, 255}
+	knmiRadarBorder    = color.RGBA{73, 101, 131, 255}
+	knmiRadarLabelFill = color.RGBA{229, 241, 254, 255}
+	knmiRadarLabelText = color.RGBA{55, 69, 83, 255}
+)
+
+func radarChroma(c color.RGBA) int {
+	return int(max(c.R, c.G, c.B)) - int(min(c.R, c.G, c.B))
+}
+
+func radarLuminance(c color.RGBA) float64 {
+	return .2126*float64(c.R) + .7152*float64(c.G) + .0722*float64(c.B)
+}
+
+// knmiRadarStations are the centres, in the cropped map, of the circles in
+// which KNMI prints the temperature at its main stations: De Kooy, Eelde,
+// Twenthe, De Bilt, Vlissingen and Maastricht. KNMI draws them only on observed
+// frames. Each circle is a darkened disc with an outline about 32 px from its
+// centre and white digits.
+var knmiRadarStations = []image.Point{{220, 227}, {462, 155}, {526, 349}, {292, 417}, {80, 590}, {402, 691}}
+
+const knmiRadarStationRadius = 31
+
+// knmiRadarTemperatureShown reports whether a station's circle holds a
+// temperature. Its white digits are the only light, near-neutral pixels on the
+// map, because sea, land, borders and rain are all tinted.
+func knmiRadarTemperatureShown(frame *image.RGBA, station image.Point) bool {
+	const radius, minDigitPixels = 24, 20
+	count := 0
+	for y := station.Y - radius; y <= station.Y+radius; y++ {
+		for x := station.X - radius; x <= station.X+radius; x++ {
+			if !inRadarCircle(image.Pt(x, y), station, radius) || !image.Pt(x, y).In(frame.Bounds()) {
+				continue
+			}
+			if c := frame.RGBAAt(x, y); radarChroma(c) <= 10 && radarLuminance(c) >= 180 {
+				count++
+			}
+		}
+	}
+	return count >= minDigitPixels
+}
+
+func inRadarCircle(p, centre image.Point, radius int) bool {
+	d := p.Sub(centre)
+	return d.X*d.X+d.Y*d.Y <= radius*radius
+}
+
+// knmiRadarTemperatures returns the stations whose circles hold a temperature.
+func knmiRadarTemperatures(frame *image.RGBA) []image.Point {
+	var shown []image.Point
+	for _, station := range knmiRadarStations {
+		if knmiRadarTemperatureShown(frame, station) {
+			shown = append(shown, station)
+		}
+	}
+	return shown
+}
 
 // centreKNMIRadarMap crops every frame of KNMI's 755×815 map to the Netherlands
 // and returns any other layout unchanged. Output frames are complete pictures
