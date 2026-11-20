@@ -14,11 +14,12 @@ import (
 )
 
 // KNMI publishes a ready-composited national radar loop — precipitation +
-// lightning + temperature bubbles + legend, all baked into one animated GIF.
+// lightning + temperature bubbles + time label, all baked into one animated GIF.
 // It is NL-only and fixed-frame (can't centre on the user), which matches the
-// rain view's existing NL-optimised, national-overview scope. We just relay it
-// rather than reproducing the map ourselves; see AGENTS.md for why the raw
-// KNMI Data Platform (HDF5/NetCDF, key-gated) wasn't worth it.
+// rain view's existing NL-optimised, national-overview scope. We relay it,
+// cropped to centre the Netherlands (centreKNMIRadarMap), rather than
+// reproducing the map ourselves; see AGENTS.md for why the raw KNMI Data
+// Platform (HDF5/NetCDF, key-gated) wasn't worth it.
 const knmiRadarMapURL = "https://cdn.knmi.nl/knmi/map/general/weather-map.gif"
 
 // radarMapCache holds the last-fetched GIF bytes process-wide for a short TTL,
@@ -53,8 +54,76 @@ func getKNMIRadarMap() ([]byte, error) {
 		if len(body) > maxRadarBytes {
 			return nil, fmt.Errorf("KNMI radar GIF exceeds size limit")
 		}
-		return body, nil
+		centred, err := centreKNMIRadarMap(body)
+		if err != nil {
+			slog.Warn("knmi radar: showing the uncropped map", "err", err)
+			return body, nil
+		}
+		return centred, nil
 	})
+}
+
+// KNMI's 755×815 map places the Netherlands in its upper right, beside open
+// sea. Cropping to knmiRadarCrop centres the country (x 200–705, y 40–725 in
+// the full map) with the same margin on every side. The time label, which the
+// crop would cut off, moves with it to keep its place in the top-left corner.
+var (
+	knmiRadarFullSize = image.Pt(755, 815)
+	knmiRadarCrop     = image.Rect(150, 0, 755, 765)
+	knmiRadarLabel    = image.Rect(25, 20, 139, 74)
+)
+
+// centreKNMIRadarMap crops every frame of KNMI's 755×815 map to the Netherlands
+// and returns any other layout unchanged. Output frames are complete pictures
+// with the source frame's palette, so delays and colours are kept.
+func centreKNMIRadarMap(body []byte) ([]byte, error) {
+	config, err := gif.DecodeConfig(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("read radar GIF dimensions: %w", err)
+	}
+	if image.Pt(config.Width, config.Height) != knmiRadarFullSize {
+		return body, nil
+	}
+	animation, err := gif.DecodeAll(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("decode radar GIF: %w", err)
+	}
+	size := knmiRadarCrop.Size()
+	centred := &gif.GIF{
+		Image:           make([]*image.Paletted, len(animation.Image)),
+		Delay:           animation.Delay,
+		Disposal:        make([]byte, len(animation.Image)),
+		LoopCount:       animation.LoopCount,
+		BackgroundIndex: animation.BackgroundIndex,
+		Config:          image.Config{ColorModel: animation.Config.ColorModel, Width: size.X, Height: size.Y},
+	}
+	composeGIFFrames(animation, config, func(i int, canvas *image.RGBA) {
+		palette := animation.Image[i].Palette
+		frame := image.NewPaletted(image.Rect(0, 0, size.X, size.Y), palette)
+		indices := map[color.RGBA]uint8{}
+		for y := range size.Y {
+			for x := range size.X {
+				source := image.Pt(x, y)
+				if !source.In(knmiRadarLabel) {
+					source = source.Add(knmiRadarCrop.Min)
+				}
+				c := canvas.RGBAAt(source.X, source.Y)
+				index, ok := indices[c]
+				if !ok {
+					index = uint8(palette.Index(c))
+					indices[c] = index
+				}
+				frame.Pix[frame.PixOffset(x, y)] = index
+			}
+		}
+		centred.Image[i] = frame
+		centred.Disposal[i] = gif.DisposalNone
+	})
+	var encoded bytes.Buffer
+	if err := gif.EncodeAll(&encoded, centred); err != nil {
+		return nil, fmt.Errorf("encode radar GIF: %w", err)
+	}
+	return encoded.Bytes(), nil
 }
 
 // handleRadarMap relays the KNMI radar GIF. It is location-independent (a fixed

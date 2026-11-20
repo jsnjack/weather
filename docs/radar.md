@@ -53,6 +53,15 @@ KNMI forecast runs, caches and rate limits. Read it before changing
   frames share a bounded six-minute cache with the CLI/legacy atlas, so replay
   and concurrent viewers reuse upstream fetches and rendering. Proxy buffering
   is disabled through `X-Accel-Buffering: no`; deployments must allow streaming.
+- **The national map is cropped to centre the Netherlands.** KNMI's GIF (as
+  seen in November 2026) is 755×815 with the country in its upper right,
+  beside open sea. `centreKNMIRadarMap` crops every frame to x 150–755, y 0–765 when the
+  GIF is fetched and keeps the time label in the top-left corner, so
+  `/radar.gif`, the atlas and the fallback all show the same 605×765 map.
+  Uncropped, the 25 frames exceeded the 12M-pixel atlas budget and the player
+  fell back to the plain GIF. Other sizes pass through unchanged. This layout
+  has no black/red caption and no known dark-theme fills, so Now stays hidden
+  and dark pages show KNMI's light map.
 - **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again

@@ -75,15 +75,38 @@ func decodeRadarTimelineTheme(body []byte, dark bool) (*radarTimeline, error) {
 	if config.Width*config.Height*columns*rows > radarAtlasMaxPixels {
 		return nil, fmt.Errorf("radar animation exceeds frame budget")
 	}
-	canvas := image.NewRGBA(image.Rect(0, 0, config.Width, config.Height))
 	atlas := image.NewRGBA(image.Rect(0, 0, columns*config.Width, rows*config.Height))
+	timeline := &radarTimeline{Width: config.Width, Height: config.Height, Columns: columns, Delays: make([]int, count)}
+	observations := make([]radarFrameKind, count)
+	composeGIFFrames(animation, config, func(i int, canvas *image.RGBA) {
+		observations[i] = radarObservationKind(canvas)
+		var picture image.Image = canvas
+		if dark {
+			picture = darkNationalRadarImage(canvas)
+		}
+		x, y := (i%columns)*config.Width, (i/columns)*config.Height
+		draw.Draw(atlas, image.Rect(x, y, x+config.Width, y+config.Height), picture, image.Point{}, draw.Src)
+		timeline.Delays[i] = max(100, animation.Delay[i]*10)
+	})
+	timeline.LatestObservation = latestRadarObservation(observations)
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, atlas); err != nil {
+		return nil, fmt.Errorf("encode radar frames: %w", err)
+	}
+	timeline.atlas = encoded.Bytes()
+	return timeline, nil
+}
+
+// composeGIFFrames calls visit with each frame as a viewer sees it: drawn over
+// the frames before it at its offset, after the previous frame's disposal.
+// The canvas is reused, so visit must copy anything it keeps.
+func composeGIFFrames(animation *gif.GIF, config image.Config, visit func(i int, canvas *image.RGBA)) {
+	canvas := image.NewRGBA(image.Rect(0, 0, config.Width, config.Height))
 	background := color.Color(color.Transparent)
 	if palette, ok := animation.Config.ColorModel.(color.Palette); ok && int(animation.BackgroundIndex) < len(palette) {
 		background = palette[animation.BackgroundIndex]
 	}
 	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(background), image.Point{}, draw.Src)
-	timeline := &radarTimeline{Width: config.Width, Height: config.Height, Columns: columns, Delays: make([]int, count)}
-	observations := make([]radarFrameKind, count)
 	for i, frame := range animation.Image {
 		disposal := byte(0)
 		if len(animation.Disposal) > i {
@@ -95,14 +118,7 @@ func decodeRadarTimelineTheme(body []byte, dark bool) (*radarTimeline, error) {
 			draw.Draw(saved, saved.Bounds(), canvas, image.Point{}, draw.Src)
 		}
 		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
-		observations[i] = radarObservationKind(canvas)
-		var picture image.Image = canvas
-		if dark {
-			picture = darkNationalRadarImage(canvas)
-		}
-		x, y := (i%columns)*config.Width, (i/columns)*config.Height
-		draw.Draw(atlas, image.Rect(x, y, x+config.Width, y+config.Height), picture, image.Point{}, draw.Src)
-		timeline.Delays[i] = max(100, animation.Delay[i]*10)
+		visit(i, canvas)
 		switch disposal {
 		case gif.DisposalBackground:
 			draw.Draw(canvas, frame.Bounds(), image.NewUniform(background), image.Point{}, draw.Src)
@@ -110,13 +126,6 @@ func decodeRadarTimelineTheme(body []byte, dark bool) (*radarTimeline, error) {
 			draw.Draw(canvas, canvas.Bounds(), saved, image.Point{}, draw.Src)
 		}
 	}
-	timeline.LatestObservation = latestRadarObservation(observations)
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, atlas); err != nil {
-		return nil, fmt.Errorf("encode radar frames: %w", err)
-	}
-	timeline.atlas = encoded.Bytes()
-	return timeline, nil
 }
 
 type radarFrameKind int
