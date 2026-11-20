@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"testing"
+	"time"
 )
 
 func TestCentreKNMIRadarMap(t *testing.T) {
@@ -126,5 +127,78 @@ func TestKNMIRadarObservations(t *testing.T) {
 		if got := radarObservationKind(knmiCroppedFrame(tc.temperatures)); got != tc.want {
 			t.Errorf("%d temperatures: kind=%v, want %v", tc.temperatures, got, tc.want)
 		}
+	}
+}
+
+func TestDarkKNMIRadar(t *testing.T) {
+	rgba := func(c color.Color) color.RGBA { return color.RGBAModel.Convert(c).(color.RGBA) }
+	observed := darkNationalRadarImage(knmiCroppedFrame(6))
+	station := knmiRadarStations[3]
+	for _, tc := range []struct {
+		name string
+		at   image.Point
+		want color.Color
+	}{
+		{"sea", image.Pt(10, 300), darkRadarWater},
+		{"land", image.Pt(300, 300), darkRadarLand},
+		{"border", image.Pt(150, 300), darkKNMIRadarBorder},
+		{"rain", image.Pt(300, 600), color.RGBA{28, 168, 243, 255}},
+		{"label fill", image.Pt(100, 60), darkKNMIRadarLabel},
+		{"label digits", image.Pt(40, 40), darkRadarText},
+		{"temperature circle", station.Add(image.Pt(0, 20)), color.RGBA{115, 124, 134, 255}},
+		{"temperature digits", station, color.White},
+	} {
+		if got := rgba(observed.At(tc.at.X, tc.at.Y)); got != rgba(tc.want) {
+			t.Errorf("%s: %v, want %v", tc.name, got, rgba(tc.want))
+		}
+	}
+	predicted := darkNationalRadarImage(knmiCroppedFrame(0))
+	if got := rgba(predicted.At(station.X, station.Y)); got != rgba(darkRadarLand) {
+		t.Errorf("station without a temperature: %v, want dark land", got)
+	}
+
+	var frames []*image.Paletted
+	for _, source := range []*image.RGBA{knmiCroppedFrame(6), knmiCroppedFrame(0)} {
+		frame, ok := exactPaletted(source)
+		if !ok {
+			t.Fatal("test frame has more than 256 colours")
+		}
+		frames = append(frames, frame)
+	}
+	size := knmiRadarCrop.Size()
+	var body bytes.Buffer
+	if err := gif.EncodeAll(&body, &gif.GIF{Image: frames, Delay: []int{30, 90}, Config: image.Config{Width: size.X, Height: size.Y}}); err != nil {
+		t.Fatal(err)
+	}
+	oldMaps, oldDark, oldTimelines := radarMapCache, darkRadarMapCache, radarTimelineCache
+	t.Cleanup(func() { radarMapCache, darkRadarMapCache, radarTimelineCache = oldMaps, oldDark, oldTimelines })
+	radarMapCache = newTTLCache[[]byte](time.Minute, 1)
+	darkRadarMapCache = newTTLCache[[]byte](time.Minute, 1)
+	radarTimelineCache = newTTLCache[*radarTimeline](time.Minute, 4)
+	radarMapCache.put("knmi", body.Bytes())
+
+	timeline, err := getRadarTimelineTheme(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if timeline.LatestObservation == nil || *timeline.LatestObservation != 0 {
+		t.Fatalf("latest observation=%v, want frame 0", timeline.LatestObservation)
+	}
+	encoded, err := getKNMIRadarMapTheme(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dark, err := gif.DecodeAll(bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dark.Image) != 2 || dark.Delay[0] != 30 || dark.Delay[1] != 90 {
+		t.Fatalf("frames=%d delays=%v, want 2 frames with delays [30 90]", len(dark.Image), dark.Delay)
+	}
+	if got := rgba(dark.Image[1].At(10, 300)); got != rgba(darkRadarWater) {
+		t.Errorf("dark GIF sea: %v", got)
+	}
+	if got := rgba(dark.Image[1].At(300, 600)); got != (color.RGBA{28, 168, 243, 255}) {
+		t.Errorf("dark GIF changed rain: %v", got)
 	}
 }

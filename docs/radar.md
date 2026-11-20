@@ -16,11 +16,17 @@ KNMI forecast runs, caches and rate limits. Read it before changing
   maps darken only the basemap and labels before compositing unchanged rain
   and the location marker. The embedded map fallback also has dark colours.
   National GIF/atlas rendering replaces only KNMI's known map-fill colours
-  and footer caption ink on the supported 425×445 layout; weather colours,
+  and footer caption ink on the old 425×445 layout; weather colours,
   temperatures, forecast timestamps, frame offsets and disposal are retained.
-  Observation detection runs on original frames before styling. Unknown
-  national layouts remain unchanged. The original GIF stays cached separately
-  from dark renders. Theme variants have separate bounded render-cache keys
+  On the cropped 605×765 map (`darkKNMIRadarImage`), colours with chroma up to
+  60 are map colours and darken by brightness: sea and land become dark
+  fills, slate borders become light lines. Saturated colours are rain and
+  keep their colour. The time label turns dark with light digits, and
+  temperature circles keep KNMI's grey disc and white digits. The dark GIF
+  gives each frame an exact palette and serves the light map if a frame needs
+  more than 256 colours. Observation detection runs on original frames before
+  styling. Unknown national layouts remain unchanged. The original GIF stays
+  cached separately from dark renders. Theme variants have separate bounded render-cache keys
   and reuse the same upstream weather and PDOK caches.
   Browser theme changes pause playback, preserve coverage/frame where possible,
   and reuse per-theme observations and frames; late responses cannot overwrite
@@ -60,8 +66,7 @@ KNMI forecast runs, caches and rate limits. Read it before changing
   corner, so `/radar.gif`, the atlas and the fallback all show the same
   605×765 map.
   Uncropped, the 25 frames exceeded the 12M-pixel atlas budget and the player
-  fell back to the plain GIF. Other sizes pass through unchanged. This layout
-  has no known dark-theme fills, so dark pages show KNMI's light map.
+  fell back to the plain GIF. Other sizes pass through unchanged.
 - **KNMI radar opens paused on its newest supplied frame.** The national view uses
   a slider, Play/Pause, Now and Latest frame controls. Now selects the last
   observation. Playback stops at the last frame; Play at the end starts again

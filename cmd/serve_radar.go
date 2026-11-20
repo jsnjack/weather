@@ -222,6 +222,14 @@ func getKNMIRadarMapTheme(dark bool) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decode dark radar GIF: %w", err)
 		}
+		if image.Pt(animation.Config.Width, animation.Config.Height) == knmiRadarCrop.Size() {
+			dark, err := darkKNMIRadarGIF(animation)
+			if err != nil {
+				slog.Warn("knmi radar: showing the light map in the dark theme", "err", err)
+				return body, nil
+			}
+			return dark, nil
+		}
 		if animation.Config.Width != nationalRadarWidth || animation.Config.Height != nationalRadarHeight {
 			return body, nil
 		}
