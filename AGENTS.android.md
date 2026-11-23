@@ -53,16 +53,15 @@ Expose these commands from the repository root:
 | `make android-check` | Build the APK, run JVM tests and Android lint in a mixed-language repo. |
 | `make check` | Run the primary project's validation gate. Android-only projects include APK build, JVM tests and Android lint. |
 | `make install` | Explicitly install with `adb install -r`; never install as a build or check side effect. |
-| `make release` | Validate, upload the app's GitHub release, then queue F-Droid publication. |
-| `make fdroid-publish` | Queue F-Droid publication again without recreating the GitHub release. |
+| `make release` | Validate, build the signed release APK and upload it to the app's GitHub release. |
 | `make standards` | Refresh the committed convention files from `jsnjack/standards`. |
 
 Run `make check` after changes. In mixed-language repositories, also run
 `make android-check` when Android code, toolchain or release behavior changes.
 Releases must pass both gates. Test behavior and failure cases; do not add tests
-that merely restate configuration. A release APK must build successfully in
-the publisher. Changes that affect shrinking, widgets, permissions or external
-app integration also need a device smoke test; report when that was not done.
+that merely restate configuration. Changes that affect shrinking, widgets,
+permissions or external app integration also need a device smoke test of the
+release build; report when that was not done.
 
 ## Versioning
 
@@ -77,14 +76,14 @@ major * 1,000,000 + minor * 1,000 + patch
 ```
 
 Minor and patch must each be below 1,000. Keep the result within Android's
-version-code limit. The publisher uses at least this value and a code greater
-than the last published code. Preserve any initial version-code floor needed
+version-code limit. Every release must have a code greater than the last
+released one. Preserve any initial version-code floor needed
 to update existing installations. A development fallback is allowed when no
 version property is supplied; document it and use Make for release builds.
 
-Check the latest published code before installing a local APK over an F-Droid
-build. Its code must be at least as high and its signing certificate must
-match. Do not uninstall an existing app to hide a signing or version problem.
+Check the latest published code before installing a local APK over a
+released build. Its code must be at least as high and its signing certificate
+must match. Do not uninstall an existing app to hide a signing or version problem.
 
 ## Signing and private files
 
@@ -94,61 +93,31 @@ their original debug certificate to preserve update compatibility; treat that
 existing keystore as a permanent signing asset. A fresh CI runner's generated
 debug key cannot update those installations.
 
-Build an optimized, non-debuggable release APK for F-Droid and sign it with the
-existing app key. Build type and signing certificate are separate choices.
-Keep a separate key for signing the F-Droid repository index.
+Release builds are optimized and non-debuggable, built locally by `make
+release` and signed with the existing app key (`apksigner` from the pinned
+build tools). Build type and signing certificate are separate choices.
 
-Keep keystores, passwords, source-access keys and SDK paths out of Git, public
-artifacts and logs. Use ignored local files with restricted permissions and
-encrypted GitHub Actions secrets. Back up signing assets in encrypted storage.
-Check certificate fingerprints rather than printing private key material.
-Use a read-only deploy key to fetch private source. Public APK hosting does
-not make private source public, but APK contents themselves are downloadable;
-obtain the owner's agreement before publishing a private app for the first time.
+Keep keystores, passwords and SDK paths out of Git, public artifacts and logs.
+Use ignored local files with restricted permissions. Back up signing assets in
+encrypted storage. Check certificate fingerprints rather than printing private
+key material. APK contents are downloadable from a release; obtain the
+owner's agreement before publishing a private app for the first time.
 
-## Release and F-Droid deployment
+## Release
 
-The shared publisher is `jsnjack/android-apps`. Its client URL is
-`https://jsnjack.github.io/android-apps/fdroid/repo/`; the install page at
-`https://jsnjack.github.io/android-apps/` provides the fingerprint and QR code.
-Adding a future app requires an entry in the publisher's trusted configuration
-and an initial publication before it can use the individual release flow.
+Apps are published only as APKs on their GitHub releases; there is no F-Droid
+repository and no GitHub Actions workflow. Install an update by downloading
+the APK from the latest release.
 
 1. The user commits the app changes and pushes the release commit to
    `origin/master`; an agent does this only when explicitly asked.
    `make release` must reject a dirty checkout or a commit that differs from
-   the remote release branch, and check that GitHub CLI authentication works.
-2. Run the required validation and build the normal GitHub release artifacts.
-   Upload them with the project's existing `grm release` command.
-3. Only after that upload succeeds, dispatch `publish.yml` in the shared repo
-   with the app selector, full source commit SHA and semantic release version.
-   The publisher builds that exact revision, rather than whichever commit is
-   newest when the job starts.
-4. A successful dispatch means the job was queued. Follow GitHub Actions until
-   deployment succeeds before reporting the APK as published. A failed
-   dispatch must fail the Make command; retry with `make fdroid-publish` from
-   the same release commit. Retry a failed Actions job through its run page.
-
-The Make dispatch uses this interface, where `<app>` is the app's selector
-in the publisher's `apps.json`:
-
-```sh
-gh workflow run publish.yml --repo jsnjack/android-apps \
-  -f app=<app> -f revision="$(git rev-parse HEAD)" \
-  -f release_version="$(monova)"
-```
-
-Use release-triggered publication and manual dispatch. Do not add scheduled
-polling or rebuild on every ordinary source push. A selected app release keeps
-the other apps' previously published APKs. An explicit manual publication may
-update all apps from their configured branches.
-
-The publisher serializes runs, restores its previous signed snapshot, retains
-three APK versions per app, and validates package IDs, monotonically increasing
-version codes, signing certificates and non-debuggable builds. Verify signed
-F-Droid indices and APK checksums before deploying the complete site through
-GitHub Pages. Failed builds must leave the deployed site usable. Store durable
-snapshots in GitHub Releases and keep temporary Actions artifacts short-lived.
+   the remote release branch.
+2. Run the required validation, build the release APK and sign it with the
+   app key, then verify the signature (`apksigner verify`).
+3. Upload the APK and any other release artifacts with the project's existing
+   `grm release` command to the release `v<monova version>`. Give the APK a
+   fixed file name so the latest release's download link stays stable.
 
 ## Keeping conventions current
 
@@ -159,9 +128,8 @@ files from the standards repository; use failing HTTP requests so an error page
 does not silently replace a convention file.
 
 Project documentation must state the APK path, build prerequisites, signing
-policy, version stamping, release command, retry command and Actions URL. Keep
-app-specific exceptions explicit rather than duplicating the shared rules.
+policy, version stamping and release command. Keep app-specific exceptions
+explicit rather than duplicating the shared rules.
 
 References: [Android app signing](https://developer.android.com/studio/publish/app-signing),
-[Android versioning](https://developer.android.com/studio/publish/versioning),
-[F-Droid repository setup](https://f-droid.org/en/docs/Setup_an_F-Droid_App_Repo/).
+[Android versioning](https://developer.android.com/studio/publish/versioning).

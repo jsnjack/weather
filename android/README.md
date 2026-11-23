@@ -165,29 +165,29 @@ The standard dev loop, from `android/`:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`make release` (repo root) builds the same debug-signed APK and uploads it
-to the GitHub release as `weather-widget.apk`, so a phone can sideload it
-straight from the release page. Debug-signed is deliberate: it matches dev
-installs, so it updates an existing widget in place; a differently-signed
-APK would require uninstalling first.
+`make release-apk` (repo root) builds the release APK: `assembleRelease` with
+R8 minification, non-debuggable, then signed by `apksigner` from build tools
+37.0.0 with the debug keystore that dev builds use (`~/.android/debug.keystore`;
+override with `KEYSTORE=`) and checked with `apksigner verify`. The result is
+`bin/release/weather-widget.apk`. `make release` builds it and uploads it to
+the GitHub release as `weather-widget.apk`, so a phone installs an update by
+downloading the APK from the latest release page. Signing with the debug key
+is deliberate: it matches dev installs, so the release updates an existing
+widget in place; a differently-signed APK would require uninstalling first.
 
-`make apk` and `make release` stamp the widget version from `monova`. The numeric
-version code is `major * 1,000,000 + minor * 1,000 + patch`, matching F-Droid
-publication. A direct Gradle build without `-PappVersion` keeps the original
-development version; use `make apk` for builds intended to update a released widget.
+`make apk`, `make release-apk` and `make release` stamp the widget version from
+`monova`. The numeric version code is `major * 1,000,000 + minor * 1,000 + patch`.
+A direct Gradle build without `-PappVersion` keeps the original development
+version; use `make apk` for builds intended to update a released widget.
 
 Run `make android-check` from the repository root to build the widget APK and
 run its JVM tests and Android lint. `make release` requires this Android gate
 and the Go `make check` gate to pass before uploading artifacts.
 
-Commit changes and push `master` before running `make release`. After uploading
-the GitHub release, it queues the shared F-Droid publisher for this app's exact
-source commit. GitHub Actions builds and signs the repository APK and deploys
-it to https://jsnjack.github.io/android-apps/; Wahoo Share stays at its published
-version. There is no scheduled polling. GitHub CLI (`gh`) must be authenticated
-with access to `jsnjack/android-apps`. If only the F-Droid trigger fails, retry
-with `make fdroid-publish` from the repository root. Follow the deployment in
-https://github.com/jsnjack/android-apps/actions/workflows/publish.yml.
+Commit changes and push `master` before running `make release`; it refuses a
+dirty checkout or a commit that differs from `origin/master`. `grm` uploads
+the CLI archives and the APK to the GitHub release `v<monova version>` with its
+own token. The GitHub release is the only place the widget is published.
 
 `adb install -r` redelivers `APPWIDGET_UPDATE` to existing widget instances,
 so reinstalling already forces a refresh and re-arms the 15-minute periodic
@@ -270,5 +270,5 @@ icon (top-right) to force an immediate fetch.
 via `<base-config cleartextTrafficPermitted="true">`. One APK works for
 a LAN IP, a VPN-internal hostname, or a public HTTPS URL with no
 rebuild. HTTPS still validates against the system CA store. APKs are distributed
-through the project's GitHub releases and custom F-Droid repository; the user
-chooses the server when configuring the widget.
+only through the project's GitHub releases; the user chooses the server when
+configuring the widget.

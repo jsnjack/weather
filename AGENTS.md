@@ -143,6 +143,7 @@ External APIs:
 make check          # fmt + vet + build + test + lint
 make android-check  # widget APK + JVM tests + Android lint
 make install        # build widget APK + explicit adb install -r
+make release-apk    # signed release APK in bin/release/weather-widget.apk
 make build          # multi-arch binaries in bin/
 ./weather           # rain chart for your IP-detected location
 ./weather --lat 52.37 --lon 4.90
@@ -154,13 +155,14 @@ make build          # multi-arch binaries in bin/
 ./weather serve --addr :8080   # then open /glance?lat=52.37&lon=4.90
 ```
 
-`make release` runs the Go and Android validation gates, uploads the CLI
-archives and widget APK, then queues the shared
-F-Droid publisher for Weather Widget at the exact source commit. Releases
-require a clean checkout pushed to `origin/master` and authenticated GitHub CLI
-access to `jsnjack/android-apps`. `make fdroid-publish` retries the trigger without
-re-uploading GitHub release assets. Publication is asynchronous and preserves
-Wahoo Share's published APKs; the publisher has no scheduled polling.
+`make release` runs the Go and Android validation gates, builds the CLI
+archives and the release APK (`make release-apk`: R8-minified, non-debuggable,
+signed with the debug keystore that dev builds use and checked with `apksigner
+verify`), and uploads them with `grm` to the GitHub release `v<monova version>`.
+The APK keeps the asset name `weather-widget.apk`; the GitHub release is the
+only place the widget is published, and a phone updates by downloading that APK
+from the latest release. Releases require a clean checkout pushed to
+`origin/master`.
 The Go dependencies require Go 1.26 or newer. Android builds use Gradle 9.8.1,
 AGP 9.4.1 with built-in Kotlin 2.4.21, SDK 37 and build tools 37.0.0; the
 target SDK is 37 (Android 17, One UI 9) and the minimum SDK is 35 (Android 15),
@@ -170,8 +172,8 @@ JDK 25 from `gradle/gradle-daemon-jvm.properties` and downloads it when
 missing; any Java runtime on `PATH` starts the wrapper. The SDK comes from the
 Android CLI (`android sdk install`); once its licence is recorded, Gradle
 installs the pinned platform and build tools itself.
-`make apk` stamps the widget version from `monova` through `-PappVersion`, using
-the same major/minor/patch numeric mapping as the shared F-Droid publisher.
+`make apk` and `make release-apk` stamp the widget version from `monova` through
+`-PappVersion`; the version code is `major * 1,000,000 + minor * 1,000 + patch`.
 
 `--debug` (`-d`) prints logs to stderr; `--trace` writes maximum detail to
 `/tmp/weather.log` (truncated on every start).

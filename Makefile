@@ -3,7 +3,10 @@ PKG     := ./...
 VERSION := 0.0.0
 MONOVA  := $(shell which monova 2> /dev/null)
 LDFLAGS  = -ldflags="-X weather/cmd.Version=$(VERSION)"
-FDROID_REPO := jsnjack/android-apps
+# The personal app key: the debug keystore that local builds and every
+# released APK are signed with, so either installs over the other.
+KEYSTORE ?= $(HOME)/.android/debug.keystore
+RELEASE_APK := android/app/build/outputs/apk/release/app-release-unsigned.apk
 
 .NOTPARALLEL: check release
 
@@ -101,19 +104,38 @@ android-check: apk
 	@$(ANDROID_GRADLE) :app:testDebugUnitTest :app:lintDebug
 	@echo "==> make android-check: all green"
 
+# release-apk builds the optimized, non-debuggable APK that releases publish
+# and signs it with the app key. The debug APK from make apk stays for
+# development.
+release-apk: version
+	@$(ANDROID_GRADLE) :app:assembleRelease || { \
+	  echo "==> release APK build failed — bootstrap the Android toolchain per android/README.md"; exit 1; }
+	@mkdir -p bin/release
+	set -e; \
+	SDK=$${ANDROID_HOME:-$$(sed -n 's/^sdk.dir=//p' android/local.properties 2>/dev/null)}; \
+	SIGNER=$$SDK/build-tools/37.0.0/apksigner; \
+	"$$SIGNER" sign --ks $(KEYSTORE) --ks-pass pass:android --ks-key-alias androiddebugkey \
+	  --out bin/release/$(BINARY)-widget.apk $(RELEASE_APK); \
+	"$$SIGNER" verify bin/release/$(BINARY)-widget.apk
+
 install: apk
 	adb install -r bin/$(BINARY)-widget.apk
 
+# release publishes the pushed master commit: it checks the tree, runs both
+# gates, builds the CLI archives and the signed release APK, and uploads them
+# to the GitHub release v<monova version> with grm, which authenticates with
+# its own token. The APK keeps the asset name weather-widget.apk, so the
+# latest release's download link stays the same.
 release-preflight:
-	@command -v gh >/dev/null 2>&1 || { echo "Install GitHub CLI with: sudo dnf install gh"; exit 1; }
+	@command -v grm >/dev/null 2>&1 || { echo "Install grm from https://github.com/jsnjack/grm"; exit 1; }
 	@command -v monova >/dev/null 2>&1 || { echo "Install monova with: grm install jsnjack/monova"; exit 1; }
-	@gh auth status --hostname github.com >/dev/null
 	@test -z "$$(git status --porcelain)" || { echo "Commit your changes and push master before make release."; exit 1; }
 	@test "$$(git branch --show-current)" = master || { echo "Switch to master before make release."; exit 1; }
 	@test "$$(git rev-parse HEAD)" = "$$(git ls-remote origin refs/heads/master | cut -f1)" || { echo "Push this commit to origin/master before make release."; exit 1; }
 
 release: release-preflight check android-check
 	$(MAKE) release-preflight
+	$(MAKE) release-apk
 	tar -czf bin/$(BINARY)_linux_amd64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_amd64
 	tar -czf bin/$(BINARY)_linux_arm64.tar.gz  --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_linux_arm64
 	tar -czf bin/$(BINARY)_darwin_amd64.tar.gz --transform 's|.*/$(BINARY)_.*|$(BINARY)|' bin/$(BINARY)_darwin_amd64
@@ -123,15 +145,10 @@ release: release-preflight check android-check
 		-f bin/$(BINARY)_linux_arm64.tar.gz \
 		-f bin/$(BINARY)_darwin_amd64.tar.gz \
 		-f bin/$(BINARY)_darwin_arm64.tar.gz \
-		-f bin/$(BINARY)-widget.apk \
+		-f bin/release/$(BINARY)-widget.apk \
 		-t "v`monova`"
-	$(MAKE) fdroid-publish
-
-fdroid-publish: release-preflight version
-	gh workflow run publish.yml --repo $(FDROID_REPO) -f app=$(BINARY) -f revision="$$(git rev-parse HEAD)" -f release_version=$(VERSION)
-	@echo "F-Droid publication queued: https://github.com/$(FDROID_REPO)/actions/workflows/publish.yml"
 
 clean:
 	rm -rf bin/ $(BINARY)
 
-.PHONY: version start build apk android-check install release-preflight release fdroid-publish test vet fmt lint check agents-size standards clean
+.PHONY: version start build apk android-check release-apk install release-preflight release test vet fmt lint check agents-size standards clean
