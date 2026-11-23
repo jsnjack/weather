@@ -53,7 +53,8 @@ Expose these commands from the repository root:
 | `make android-check` | Build the APK, run JVM tests and Android lint in a mixed-language repo. |
 | `make check` | Run the primary project's validation gate. Android-only projects include APK build, JVM tests and Android lint. |
 | `make install` | Explicitly install with `adb install -r`; never install as a build or check side effect. |
-| `make release` | Validate, build the signed release APK and upload it to the app's GitHub release. |
+| `make release` | Validate, build the signed release APK, upload it to the app's GitHub release and the install page. |
+| `make publish-apk` | Put the signed release APK on the install page again, to retry that step. |
 | `make standards` | Refresh the committed convention files from `jsnjack/standards`. |
 
 Run `make check` after changes. In mixed-language repositories, also run
@@ -105,9 +106,10 @@ owner's agreement before publishing a private app for the first time.
 
 ## Release
 
-Apps are published only as APKs on their GitHub releases; there is no F-Droid
-repository and no GitHub Actions workflow. Install an update by downloading
-the APK from the latest release.
+Apps are published as signed APKs on their GitHub releases and on the shared
+install page https://jsnjack.github.io/android-apps/, where a phone or tablet
+installs them with one tap. There is no F-Droid repository and no GitHub
+Actions workflow.
 
 1. The user commits the app changes and pushes the release commit to
    `origin/master`; an agent does this only when explicitly asked.
@@ -118,6 +120,13 @@ the APK from the latest release.
 3. Upload the APK and any other release artifacts with the project's existing
    `grm release` command to the release `v<monova version>`. Give the APK a
    fixed file name so the latest release's download link stays stable.
+4. Last, `make publish-apk` replaces the app's APK on the `apps` release of
+   `jsnjack/android-apps`, which the install page offers, with the version as
+   the asset's label:
+   `gh release upload apps bin/release/<app>.apk#$(monova) --clobber --repo jsnjack/android-apps`.
+   It needs an authenticated GitHub CLI; run it again to retry. A new app
+   also needs a card in that repository's `index.html`. `make status` there
+   lists apps whose latest release is not on the page.
 
 ## Keeping conventions current
 

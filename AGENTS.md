@@ -144,6 +144,7 @@ make check          # fmt + vet + build + test + lint
 make android-check  # widget APK + JVM tests + Android lint
 make install        # build widget APK + explicit adb install -r
 make release-apk    # signed release APK in bin/release/weather-widget.apk
+make publish-apk    # put the signed APK on the install page again (retry)
 make build          # multi-arch binaries in bin/
 ./weather           # rain chart for your IP-detected location
 ./weather --lat 52.37 --lon 4.90
@@ -159,9 +160,9 @@ make build          # multi-arch binaries in bin/
 archives and the release APK (`make release-apk`: R8-minified, non-debuggable,
 signed with the debug keystore that dev builds use and checked with `apksigner
 verify`), and uploads them with `grm` to the GitHub release `v<monova version>`.
-The APK keeps the asset name `weather-widget.apk`; the GitHub release is the
-only place the widget is published, and a phone updates by downloading that APK
-from the latest release. Releases require a clean checkout pushed to
+The APK keeps the asset name `weather-widget.apk`. Last, `make publish-apk`
+replaces it on the install page https://jsnjack.github.io/android-apps/ (needs an authenticated
+`gh`), where a phone updates by tapping Install. Releases require a clean checkout pushed to
 `origin/master`.
 The Go dependencies require Go 1.26 or newer. Android builds use Gradle 9.8.1,
 AGP 9.4.1 with built-in Kotlin 2.4.21, SDK 37 and build tools 37.0.0; the

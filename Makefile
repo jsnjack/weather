@@ -147,8 +147,22 @@ release: release-preflight check android-check
 		-f bin/$(BINARY)_darwin_arm64.tar.gz \
 		-f bin/release/$(BINARY)-widget.apk \
 		-t "v`monova`"
+	$(MAKE) publish-apk
+
+# The install page https://jsnjack.github.io/android-apps/ offers every app's
+# latest APK from the "apps" release of jsnjack/android-apps.
+INSTALL_PAGE := jsnjack/android-apps
+
+# publish-apk puts the signed release APK on the install page, replacing the
+# previous one, labelled with the version the page shows. make release runs
+# it last; run it again to retry.
+publish-apk: release-preflight release-apk
+	@command -v gh >/dev/null 2>&1 || { echo "Install GitHub CLI with: sudo dnf install gh"; exit 1; }
+	@gh auth status --hostname github.com >/dev/null
+	gh release upload apps "bin/release/$(BINARY)-widget.apk#$$(monova)" --clobber --repo $(INSTALL_PAGE)
+	@echo "==> on the install page: https://jsnjack.github.io/android-apps/"
 
 clean:
 	rm -rf bin/ $(BINARY)
 
-.PHONY: version start build apk android-check release-apk install release-preflight release test vet fmt lint check agents-size standards clean
+.PHONY: version start build apk android-check release-apk install release-preflight release test vet fmt lint check agents-size standards publish-apk clean

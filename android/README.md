@@ -170,8 +170,8 @@ R8 minification, non-debuggable, then signed by `apksigner` from build tools
 37.0.0 with the debug keystore that dev builds use (`~/.android/debug.keystore`;
 override with `KEYSTORE=`) and checked with `apksigner verify`. The result is
 `bin/release/weather-widget.apk`. `make release` builds it and uploads it to
-the GitHub release as `weather-widget.apk`, so a phone installs an update by
-downloading the APK from the latest release page. Signing with the debug key
+the GitHub release as `weather-widget.apk` and to the install page
+https://jsnjack.github.io/android-apps/, so a phone installs an update by tapping Install there. Signing with the debug key
 is deliberate: it matches dev installs, so the release updates an existing
 widget in place; a differently-signed APK would require uninstalling first.
 
@@ -187,7 +187,8 @@ and the Go `make check` gate to pass before uploading artifacts.
 Commit changes and push `master` before running `make release`; it refuses a
 dirty checkout or a commit that differs from `origin/master`. `grm` uploads
 the CLI archives and the APK to the GitHub release `v<monova version>` with its
-own token. The GitHub release is the only place the widget is published.
+own token, then `make publish-apk` replaces the APK on the install page with
+`gh` (run it again to retry).
 
 `adb install -r` redelivers `APPWIDGET_UPDATE` to existing widget instances,
 so reinstalling already forces a refresh and re-arms the 15-minute periodic
