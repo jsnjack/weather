@@ -159,7 +159,9 @@ make build          # multi-arch binaries in bin/
 `make release` runs the Go and Android validation gates, builds the CLI
 archives and the release APK (`make release-apk`: R8-minified, non-debuggable,
 signed with the debug keystore that dev builds use and checked with `apksigner
-verify`), and uploads them with `grm` to the GitHub release `v<monova version>`.
+verify`; it refuses an APK whose certificate differs from `APP_CERT_SHA256` in
+the Makefile, because phones cannot update to it, so every machine that
+releases needs the same keystore), and uploads them with `grm` to the GitHub release `v<monova version>`.
 The APK keeps the asset name `weather-widget.apk`. Last, `make publish-apk`
 replaces it on the install page https://jsnjack.github.io/android-apps/ (needs an authenticated
 `gh`), where a phone updates by tapping Install. Releases require a clean checkout pushed to
